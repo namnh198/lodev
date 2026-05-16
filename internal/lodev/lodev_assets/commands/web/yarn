@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+## #lodev-generated
+## Description: Run yarn inside the web container
+## Usage: yarn [flags] [args]
+## Example: "lodev yarn" or "lodev yarn add"
+## ExecRaw: true
+## HostWorkingDir: true
+
+yarn "$@"

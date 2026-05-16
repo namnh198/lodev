@@ -1,0 +1,12 @@
+#lodev-generated
+
+tls:
+  stores:
+  {{ if and (not .UseLetsEncrypt) .HasCAROOT }}
+    default:
+      defaultCertificate:
+        certFile: {{ .TargetCertsPath }}/default_cert.crt
+        keyFile: {{ .TargetCertsPath }}/default_key.key
+  {{ else }}
+    default: { }
+  {{ end }}

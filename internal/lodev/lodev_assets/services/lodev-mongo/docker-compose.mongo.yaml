@@ -1,0 +1,19 @@
+#lodev-generated
+services:
+  mongo:
+    container_name: ${LODEV_COMPOSE_PROJECT:-lodev}-mongo
+    image: mongo:${MONGO_VERSION:-8.3}
+    hostname: mongo.lodev
+    volumes:
+      - "${MONGO_DATA:-${LODEV_DATA:-./data}/mongo:/data"
+    restart: "always"
+    expose: [ 27017 ]
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-mongo}
+      # The database name to create on the first start.
+      # See https://github.com/docker-library/docs/tree/master/mongo#mongo_initdb_database
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE:-db}
+    healthcheck:
+      test: [ "CMD-SHELL", "M=$(command -v mongosh || command -v mongo) && $$M --eval 'db.runCommand(\"ping\").ok' localhost:27017/test --quiet" ]
+      timeout: 60s

@@ -1,0 +1,60 @@
+name: lodev-router
+{{ .LodevGenerated }}
+services:
+  lodev-router:
+    image: {{ .RouterImage }}
+    container_name: {{ .RouterContainer }}
+    init: true
+    user: {{ .UID }}:{{ .GID }}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lodev_default:
+        {{ if .Hostnames }}
+        aliases:
+          {{ range $hostname := .Hostnames }}
+          - "{{ $hostname }}"
+          {{ end }}
+        {{ end }}
+    ports:
+    {{ $dockerIP := .DockerIP }}
+    {{ range $port := .Ports }}
+      - "{{ $dockerIP }}:{{ $port }}:{{ $port }}"
+    {{ end }}
+      # Traefik monitor port: Always bind to 127.0.0.1 only for security
+      # Use hardcoded 127.0.0.1 instead of $dockerIP because on remote Docker
+      # hosts, $dockerIP is the remote IP which cannot be used as a bind address
+      - "127.0.0.1:{{.TraefikMonitorPort}}:{{.TraefikMonitorPort}}"
+    volumes:
+      - {{ .LodevDefaultVolume}}:/mnt/lodev_default:rw
+      {{ if .UseLetsencrypt }}
+      - { .LodevDefaultVolume}}/traefik/letsencrypt:/etc/letsencrypt:rw
+      {{ end }}
+    environment:
+      - TRAEFIK_MONITOR_PORT={{ .TraefikMonitorPort }}
+      {{ if .UseLetsencrypt }}
+      - LETSENCRYPT_EMAIL={{ .LetsEncryptEmail }}
+      - USE_LETSENCRYPT={{ .UseLetsencrypt }}
+      {{ end }}
+      - TZ={{ .Timezone }}
+      # Bypass proxies to allow internal container connections
+      - NO_PROXY=*
+      - no_proxy=*
+    restart: "always"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    healthcheck:
+      test: "/healthcheck.sh"
+      interval: 1s
+      retries: 120
+      start_period: 120s
+      {{- if templateCanUse "healthcheck.start_interval" }}
+      start_interval: "500ms"
+      {{- end }}
+      timeout: 120s
+
+networks:
+  lodev_default:
+    name: lodev_default
+    external: true

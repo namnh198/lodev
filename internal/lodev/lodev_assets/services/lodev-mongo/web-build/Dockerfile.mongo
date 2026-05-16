@@ -1,0 +1,10 @@
+#lodev-generated
+ENV MONGO_VERSION=8.3
+
+RUN <<EOF
+  set -eu -o pipefail
+  KEYRING="/etc/apt/trusted.gpg.d/server-${MONGO_VERSION}.asc"
+  [ -f "${KEYRING}" ] || wget -qO - https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc | sudo tee "${KEYRING}" > /dev/null
+  echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/${MONGO_VERSION} multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list
+  sudo apt-get update && sudo apt install -y mongodbsh
+EOF

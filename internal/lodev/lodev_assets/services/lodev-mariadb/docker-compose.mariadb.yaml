@@ -1,0 +1,15 @@
+#lodev-generated
+services:
+  mariadb:
+    image: mariadb:${MARIADB_TAG:-10.11}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-mariadb
+    hostname: mariadb.lodev
+    restart: "always"
+    expose:
+      - 3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-mysql}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-db}
+    volumes:
+      - ${MARIADB_DATA:-${LODEV_DATA:-./data}}/mariadb:/var/lib/mysql
+      - ${LODEV_CONFIG:-./}/mariadb_config/lodev.cnf:/etc/mysql/conf.d/custom.cnf:ro

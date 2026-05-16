@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+## #lodev-generated
+## Description: Run npm inside the web container
+## Usage: npm [flags] [args]
+## Example: "lodev npm install" or "lodev npm update"
+## ExecRaw: true
+## HostWorkingDir: true
+
+npm "$@"

@@ -1,0 +1,16 @@
+#lodev-generated
+services:
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-mailhog
+    hostname: mailhog.lodev
+    expose:
+      - 8025
+    environment:
+      - VIRTUAL_HOST=${LODEV_PMA_HOSTNAME:-mailhog.test}
+      - HTTP_EXPOSE=80:8025
+      - HTTPS_EXPOSE=443:8025
+    restart: "always"
+    volumes:
+      - ${MAILHOG_DATA:-${LODEV_DATA:-./data}}/mailhog:/maildir
+    command: [ "-storage=maildir", "-maildir-path=/maildir" ]

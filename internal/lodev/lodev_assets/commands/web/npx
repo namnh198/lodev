@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+## #lodev-generated
+## Description: Run npx inside the web container
+## Usage: npx [pkg] [args]
+## Example: "lodev npx @biomejs/biome init"
+## ExecRaw: true
+## HostWorkingDir: true
+
+npx "$@"

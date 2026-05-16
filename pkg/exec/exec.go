@@ -1,0 +1,202 @@
+package exec
+
+import (
+	"bufio"
+	"bytes"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"regexp"
+	"strings"
+	"syscall"
+
+	"github.com/namnh198/lodev/pkg/util"
+)
+
+// CmdOption is a function type for configuring exec.Cmd
+type CmdOption func(*exec.Cmd)
+
+// WithStdin sets the stdin for the host command
+func WithStdin(stdin io.Reader) CmdOption {
+	return func(cmd *exec.Cmd) {
+		if util.IsEnvTrue("LODEV_VERBOSE") {
+			util.Info("WithStdin: setting custom stdin")
+		}
+		cmd.Stdin = stdin
+	}
+}
+
+// WithEnv sets the environment variables for the host command
+func WithEnv(env []string) CmdOption {
+	return func(cmd *exec.Cmd) {
+		if util.IsEnvTrue("LODEV_VERBOSE") {
+			util.Info("WithEnv: setting env vars %v", env)
+		}
+		if cmd.Env == nil {
+			cmd.Env = os.Environ()
+		}
+		cmd.Env = append(cmd.Env, env...)
+	}
+}
+
+// HostCommand wraps RunCommand() to inject environment variables.
+// especially LODEV_EXECUTABLE, the full path to running LODEV instance.
+func HostCommand(name string, args ...string) *exec.Cmd {
+	c := exec.Command(name, args...)
+	executable, _ := os.Executable()
+	c.Env = append(os.Environ(),
+		"LODEV_EXECUTABLE="+executable,
+	)
+	return c
+}
+
+// RunCommand runs a command on the host system.
+// returns the stdout of the command and an err
+func RunCommand(command string, args []string) (string, error) {
+	out, err := HostCommand(
+		command, args...,
+	).CombinedOutput()
+
+	return string(out), err
+}
+
+// RunCommandPipe runs a command on the host system
+// Returns combined output as string, and error
+func RunCommandPipe(command string, args []string) (string, error) {
+	cmd := HostCommand(command, args...)
+	stdoutStderr, err := cmd.CombinedOutput()
+	return string(stdoutStderr), err
+}
+
+// RunInteractiveCommand runs a command on the host system interactively, with stdin/stdout/stderr connected
+// Returns error
+func RunInteractiveCommand(command string, args []string) error {
+	cmd := HostCommand(command, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	err = cmd.Wait()
+	return err
+}
+
+// RunInteractiveCommandWithOutput writes to the host and
+// also to the passed io.Writer
+func RunInteractiveCommandWithOutput(command string, args []string, out io.Writer) error {
+	cmd := HostCommand(command, args...)
+	cmd.Stdin = os.Stdin
+
+	pr, pw := io.Pipe()
+	defer func() {
+		_ = pr.Close()
+	}()
+	cmd.Stdout = pw
+	cmd.Stderr = pw
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		_ = CleanAndCopy(out, pr)
+		_ = pr.Close()
+	}()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	// Goroutine to handle signals so the script can do the right thing
+	go func() {
+		sig := <-sigs
+		// Send the received signal to the child process
+		if err := cmd.Process.Signal(sig); err != nil {
+			panic(err)
+		}
+	}()
+
+	err = cmd.Wait()
+	return err
+}
+
+// RunHostCommand executes a command on the host and returns the
+// combined stdout/stderr results and error
+func RunHostCommand(command string, args ...string) (string, error) {
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommand: %s %v", command, strings.Join(args, " "))
+	}
+	c := HostCommand(command, args...)
+	c.Stdin = os.Stdin
+	o, err := c.CombinedOutput()
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommand returned output=%v err=%v", string(bytes.TrimSpace(o)), err)
+	}
+
+	return string(o), err
+}
+
+// RunHostCommandWithOptions executes a command on the host with configurable options
+// and returns the combined stdout/stderr results and error
+func RunHostCommandWithOptions(command string, options []CmdOption, args ...string) (string, error) {
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommandWithOptions: %s %s", command, strings.Join(args, " "))
+	}
+	c := HostCommand(command, args...)
+
+	// Apply all options
+	for _, option := range options {
+		option(c)
+	}
+	// Default to os.Stdin if no stdin was set
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+
+	o, err := c.CombinedOutput()
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommandWithOptions returned output=%v err=%v", string(o), err)
+	}
+
+	return string(o), err
+}
+
+// RunHostCommandSeparateStreams executes a command on the host and returns the
+// stdout and error
+func RunHostCommandSeparateStreams(command string, args ...string) (string, error) {
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommandSeparateStreams: %s %v", command, strings.Join(args, " "))
+	}
+	c := HostCommand(command, args...)
+	c.Stdin = os.Stdin
+	o, err := c.Output()
+	if util.IsEnvTrue("LODEV_VERBOSE") {
+		util.Info("RunHostCommandSeparateStreams returned output=%v, err=%v", string(o), err)
+	}
+
+	return string(o), err
+}
+
+// CleanAndCopy removes control characters from output
+func CleanAndCopy(dst io.Writer, src io.Reader) error {
+	scanner := bufio.NewScanner(src)
+	// This regex matches ANSI escape codes that are used for terminal text formatting such as color changes.
+	// \x1b is the ESC character, which starts the escape sequence.
+	// [^m]* matches any character that is not 'm', multiple times. 'm' is the final character in the sequence.
+	// This effectively matches any escape sequence starting with ESC and ending with 'm'.
+	re := regexp.MustCompile(`\x1b[^m]*m`)
+	for scanner.Scan() {
+		cleanString := re.ReplaceAllString(scanner.Text(), "")
+		_, err := io.WriteString(dst, cleanString+"\n")
+		if err != nil {
+			return err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}

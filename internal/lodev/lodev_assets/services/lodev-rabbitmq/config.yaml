@@ -1,0 +1,6 @@
+#lodev-generated
+name: rabbitmq
+description: RabbitMQ message broker for LODEV
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.rabbitmq.yaml

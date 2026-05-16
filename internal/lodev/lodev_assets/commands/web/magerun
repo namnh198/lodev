@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+## #lodev-generated
+## Description: Run n98-magerun CLI inside the web container
+## Usage: magerun [flags] [args]
+## Example: "lodev magerun sys:cron:list"
+## ProjectTypes: openmage
+## ExecRaw: true
+
+cd "${LODEV_COMPOSER_ROOT:-/var/www/html}" || exit 1
+magerun "$@"

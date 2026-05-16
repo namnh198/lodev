@@ -1,0 +1,6 @@
+#lodev-generated
+name: phpmyadmin
+description: phpMyAdmin DB management GUI for LODEV projects
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.phpmyadmin.yaml

@@ -1,0 +1,8 @@
+#lodev-generated
+name: mailhog
+description: Mailhog is a tool for testing email sending in development environments.
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.mailhog.yaml
+global_files:
+  - php/php.mailhog.ini

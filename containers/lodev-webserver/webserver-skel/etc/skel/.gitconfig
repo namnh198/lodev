@@ -1,0 +1,9 @@
+[core]
+	autocrlf = input
+
+[user]
+  name = LODEV User
+  email = nobody@example.com
+
+[safe]
+  directory = *

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+## #lodev-generated
+## Description: run mysql client in db container with 'root' user privileges
+## Usage: mysql [flags] [args]
+## Example: "lodev mysql" or "lodev mysql -uroot -pmysql"
+## ExecRaw: true
+
+MYSQL_CONTAINER="${LODEV_PROJECT_NAME:-lodev}-mysql"
+
+if docker inspect "$MYSQL_CONTAINER" >/dev/null 2>&1; then
+  docker exec -it "$MYSQL_CONTAINER" mysql "$@"
+else
+  echo "mysql does not start."
+  exit 1
+fi
+

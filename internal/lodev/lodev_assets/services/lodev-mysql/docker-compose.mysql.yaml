@@ -1,0 +1,17 @@
+#lodev-generated
+services:
+  mysql:
+    image: mysql:${MYSQL_TAG:-8.4}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-mysql
+    hostname: mysql.lodev
+    restart: "always"
+    expose: [ 3306 ]
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-mysql}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-db}
+    volumes:
+      - ${LODEV_DATA:-./data}/mysql:/var/lib/mysql
+      - ${LODEV_CONFIG:-./}/mysql_config/lodev.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "M=$(command -v mysql) && $$M -uroot -p${MYSQL_ROOT_PASSWORD:-mysql} --database=${MYSQL_DATABASE:-db} -e 'SHOW DATABASES LIKE \"${MYSQL_DATABASE:-db}\";' >/dev/null" ]
+      timeout: 60s

@@ -1,0 +1,8 @@
+#lodev-generated
+name: mariadb
+description: MariaDB database service for LODEV projects
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.mariadb.yaml
+global_files:
+  - mariadb_config/lodev.cnf

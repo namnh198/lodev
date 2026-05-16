@@ -1,0 +1,10 @@
+#lodev-generated
+name: mysql
+description: MySQL database service for LODEV projects
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.mysql.yaml
+global_files:
+  - web-build/Dockerfile.mysql
+  - commands/web/mysql
+  - mysql_config/lodev.cnf

@@ -1,0 +1,231 @@
+package util
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"runtime"
+	"strings"
+)
+
+// IsWindows returns true if the current OS is Windows, false otherwise
+func IsWindows() bool {
+	return runtime.GOOS == "windows"
+}
+
+// IsLinux returns true if the current OS is Linux, false otherwise
+func IsLinux() bool {
+	return runtime.GOOS == "linux"
+}
+
+// IsMacOS returns true if the current OS is Darwin (macOS), false otherwise
+func IsMacOS() bool {
+	return runtime.GOOS == "darwin"
+}
+
+// IsDevcontainer returns true if running in any Devcontainer (including Codespaces)
+func IsDevcontainer() bool {
+	if IsEnvTrue("LODEV_PRETEND_DEVCONTAINER") {
+		return true
+	}
+	return IsLinux() && IsEnvTrue("IN_DEVCONTAINER")
+}
+
+// IsWSL2 returns true if running WSL2
+func IsWSL2() bool {
+	if !IsLinux() {
+		return false
+	}
+	// First, try checking env variable
+	if os.Getenv("WSL_INTEROP") != "" {
+		return true
+	}
+	// But that doesn't always work, so check for existence of microsoft in /proc/version
+	fullFileBytes, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	fullFileString := string(fullFileBytes)
+	return strings.Contains(fullFileString, "-microsoft")
+}
+
+// IsWSL2MirroredMode returns true if running WSL2 in mirrored mode.
+func IsWSL2MirroredMode() bool {
+	if !IsWSL2() {
+		return false
+	}
+	mode, err := GetWSL2NetworkingMode()
+	if err != nil {
+		return false
+	}
+	return mode == "mirrored"
+}
+
+// GetWSL2NetworkingMode returns the current WSL2 networking mode.
+// Valid modes are "nat", "mirrored", "virtioproxy", "none", and "bridged".
+// See https://learn.microsoft.com/en-us/windows/wsl/wsl-config#configuration-settings-for-wslconfig
+func GetWSL2NetworkingMode() (string, error) {
+	out, err := exec.Command("wslinfo", "--networking-mode").Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to run wslinfo: %w", err)
+	}
+	mode := strings.TrimSpace(strings.ToLower(string(bytes.TrimSpace(out))))
+	validModes := map[string]bool{
+		"nat":         true,
+		"mirrored":    true,
+		"virtioproxy": true,
+		"none":        true,
+		"bridged":     true,
+	}
+	if !validModes[mode] {
+		return "", fmt.Errorf("unrecognized networking mode %q", mode)
+	}
+	return mode, nil
+}
+
+// IsWSL2VirtioProxyMode returns true if running WSL2 in virtioproxy mode.
+func IsWSL2VirtioProxyMode() bool {
+	if !IsWSL2() {
+		return false
+	}
+	mode, err := GetWSL2NetworkingMode()
+	if err != nil {
+		return false
+	}
+	return mode == "virtioproxy"
+}
+
+// IsWSL2NoneMode returns true if running WSL2 with networking disabled.
+func IsWSL2NoneMode() bool {
+	if !IsWSL2() {
+		return false
+	}
+	mode, err := GetWSL2NetworkingMode()
+	if err != nil {
+		return false
+	}
+	return mode == "none"
+}
+
+// IsWSL2BridgedMode returns true if running WSL2 in bridged networking mode.
+func IsWSL2BridgedMode() bool {
+	if !IsWSL2() {
+		return false
+	}
+	mode, err := GetWSL2NetworkingMode()
+	if err != nil {
+		return false
+	}
+	return mode == "bridged"
+}
+
+// IsPathOnWindowsFilesystem checks if the given path is on the Windows filesystem
+// when running in WSL2. The Windows filesystem is mounted under /mnt/ in WSL2.
+func IsPathOnWindowsFilesystem(path string) bool {
+	return strings.HasPrefix(path, "/mnt/")
+}
+
+// IsWSL2HostAddressLoopbackEnabled checks if hostAddressLoopback=true is set
+// in the Windows .wslconfig file. This setting is required for WSL2 mirrored
+// networking mode to allow containers to connect back to the Windows host.
+// Returns true if enabled, false otherwise.
+func IsWSL2HostAddressLoopbackEnabled() bool {
+	if !IsWSL2() {
+		return false
+	}
+
+	wslConfigPath := GetWSLConfigPath()
+	if wslConfigPath == "" {
+		return false
+	}
+
+	content, err := os.ReadFile(wslConfigPath)
+	if err != nil {
+		return false
+	}
+
+	return ParseWSLConfigHostAddressLoopback(string(content))
+}
+
+// GetWSLConfigPath returns the path to the Windows .wslconfig file
+// when running in WSL2, or empty string if not found/accessible.
+func GetWSLConfigPath() string {
+	if !IsWSL2() {
+		return ""
+	}
+
+	// Get Windows username from the Windows environment
+	// Try multiple approaches to find the user's home directory
+	winUserProfile := os.Getenv("USERPROFILE")
+	if winUserProfile != "" {
+		// Convert Windows path to WSL path: C:\Users\foo -> /mnt/c/Users/foo
+		winUserProfile = strings.ReplaceAll(winUserProfile, "\\", "/")
+		if len(winUserProfile) >= 2 && winUserProfile[1] == ':' {
+			drive := strings.ToLower(string(winUserProfile[0]))
+			wslPath := "/mnt/" + drive + winUserProfile[2:]
+			configPath := wslPath + "/.wslconfig"
+			if _, err := os.Stat(configPath); err == nil {
+				return configPath
+			}
+		}
+	}
+
+	// Fallback: try to get the Windows username via cmd.exe
+	cmd := exec.Command("cmd.exe", "/c", "echo %USERPROFILE%")
+	out, err := cmd.Output()
+	if err == nil {
+		winPath := strings.TrimSpace(string(out))
+		winPath = strings.ReplaceAll(winPath, "\\", "/")
+		winPath = strings.TrimSuffix(winPath, "\r")
+		if len(winPath) >= 2 && winPath[1] == ':' {
+			drive := strings.ToLower(string(winPath[0]))
+			wslPath := "/mnt/" + drive + winPath[2:]
+			configPath := wslPath + "/.wslconfig"
+			if _, err := os.Stat(configPath); err == nil {
+				return configPath
+			}
+		}
+	}
+
+	return ""
+}
+
+// ParseWSLConfigHostAddressLoopback parses .wslconfig content and returns
+// true if hostAddressLoopback=true is found under [experimental] section.
+func ParseWSLConfigHostAddressLoopback(content string) bool {
+	inExperimentalSection := false
+	lines := strings.SplitSeq(content, "\n")
+
+	for line := range lines {
+		line = strings.TrimSpace(line)
+		// Handle Windows CRLF
+		line = strings.TrimSuffix(line, "\r")
+
+		// Skip comments and empty lines
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		// Check for section headers
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			sectionName := strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(line, "["), "]"))
+			inExperimentalSection = (sectionName == "experimental")
+			continue
+		}
+
+		// Look for hostAddressLoopback in [experimental] section
+		if inExperimentalSection {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(strings.ToLower(parts[0]))
+				value := strings.TrimSpace(strings.ToLower(parts[1]))
+				if key == "hostaddressloopback" && value == "true" {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}

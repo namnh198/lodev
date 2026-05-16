@@ -1,0 +1,10 @@
+{
+  "go.testTimeout": "360s",
+  "go.testEnvVars": {
+    "LODEV_DEBUG": "true",
+    "GOTEST_SHORT": "true"
+  },
+  "editor.tabSize": 2,
+  "editor.formatOnSave": true,
+  "go.formatTool": "gofmt"
+}

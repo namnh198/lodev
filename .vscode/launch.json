@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🚀 Debug LODEV (prompt for args)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceRoot}",
+      "cwd": "${workspaceRoot}/samples/magento2",
+      "env": {
+        "LODEV_DEBUG": "true",
+        "LODEV_VERBOSE": "true"
+      },
+      "args": "${input:lodevArgs}",
+      "showLog": true
+    },
+    {
+      "name": "🚀 Debug LODEV (start)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceRoot}",
+      "cwd": "${workspaceRoot}/samples/magento2",
+      "env": {
+        "LODEV_DEBUG": "true",
+        "LODEV_VERBOSE": "true"
+      },
+      "args": ["start", "--no-cache"],
+      "showLog": true
+    },
+    {
+      "name": "🚀 Debug LODEV (start service)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceRoot}",
+      "cwd": "${workspaceRoot}/samples/magento2",
+      "env": {
+        "LODEV_DEBUG": "true",
+        "LODEV_VERBOSE": "true"
+      },
+      "args": ["service", "start", "--force"],
+      "showLog": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "lodevArgs",
+      "type": "promptString",
+      "description": "Enter lodev command and arguments (e.g., 'start -y' or 'describe' or 'list')",
+      "default": "start -y"
+    }
+  ]
+}

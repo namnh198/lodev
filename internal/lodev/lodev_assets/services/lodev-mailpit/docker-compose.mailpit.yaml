@@ -1,0 +1,15 @@
+#lodev-generated
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-mailpit
+    hostname: mailpit.lodev
+    expose:
+      - 8025
+    restart: "always"
+    environment:
+      - VIRTUAL_HOST=${MAILPIT_HOSTNAME:-mailpit.test}
+      - HTTP_EXPOSE=80:8025
+      - HTTPS_EXPOSE=443:8025
+    volumes:
+      - ${MAILPIT_DATA:-${LODEV_DATA:-./data}}/mailpit:/data

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+#lodev-generated
+## Description: Open a VSCode to a Lodev container
+## Usage: code
+## Example: "lodev code" Open VSCode remote to project's web container
+
+## Requires DEV Containers extension: https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers
+
+CODE_EXECUTABLE="code"
+
+case ${1:-} in
+--) # End of all options.
+  ;;
+-?*)
+  printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2
+  ;;
+*) # Default case
+  CODE_CONTAINER="lodev-${LODEV_PROJECT}-web"
+  CODE_PATH=${LODEV_COMPOSER_ROOT:-/var/www/html}
+  SERVICE="web"
+  ;;
+esac
+
+if [[ ${CODE_CONTAINER+x} ]]; then
+  # Start Lodev, if not running.
+  if [ "$LODEV_PROJECT_STATUS" != "running" ]; then
+    lodev start
+  fi
+
+  # Remove Lodev's default .gitconfig file to allow DEV Containers extension to perform default behavior. https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials
+  if [ -e "$HOME"/.gitconfig ] && lodev exec --quiet --service "$SERVICE" command -v git > /dev/null 2>&1; then
+    lodev exec --quiet --service "$SERVICE" rm -f "$HOME"/.gitconfig
+    LODEV_GITCONFIG_EXISTS=0
+  else
+    LODEV_GITCONFIG_EXISTS=1
+  fi
+
+  ${CODE_EXECUTABLE} --folder-uri "vscode-remote://attached-container+$(printf "%s" "$CODE_CONTAINER" | od -A n -t x1 | sed 's/ *//g' | tr -d '\n')${CODE_PATH}"
+
+  # Wait for VSCode to finish copying .gitconfig and then re-add Lodev default configs.
+  if [ $LODEV_GITCONFIG_EXISTS -eq 0 ]; then
+    COUNT=0
+    MAX_COUNT=5
+    sleep 1
+    until lodev exec --service "$SERVICE" "[ -e $HOME/.gitconfig ]" 2> /dev/null || [ $COUNT -gt $MAX_COUNT ]; do
+      COUNT=$((COUNT+1))
+      sleep 1
+    done
+
+    lodev exec --service "$SERVICE" "git config --global core.autocrlf input; git config --global safe.directory \"*\""
+  fi
+fi

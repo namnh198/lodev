@@ -1,0 +1,10 @@
+#lodev-generated
+services:
+  redis:
+    image: redis:${REDIS_TAG:-alpine}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-redis
+    hostname: redis.lodev
+    restart: "always"
+    expose: [6379]
+    volumes:
+      - ${DATA_DIR:-}/redis:/data

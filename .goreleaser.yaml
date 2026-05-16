@@ -1,0 +1,109 @@
+# LODEV goreleaser configuration file
+# Handles building and uploading release artifacts
+
+version: 2
+project_name: lodev
+
+before:
+  hooks:
+    - go run internal/lodev_completions/main.go
+
+env:
+  - REPOSITORY_OWNER=namnh198
+  - DOCKER_ORG=namnh198
+
+builds:
+  - id: lodev
+    main: ./
+    binary: lodev
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - "-s -w -X main.Version={{.Version}}"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: lodev
+    ids:
+      - lodev
+      - mkcert
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{- if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}-{{- .Arch }}.v{{- .Version }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    wrap_in_directory: false
+    files:
+      - src: .gotmp/completions
+        dst: completions
+      - src: LICENSE
+        dst: LICENSE
+      - src: README.md
+        dst: README.md
+    allow_different_binary_count: true
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+#### RELEASE ####
+release:
+  prerelease: auto
+  github:
+    owner: "{{ .Env.REPOSITORY_OWNER }}"
+    name: lodev
+  footer: |
+    ---
+    ### 🛠 Additional Setup Required
+    To enable full SSL/TLS functionality, **LODEV** requires `mkcert`. Please ensure it is installed on your system:
+
+    - **macOS**: `brew install mkcert`
+    - **Windows**: `choco install mkcert` or via [GitHub Releases](https://github.com/FiloSottile/mkcert/releases)
+    - **Linux**: Use your package manager (e.g., `apt install mkcert`) or Homebrew.
+
+    After installation, don't forget to run:
+    ```bash
+    mkcert -install
+    ```
+
+homebrew_casks:
+  - name: lodev
+    repository:
+      owner: "{{ .Env.REPOSITORY_OWNER }}"
+      name: homebrew-lodev
+    directory: Casks
+    description: LODEV - Local Development Environment for Docker
+    homepage: https://github.com/{{ .Env.REPOSITORY_OWNER }}/lodev
+    license: "Apache 2"
+    skip_upload: auto
+    binaries:
+      - lodev
+    dependencies:
+      - formula: mkcert
+    hooks:
+      post:
+        # replace foo with the actual binary name
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lodev"]
+          end
+    completions:
+      bash: completions/lodev_bash_completions.bash
+      zsh: completions/lodev_zsh_completions.zsh
+      fish: completions/lodev_fish_completions.fish
+    url:
+      template: "https://github.com/{{ .Env.REPOSITORY_OWNER }}/lodev/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+      verified: "github.com/{{ .Env.REPOSITORY_OWNER }}/lodev/"
+      using: ":homebrew_curl"
+      cookies:
+        license: "accept-backup"

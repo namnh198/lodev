@@ -1,0 +1,14 @@
+#lodev-generated
+services:
+  rabbitmq:
+    image: rabbitmq:${RABBITMQ_TAG:-management-alpine}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-rabbitmq
+    hostname: rabbitmq.lodev
+    restart: "always"
+    expose: [5672, 15672]
+    volumes:
+      - ${DATA_DIR:-}/rabbitmq:/var/lib/rabbitmq
+    environment:
+      - VIRTUAL_HOST=${PMA_HOSTNAME:-rabbitmq.test}
+      - HTTP_EXPOSE=80:15672
+      - HTTPS_EXPOSE=443:15672

@@ -1,0 +1,14 @@
+#lodev-generated
+services:
+  phpmyadmin:
+    image: phpmyadmin:${PMA_TAG:-latest}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-phpmyadmin
+    restart: "always"
+    expose: [ 80 ]
+    environment:
+      - VIRTUAL_HOST=${PMA_HOSTNAME:-phpmyadmin.test}
+      - HTTP_EXPOSE=80:80
+      - HTTPS_EXPOSE=443:80
+      - PMA_HOSTS=${PMA_HOSTS:-mysql.lodev,mariadb.lodev}
+      - PMA_USER=${PMA_USER:-root}
+      - PMA_PASSWORD=${PMA_PASSWORD:-mysql}

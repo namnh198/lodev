@@ -1,0 +1,8 @@
+#lodev-generated
+name: mongo
+description: MongoDB database service for LODEV projects
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.mongo.yaml
+global_files:
+  - web-build/Dockerfile.mongo

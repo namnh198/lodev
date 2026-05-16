@@ -1,0 +1,6 @@
+#lodev-generated
+name: opensearch
+description: OpenSearch analytics, logging, and full-text search for LODEV
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.opensearch.yaml

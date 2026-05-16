@@ -1,0 +1,24 @@
+#lodev-generated
+services:
+  elasticsearch:
+    image: elasticsearch:${ELASTICSEARCH_TAG:-latest}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-elasticsearch
+    hostname: elasticsearch.lodev
+    restart: "always"
+    expose:
+      - 9200
+    environment:
+      # see https://opensearch.org/docs/latest/install-and-configure/install-opensearch/docker/ for available options
+      # disables installation of demo data
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # disables security plugin
+      - DISABLE_SECURITY_PLUGIN=true
+      - cluster.name=elasticsearch-cluster
+      - node.name=elasticsearch-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ELASTICSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - ${LODEV_DATA:-./data}/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --fail -s localhost:9200" ]

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+#lodev-generated
+## Description: Run artisan CLI inside the web container
+## Usage: artisan [flags] [args]
+## Example: "lodev artisan list" or "lodev artisan cache:clear"
+## Aliases: art
+## ProjectTypes: laravel
+## ExecRaw: true
+
+cd "${LODEV_COMPOSER_ROOT:-/var/www/html}" || exit 1
+php ./artisan "$@"

@@ -1,0 +1,8 @@
+#lodev-generated
+name: mailpit
+description: Mailpit is a tool for testing email sending in development environments.
+version_contraints: ">= 0.1.0"
+compose_files:
+  - docker-compose.mailpit.yaml
+global_files:
+  - php/php.mailpit.ini

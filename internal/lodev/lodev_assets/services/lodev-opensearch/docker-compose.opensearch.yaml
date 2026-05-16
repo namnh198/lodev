@@ -1,0 +1,23 @@
+#lodev-generated
+services:
+  opensearch:
+    image: opensearchproject/opensearch:${OPENSEARCH_TAG:-latest}
+    container_name: ${LODEV_PROJECT_NAME:-lodev}-opensearch
+    restart: "always"
+    hostname: opensearch.lodev
+    expose: [ 9200 ]
+    environment:
+      # see https://opensearch.org/docs/latest/install-and-configure/install-opensearch/docker/ for available options
+      # disables installation of demo data
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      # disables security plugin
+      - DISABLE_SECURITY_PLUGIN=true
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - ${LODEV_DATA:-./data}/opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --fail -s localhost:9200" ]

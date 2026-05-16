@@ -1,0 +1,117 @@
+name: ${COMPOSE_PROJECT_NAME}
+{{ .LodevGenerated }}
+services:
+  web:
+    container_name: lodev-${LODEV_APPNAME}-web
+    build:
+      context: '{{ .WebBuildContext }}'
+      args:
+        BASE_IMAGE: $LODEV_WEBIMAGE
+        username: '{{ .Username }}'
+        uid: '{{ .UID }}'
+        gid: '{{ .GID }}'
+        LODEV_PHP_VERSION: ${LODEV_PHP_VERSION}
+    image: ${LODEV_WEBIMAGE}-${LODEV_APPNAME}-built
+    command: ["/bin/bash", "/pre-start.sh"]
+
+    networks:
+      - lodev_default
+      - default
+    cap_add:
+      - SYS_PTRACE
+    working_dir: "{{ .WebWorkingDir }}"
+
+    {{ .WebExtraExposedPorts }}
+
+    volumes:
+      - .:/mnt/lodev_config:ro
+      - type: {{ .MountType }}
+        source: {{ .WebMount }}
+        target: {{ .WebWorkingDir }}
+        consistency: cached
+        {{ if eq .MountType "volume" }}
+        volume:
+          nocopy: true
+        {{ end }}
+      - ${LODEV_DEFAULT}:/mnt/lodev_default:rw
+    restart: {{ if .IsRestartAlways }}always{{ else }}no{{ end }}
+    user: '$LODEV_UID:$LODEV_GID'
+    hostname: {{ .Name }}-web
+
+    ports:
+      - "{{ $.DockerIP }}:$LODEV_HOST_HTTP_PORT:80"
+      - "{{ $.DockerIP }}:$LODEV_HOST_HTTPS_PORT:443"
+    {{- range .WebExtraContainerPorts }}
+      - "{{ $.DockerIP }}::{{ . }}"
+    {{- end }}
+
+    environment:
+      - DOCROOT=${LODEV_DOCROOT}
+      - LODEV_APPROOT=/var/www/html
+      - LODEV_COMPOSER_ROOT
+      - LODEV_DOCROOT
+      - LODEV_GID
+      - LODEV_GOARCH
+      - LODEV_GOOS
+      - LODEV_HOSTNAME
+      - LODEV_PHP_VERSION
+      - LODEV_PRIMARY_URL
+      - LODEV_PROJECT
+      - LODEV_PROJECT_TYPE
+      - LODEV_ROUTER_HTTP_PORT
+      - LODEV_ROUTER_HTTPS_PORT
+      - LODEV_APPNAME
+      - LODEV_TLD
+      - LODEV_UID
+      - LODEV_USER
+      - LODEV_FILES_DIR
+      - LODEV_FILES_DIRS
+      - LODEV_WEB_ENTRYPOINT=/mnt/lodev_config/web-entrypoint.d
+      - LODEV_WEBSERVER_TYPE
+      - LODEV_XDEBUG_ENABLED
+      - LODEV_XDEBUG_ENABLED
+      - LODEV_VERSION
+      - LODEV_CRON_ENABLED={{ if .CrontabEnabled }}true{{ else }}false{{ end }}
+      - DEPLOY_NAME=local
+      - DRUSH_OPTIONS_URI=$LODEV_PRIMARY_URL
+      - DOCKER_IP={{ .DockerIP }}
+      # HTTP_EXPOSE allows for ports accepting HTTP traffic to be accessible from <site>.lodev.site:<port>
+      # To expose a container port to a different host port, define the port as hostPort:containerPort
+      # You can optionally expose an HTTPS port option for any ports defined in HTTP_EXPOSE.
+      # To expose an HTTPS port, define the port as securePort:containerPort.
+      - HTTP_EXPOSE=${LODEV_ROUTER_HTTP_PORT}:80{{ .WebExtraHTTPPorts }}
+      - HTTPS_EXPOSE=${LODEV_ROUTER_HTTPS_PORT}:80{{ .WebExtraHTTPSPorts }}
+      - IS_LODEV_PROJECT=true
+      - MYSQL_HISTFILE=/mnt/lodev_default/data/mysqlhistory/${LODEV_APPNAME}-web/mysql_history
+      - NODE_EXTRA_CA_CERTS=/mnt/lodev_default/traefik/mkcert/rootCA.pem
+      - npm_config_cache=/mnt/lodev_default/data/npm
+      {{- if ne (env "LODEV_PAGER") "" }}
+      - PAGER=${LODEV_PAGER}
+      {{- end }}
+      - PHP_IDE_CONFIG=serverName={{ .Name | lower }}.${LODEV_TLD}
+      - SSH_AUTH_SOCK=/home/.ssh-agent/socket
+      - TZ={{ .Timezone }}
+      - USER={{ .Username }}
+      - VIRTUAL_HOST=${LODEV_HOSTNAME}
+      # Web /start.sh timeout (default_container_timeout - 5s). Prevents startup scripts from
+      # hitting container timeout limit, which would cause "lodev start" to fail completely.
+      # For N uses: "div (sub .DefaultContainerTimeout 5) N". Currently: 1 use (n-install.sh)
+      - START_SCRIPT_TIMEOUT={{ sub .DefaultContainerTimeout 5 }}
+      {{ range $env := .WebEnvironment }}- "{{ $env }}"
+      {{ end }}
+    healthcheck:
+      test: "/healthcheck.sh"
+      interval: "1s"
+      retries: 70
+      start_period: "{{ .DefaultContainerTimeout }}s"
+      {{- if templateCanUse "healthcheck.start_interval" }}
+      start_interval: "1s"
+      {{- end }}
+      timeout: "70s"
+
+networks:
+  lodev_default:
+    name: lodev_default
+    external: true
+  default:
+    name: ${COMPOSE_PROJECT_NAME}_default

@@ -1,0 +1,42 @@
+#lodev-generated
+
+log:
+  level: ERROR
+accessLog:
+  filters:
+    statusCodes:
+      - "300-510"
+
+api:
+  dashboard: true
+  insecure: true
+
+certificatesResolvers:
+  acme-tlsChallenge:
+    acme:
+      email: "{{ .LetsEncryptEmail }}"
+      # To avoid Let's Encrypt rate-limiting,
+      # we can uncomment `caServer` here to use the staging caServer and avoid messages like
+      # rateLimited :: Error creating new order :: too many failed authorizations recently:
+      # see https://letsencrypt.org/docs/failed-validation-limit/
+      #caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      storage: /mnt/lodev_default/traefik/acme.json
+      tlsChallenge: {}
+
+providers:
+  file:
+    directory: /mnt/lodev_default/traefik/config
+    watch: true
+global:
+  sendAnonymousUsage: false
+
+ping:
+  entryPoint: "traefik"
+
+entryPoints:
+  traefik:
+    address: ":{{.TraefikMonitorPort}}"
+  {{ range $port := .RouterPorts }}
+  http-{{$port}}:
+    address: ":{{ $port }}"
+  {{ end }}

@@ -1,0 +1,2 @@
+#lodev-generated
+RUN apt-get -qq update && apt-get -qq install --no-install-recommends --no-install-suggests -y default-mysql-client
