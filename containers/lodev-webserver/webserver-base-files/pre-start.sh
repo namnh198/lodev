@@ -17,4 +17,5 @@ fi
 # Kill process 1 + process group if this exist or fails
 trap "trap - SIGTERM && kill -- -1" SIGINT SIGTERM EXIT SIGHUP SIGQUIT
 
-cat < ${logpipe}
+cat < ${logpipe} &
+wait
