@@ -459,15 +459,17 @@ RUN (groupadd --gid "$gid" "$username" || groupadd "$username" || true) && \
 RUN update-alternatives --set php /usr/bin/php%s
 RUN update-alternatives --install /usr/sbin/php-fpm php-fpm /usr/sbin/php-fpm%s 99 && update-alternatives --set php-fpm /usr/sbin/php-fpm%s
 RUN chmod ugo+rw /var/log/php-fpm.log && chmod ugo+rwx /var/run
-RUN mkdir -p /tmp/xhprof
-RUN chmod -fR ugo+w /etc/php /var/lib/php/modules /tmp/xhprof
-RUN phpdismod blackfire xdebug xhprof
+RUN chmod -fR ugo+w /etc/php /var/lib/php/modules
+RUN phpdismod blackfire xdebug
 `, p.PHPVersion, p.PHPVersion, p.PHPVersion)
 	}
 
 	extraWebContent := "\nRUN mkdir -p /home/$username && chown $username /home/$username && chmod 600 /home/$username/.pgpass"
 	if p.NodeJSVersion != nodeps.DefaultNodeJSVersion {
-		extraWebContent = extraWebContent + fmt.Sprintf("ENV N_PREFIX=/home/$username/.n\nENV N_INSTALL_VERSION=\"%s\"", p.NodeJSVersion)
+		extraWebContent = extraWebContent + fmt.Sprintf(`
+ENV N_PREFIX=/home/$username/.n
+ENV N_INSTALL_VERSION="%s"
+`, p.NodeJSVersion)
 	}
 	// Add supervisord config for WebExtraDaemons
 	var supervisorGroup []string
