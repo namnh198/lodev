@@ -9,7 +9,7 @@ const (
 	ServiceComposeProjectName = "lodev-service"
 	RouterImage               = "namnh198/lodev-router"
 	WebImage                  = "namnh198/lodev-webserver"
-	UtilitiesImage            = "namnh198/lodev-utilities"
+	UtilitiesImage            = "namnh198/lodev-utilities:latest"
 	WebContainer              = "web"
 	MinEphemeralPort          = 33000
 	MaxEphemeralPort          = 35000

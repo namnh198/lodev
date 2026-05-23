@@ -20,7 +20,9 @@ import (
 	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
+	"github.com/moby/term"
 	"github.com/namnh198/lodev/pkg/dockerutil"
 	"github.com/namnh198/lodev/pkg/nodeps"
 	"github.com/namnh198/lodev/pkg/util"
@@ -160,6 +162,7 @@ func ComposeCmd(cmd *ComposeCmdOpts) (*bytes.Buffer, error) {
 	// if err != nil {
 	// 	util.Warning("Failed to compile regex %v: %v", ignoreRegex, err)
 	// }
+	stderrOutput.Err()
 
 	for stderrOutput.Scan() {
 		line := stderrOutput.Text()
@@ -234,6 +237,240 @@ func EnsureComposeYAML(yamlStr string) (*types.Project, error) {
 		project.Services[name] = service
 	}
 	return project, nil
+}
+
+// RunSimpleContainer runs a container and captures the stdout/stderr. It accepts simple parameters for common use cases.
+func RunSimpleContainer(image string, name string, cmd []string, entrypoint []string, env []string, binds []string, uid string, removeContainerAfterRun bool, detach bool, labels map[string]string, portBindings network.PortMap, healthConfig *container.HealthConfig) (containerID string, out string, returnErr error) {
+	config := &container.Config{
+		Image:       image,
+		Cmd:         cmd,
+		Env:         env,
+		User:        uid,
+		Labels:      labels,
+		Entrypoint:  entrypoint,
+		Healthcheck: healthConfig,
+	}
+	hostConfig := &container.HostConfig{
+		Binds:        binds,
+		PortBindings: portBindings,
+	}
+	// timeout=0 means detach (don't wait for container to finish).
+	// 10 minutes is generous for any simple container task (e.g. chown, rm).
+	var timeout time.Duration
+	if !detach {
+		timeout = 10 * time.Minute
+	}
+	return RunSimpleContainerExtended(name, config, hostConfig, removeContainerAfterRun, timeout)
+}
+
+// RunSimpleContainerExtended runs a container and captures the stdout/stderr.
+// Accepts any config and hostConfig. If stdin is provided, enables interactive mode with stdin forwarding.
+// timeout controls how long to wait for the container to finish; 0 means detach (don't wait).
+func RunSimpleContainerExtended(name string, config *container.Config, hostConfig *container.HostConfig, removeAfterRun bool, timeout time.Duration) (containerID string, out string, err error) {
+	ctx, apiClient, err := dockerutil.GetDockerClient()
+	if err != nil {
+		return "", "", err
+	}
+	existLocally, err := dockerutil.ImageExistsLocally(config.Image)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to check if image %s is available: %v", config.Image, err)
+	}
+	if !existLocally {
+		util.Debug("Pulling image %s", config.Image)
+		if pullErr := Pull(config.Image); pullErr != nil {
+			return "", "", fmt.Errorf("failed to pull image %s: %v", config.Image, pullErr)
+		}
+	}
+	if config.User == "" {
+		config.User = "0"
+	}
+
+	config.AttachStderr = true
+	config.AttachStdout = true
+
+	if config.AttachStdin {
+		config.AttachStdin = true
+		config.OpenStdin = true
+		config.Tty = term.IsTerminal(os.Stdin.Fd())
+	}
+
+	// Ensure LODEV labels are set on the container
+	for k, v := range dockerutil.GetDefaultDockerLodevLabels() {
+		if _, exists := config.Labels[k]; !exists {
+			config.Labels[k] = v
+		}
+	}
+	hostDockerInternal := dockerutil.GetHostDockerInternal()
+	if hostDockerInternal.ExtraHost != "" && !slices.Contains(hostConfig.ExtraHosts, "host.docker.internal:"+hostDockerInternal.ExtraHost) {
+		hostConfig.ExtraHosts = append(hostConfig.ExtraHosts, "host.docker.internal:"+hostDockerInternal.ExtraHost)
+	}
+
+	c, err := apiClient.ContainerCreate(ctx, client.ContainerCreateOptions{Config: config, HostConfig: hostConfig, Name: name})
+	if err != nil {
+		util.Debug("RunSimpleContainer: failed to create container %s with config=%+v and hostConfig=%+v: %v", name, config, hostConfig, err)
+		return "", "", fmt.Errorf("failed to create container %s: %v", name, err)
+	}
+
+	if removeAfterRun {
+		defer dockerutil.RemoveContainer(c.ID)
+	}
+
+	var hijackedResp *client.HijackedResponse
+	var outputDone chan struct{}
+
+	if config.AttachStdin {
+		// Interactive mode with stdin - use attach for real-time I/O
+		attachOptions := client.ContainerAttachOptions{
+			Stream: true,
+			Stdin:  true,
+			Stdout: true,
+			Stderr: true,
+		}
+
+		resp, err := apiClient.ContainerAttach(ctx, c.ID, attachOptions)
+		if err != nil {
+			return c.ID, "", fmt.Errorf("failed to attach to container %s (%s): %v", name, dockerutil.TruncateID(c.ID), err)
+		}
+		hijackedResp = &resp.HijackedResponse
+		defer hijackedResp.Close()
+
+		restoreTerminal, err := setupRawTerminal()
+		if err != nil {
+			return c.ID, "", err
+		}
+		defer restoreTerminal()
+
+		// Initialize synchronization channel for output completion
+		outputDone = make(chan struct{})
+
+		// Forward output from container to stdout
+		go func() {
+			_, _ = io.Copy(os.Stdout, hijackedResp.Reader)
+			if outputDone != nil {
+				close(outputDone)
+			}
+		}()
+
+		// Forward input from stdin to container
+		go func() {
+			_, _ = io.Copy(hijackedResp.Conn, os.Stdin)
+		}()
+	}
+
+	if _, err := apiClient.ContainerStart(ctx, c.ID, client.ContainerStartOptions{}); err != nil {
+		return c.ID, "", fmt.Errorf("failed to start container %s (%s): %v", name, dockerutil.TruncateID(c.ID), err)
+	}
+
+	exitCode := 0
+
+	if timeout > 0 {
+		// On Lima/Colima, ContainerInspect may report State.Running=true even after
+		// the container has exited, causing the polling loop to exhaust the deadline.
+		// Observed only in tests, not reported by users; possibly a Lima/Colima bug.
+		waitCtx, waitCancel := context.WithTimeout(ctx, timeout)
+		defer waitCancel()
+		tickChan := time.NewTicker(500 * time.Millisecond)
+		defer tickChan.Stop()
+		var lastKnownState *container.State
+		attempt := 0
+		for {
+			attempt++
+			inspectStartTime := time.Now()
+			info, err := apiClient.ContainerInspect(waitCtx, c.ID, client.ContainerInspectOptions{})
+			inspectElapsedTime := time.Since(inspectStartTime)
+			if err != nil && waitCtx.Err() == nil {
+				return c.ID, "", fmt.Errorf("failed to inspect container %s (%s): %v", name, dockerutil.TruncateID(c.ID), err)
+			}
+			if err == nil {
+				if info.Container.State == nil {
+					return c.ID, "", fmt.Errorf("container %s (%s) has <nil> state", name, dockerutil.TruncateID(c.ID))
+				}
+				lastKnownState = info.Container.State
+				if !info.Container.State.Running {
+					exitCode = info.Container.State.ExitCode
+					break
+				}
+			}
+			select {
+			case <-waitCtx.Done():
+			case <-tickChan.C:
+			}
+			if waitCtx.Err() != nil {
+				var lastKnownHealth any = "<nil>"
+				if lastKnownState != nil && lastKnownState.Health != nil {
+					lastKnownHealth = *lastKnownState.Health
+				}
+				util.Debug("RunSimpleContainer: container %s (%s) attempt=%d inspectElapsedTime=%v inspectErr=%v lastKnownState=%+v lastKnownHealth=%+v", name, dockerutil.TruncateID(c.ID), attempt, inspectElapsedTime, err, lastKnownState, lastKnownHealth)
+				return c.ID, "", fmt.Errorf("timed out after %s waiting for container %s (%s) to stop: %w", timeout, name, dockerutil.TruncateID(c.ID), waitCtx.Err())
+			}
+		}
+
+		// For interactive containers, wait for I/O forwarding to complete
+		if config.AttachStdin {
+			// Close hijacked connection to signal EOF to goroutines
+			hijackedResp.Close()
+
+			// Wait for output forwarding to complete (input may still be running)
+			if outputDone != nil {
+				<-outputDone
+			}
+		}
+	}
+
+	var exitErr error
+
+	if exitCode != 0 {
+		// "container run failed with exit code" is used as a marker in `ddev auth ssh`
+		exitErr = fmt.Errorf("container run failed with exit code %d", exitCode)
+	}
+
+	// Don't capture logs if we're attaching stdin, as it will block stdout
+	if config.AttachStdin {
+		return c.ID, "", exitErr
+	}
+
+	// Get logs so we can report them
+	options := client.ContainerLogsOptions{ShowStdout: true, ShowStderr: true}
+	rc, err := apiClient.ContainerLogs(ctx, c.ID, options)
+	if err != nil {
+		return c.ID, "", fmt.Errorf("failed to get container %s (%s) logs: %v", name, dockerutil.TruncateID(c.ID), err)
+	}
+	defer rc.Close()
+
+	var stdout bytes.Buffer
+	_, err = stdcopy.StdCopy(&stdout, &stdout, rc)
+	if err != nil {
+		return c.ID, "", fmt.Errorf("failed to copy container %s (%s) logs: %v", name, dockerutil.TruncateID(c.ID), err)
+	}
+
+	return c.ID, stdout.String(), exitErr
+
+}
+
+// setupRawTerminal sets the terminal to raw mode for TTY containers.
+// Returns a restore function that should be called to restore terminal state.
+func setupRawTerminal() (restore func(), err error) {
+	stdinState, err := term.SetRawTerminal(os.Stdin.Fd())
+	if err != nil {
+		return nil, fmt.Errorf("failed to set stdin to raw mode: %v", err)
+	}
+
+	stdoutState, err := term.SetRawTerminalOutput(os.Stdout.Fd())
+	if err != nil {
+		_ = term.RestoreTerminal(os.Stdin.Fd(), stdinState)
+		return nil, fmt.Errorf("failed to set stdout to raw mode: %v", err)
+	}
+
+	restore = func() {
+		if stdinState != nil {
+			_ = term.RestoreTerminal(os.Stdin.Fd(), stdinState)
+		}
+		if stdoutState != nil {
+			_ = term.RestoreTerminal(os.Stdout.Fd(), stdoutState)
+		}
+	}
+
+	return restore, nil
 }
 
 // PullImages pulls images in parallel if they don't exist locally
