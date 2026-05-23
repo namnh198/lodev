@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -307,8 +308,7 @@ func GetDockerBuildxPath() (string, error) {
 // DownloadDockerCompose gets the docker-compose binary and puts it into
 // ~/.lodev/.bin
 func DownloadDockerBuildx() error {
-	lodevBinDir := GetLodevBinPath("")
-	destFile, _ := GetDockerBuildxPath()
+	destFile := GetLodevBinPath("docker-buildx")
 
 	composeURL, shasumURL, err := dockerBuildxDownloadLink()
 	if err != nil {
@@ -317,7 +317,7 @@ func DownloadDockerBuildx() error {
 
 	_ = os.Remove(destFile)
 
-	_ = os.MkdirAll(lodevBinDir, 0777)
+	_ = os.MkdirAll(filepath.Dir(destFile), 0777)
 	err = network.DownloadFile(destFile, composeURL, true, shasumURL)
 	if err != nil {
 		_ = os.Remove(destFile)
@@ -346,15 +346,6 @@ func DownloadDockerBuildx() error {
 // dockerComposeDownloadLink returns the URL and SHASUM-file link for docker-compose
 func dockerBuildxDownloadLink() (composeURL string, shasumURL string, err error) {
 	arch := runtime.GOARCH
-
-	switch arch {
-	case "arm64":
-		arch = "aarch64"
-	case "amd64":
-		arch = "x86_64"
-	default:
-		return "", "", fmt.Errorf("only ARM64 and AMD64 architectures are supported for docker-compose, not %s", arch)
-	}
 	buildxVer := nodeps.RequiredDockerBuildxVersion
 	flavor := runtime.GOOS + "-" + arch
 	composerURL := fmt.Sprintf("https://github.com/docker/buildx/releases/download/%s/buildx-%s.%s", buildxVer, buildxVer, flavor)
