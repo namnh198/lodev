@@ -608,6 +608,17 @@ func StartLodevService(startRouter bool, force bool) error {
 	}
 	waitServicesSpin.Stop(fmt.Sprintf("Services %v are ready", LodevConfig.ConnectedServices), 0)
 
+	if err := StartLodevRouter(false); err != nil {
+		util.WarningMessage(fmt.Sprintf("Failed to start LODEV router: %v", err))
+		return fmt.Errorf("Failed to start LODEV router: %v", err)
+	}
+
+	os.Setenv("COMPOSE_PROJECT_NAME", nodeps.RouterComposeProjectName)
+	if !startRouter {
+		wait.Complete(err, "LODEV services started")
+		return nil
+	}
+
 	traefikSpin := tap.NewSpinner(tap.SpinnerOptions{Indicator: "timer"})
 	traefikSpin.Start("Configuring Traefik for services")
 	if err := configurateTraefikForServices(&LodevServices); err != nil {
@@ -616,17 +627,6 @@ func StartLodevService(startRouter bool, force bool) error {
 		return err
 	}
 	traefikSpin.Stop("Pushed Traefik configuration", 0)
-
-	os.Setenv("COMPOSE_PROJECT_NAME", nodeps.RouterComposeProjectName)
-	if !startRouter {
-		wait.Complete(err, "LODEV services started")
-		return nil
-	}
-
-	if err := StartLodevRouter(false); err != nil {
-		util.WarningMessage(fmt.Sprintf("Failed to start LODEV router: %v", err))
-		return fmt.Errorf("Failed to start LODEV router: %v", err)
-	}
 
 	return nil
 }

@@ -3,6 +3,7 @@ package lodev
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -145,6 +146,17 @@ func pushGlobalTraefikConfig() error {
 	}
 
 	caRoot := GetCAROOT()
+	volumeMounts := []string{fmt.Sprintf("%s:/mnt/lodev_default", GetLodevConfigDir())}
+
+	if caRoot == "" {
+		sourceCertDir = path.Join("mnt", "lodev_default", "traefik", "certs")
+	}
+
+	c := []string{
+		"--cert-file", path.Join(sourceCertDir, "default_cert.crt"),
+		"--key-file", path.Join(sourceCertDir, "default_key.key"),
+		"localhost", "lodev-router", "lodev-router.lodev", "lodev-router.lodev_default",
+	}
 
 	if caRoot != "" {
 		util.Debug("Copying mkcert CA root from %s to %s", caRoot, destMkcertPath)
@@ -152,15 +164,29 @@ func pushGlobalTraefikConfig() error {
 			return fmt.Errorf("failed to copy mkcert certs: %v", err)
 		}
 
-		c := []string{
-			"--cert-file",
-			filepath.Join(sourceCertDir, "default_cert.crt"),
-			"--key-file", filepath.Join(sourceCertDir, "default_key.key"),
-			"127.0.0.1", "localhost", "lodev-router", "lodev-router.lodev", "lodev-router.lodev_default",
-		}
 		out, err := lodevexec.RunHostCommand("mkcert", c...)
 		if err != nil {
 			util.Failed("failed to create global mkcert certificate, check mkcert operation: %v", out)
+		}
+	} else {
+		util.Debug("No MKCert installed. Trying to create rootCA.pem from docker")
+		if !fileutil.FileExists(filepath.Join(destMkcertPath, "rootCA.pem")) {
+			_, _, rootPemErr := RunSimpleContainer(nodeps.UtilitiesImage, "mkcert-install-"+util.RandString(6), []string{"mkcert", "-install"}, []string{}, []string{"CAROOT=/mnt/lodev_default/traefik/mkcert"}, volumeMounts, "", true, false, map[string]string{}, nil, nil)
+			if rootPemErr != nil {
+				return rootPemErr
+			}
+		}
+		c := []string{
+			"mkcert",
+			"--cert-file",
+			path.Join(sourceCertDir, "default_cert.crt"),
+			"--key-file", filepath.Join(sourceCertDir, "default_key.key"),
+			"localhost", "lodev-router", "lodev-router.lodev", "lodev-router.lodev_default",
+		}
+
+		_, _, rootPemErr := RunSimpleContainer(nodeps.UtilitiesImage, "mkcert-global-cert-"+util.RandString(6), c, []string{}, []string{}, volumeMounts, "", true, false, map[string]string{}, nil, nil)
+		if rootPemErr != nil {
+			return rootPemErr
 		}
 	}
 
@@ -234,7 +260,6 @@ func pushGlobalTraefikConfig() error {
 func configureTraefik(routingTable []TraefikRouting, appName string, hostnames ...string) error {
 	sourceCertPath := GetLodevConfigPath("traefik", "certs")
 	sourceConfigPath := GetLodevConfigPath("traefik", "config")
-	baseName := filepath.Join(sourceCertPath, appName)
 	var err error
 
 	// Convert externalHostnames wildcards like `*.<anything>` to `[a-zA-Z0-9-]+.local`
@@ -250,19 +275,35 @@ func configureTraefik(routingTable []TraefikRouting, appName string, hostnames .
 		}
 	}
 
+	caRoot := GetCAROOT()
+
+	if caRoot == "" {
+		sourceCertPath = path.Join("mnt", "lodev_default", "traefik", "certs")
+	}
+
+	baseName := path.Join(sourceCertPath, appName)
+
+	c := []string{"--cert-file", baseName + ".crt", "--key-file", baseName + ".key", "127.0.0.1", "localhost", "lodev-router", "lodev-router.lodev", "lodev-router.lodev_default"}
+	c = append(c, hostnames...)
+
+	if LodevConfig.ProjectTld != nodeps.ProjectTld {
+		c = append(c, "*."+LodevConfig.ProjectTld)
+	}
+	util.Debug("mkcert %v", c)
+
 	// Assuming the certs don't exist, or they have #lodev-generated so can be replaced, create them
 	// But not if we don't have mkcert already set up.
-	if GetCAROOT() != "" {
-		c := []string{"--cert-file", baseName + ".crt", "--key-file", baseName + ".key", "127.0.0.1", "localhost", "lodev-router", "lodev-router.lodev", "lodev-router.lodev_default"}
-		c = append(c, hostnames...)
-
-		if LodevConfig.ProjectTld != nodeps.ProjectTld {
-			c = append(c, "*."+LodevConfig.ProjectTld)
-		}
-		util.Debug("mkcert %v", c)
+	if caRoot != "" {
 		out, err := lodevexec.RunHostCommand("mkcert", c...)
 		if err != nil {
 			util.Failed("Failed to create certificates for project, check mkcert operation: %v; err=%v", out, err)
+		}
+	} else {
+		c = append([]string{"mkcert"}, c...)
+		volumeMounts := []string{fmt.Sprintf("%s:/mnt/lodev_default", GetLodevConfigDir())}
+		_, _, err := RunSimpleContainer(nodeps.UtilitiesImage, "mkcert-cert-"+util.RandString(6), c, []string{}, []string{}, volumeMounts, "", true, false, map[string]string{}, nil, nil)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -314,7 +355,7 @@ func configurateTraefikForServices(sl *ServiceList) error {
 		return err
 	}
 	if err := configureTraefik(routingTable, "services"); err != nil {
-		return fmt.Errorf("failed to configure Traefik for lodev services: %v", err)
+		return err
 	}
 	return nil
 }
