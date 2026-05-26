@@ -498,7 +498,9 @@ func (p *Project) Start(profiles ...string) (err error) {
 
 	wg.Go(func() {
 		if !IsRouterDisabled() {
-			result.serviceErr = StartLodevService(false, false)
+			if len(LodevConfig.ConnectedServices) > 0 {
+				result.serviceErr = StartLodevService(false, false)
+			}
 			result.routerErr = StartLodevRouter(false)
 		}
 
