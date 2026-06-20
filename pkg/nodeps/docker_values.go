@@ -40,7 +40,7 @@ const (
 	RequiredDockerBuildxVersion = "v0.33.0"
 
 	// DockerTag is the tag used for LODEV's Docker images. It should be updated with each release.
-	DockerTag = "v0.1.1"
+	DockerTag = "v0.1.3"
 )
 
 // List of services defaultly connected to LODEV projects

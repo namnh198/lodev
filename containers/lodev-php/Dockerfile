@@ -3,12 +3,14 @@ FROM ubuntu:24.04 AS lodev-php-base
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-ARG PHP_DEFAULT_VERSION="8.4"
-ENV DEBIAN_FRONTEND=noninteractive
-ARG XDEBUG_MODE="off"
 ARG PHP_VERSIONS="php5.6 php7.0 php7.1 php7.2 php7.3 php7.4 php8.0 php8.1 php8.2 php8.3 php8.4 php8.5"
+ARG PHP_DEFAULT_VERSION="8.4"
+ARG N_PREFIX=/usr/local
+ARG XDEBUG_MODE="off"
+
+ENV DEBIAN_FRONTEND=noninteractive
 ENV LODEV_PHP_VERSION=${PHP_DEFAULT_VERSION}
-ENV NODE_VERSION=24
+ENV NODE_VERSION=lts
 ENV PHP_INI="/etc/php/${PHP_DEFAULT_VERSION}/fpm/php.ini"
 ENV COMPOSE_ALLOW_SUPERUSER=1
 ENV COMPOSER_PROCESS_TIMEOUT=2000
@@ -88,10 +90,10 @@ RUN curl --fail -sSL https://files.magerun.net/n98-magerun2-latest.phar -o /usr/
 RUN curl --fail -sSL https://raw.githubusercontent.com/netz98/n98-magerun2/master/res/autocompletion/bash/n98-magerun2.phar.bash -o /etc/bash_completion.d/n98-magerun2.phar
 
 # Install n package to manage node versions and install the latest stable node version (currently 24)
-RUN curl -L --fail -o /usr/local/bin/n -sSL https://raw.githubusercontent.com/tj/n/master/bin/n && chmod ugo+wx /usr/local/bin/n
+RUN curl -L --fail -o /usr/local/bin/n -sSL https://raw.githubusercontent.com/tj/n/master/bin/n && chmod +x /usr/local/bin/n
 
-RUN n install --cleanup "${NODE_VERSION}" && ln -sf "$(which node)" "$(which node)js"
-RUN npm install --global gulp-cli yarn
+RUN n install --cleanup "${NODE_VERSION}"
+RUN npm install --global pnpm
 
 RUN ln -sf /usr/sbin/php-fpm${LODEV_PHP_VERSION} /usr/sbin/php-fpm
 RUN mkdir -p /run/php && chown -R www-data:www-data /run

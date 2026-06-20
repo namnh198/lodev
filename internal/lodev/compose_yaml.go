@@ -85,11 +85,13 @@ func (p *Project) WriteDockerComposeYAML() error {
 	baseYAMLPath := p.DockerComposeYAMLPath()
 	baseContentBytes := []byte(rendered)
 	// If the file already exists and has the same content, don't overwrite it.
-	skipBaseWrite := false
+	skipBaseWrite := !p.NoCache || LodevConfig.LastStartedVersion == nodeps.LodevVersion
 
-	if existingContent, err := os.ReadFile(baseYAMLPath); err == nil {
-		if bytes.Equal(baseContentBytes, existingContent) {
-			skipBaseWrite = true
+	if !skipBaseWrite {
+		if existingContent, err := os.ReadFile(baseYAMLPath); err == nil {
+			if bytes.Equal(baseContentBytes, existingContent) {
+				skipBaseWrite = true
+			}
 		}
 	}
 
@@ -150,10 +152,12 @@ func (p *Project) WriteDockerComposeYAML() error {
 	fullPath := p.DockerComposeFullRenderedYAMLPath()
 
 	// If the file already exists and has the same content, don't overwrite it.
-	skipFullWrite := false
-	if existingContent, err := os.ReadFile(fullPath); err == nil {
-		if bytes.Equal(fullContentsBytes, existingContent) {
-			skipFullWrite = true
+	skipFullWrite := skipBaseWrite
+	if !skipFullWrite {
+		if existingContent, err := os.ReadFile(fullPath); err == nil {
+			if bytes.Equal(fullContentsBytes, existingContent) {
+				skipFullWrite = true
+			}
 		}
 	}
 
@@ -464,7 +468,7 @@ RUN phpdismod blackfire xdebug
 `, p.PHPVersion, p.PHPVersion, p.PHPVersion)
 	}
 
-	extraWebContent := "\nRUN mkdir -p /home/$username && chown $username /home/$username && chmod 600 /home/$username/.pgpass"
+	extraWebContent := "\nRUN mkdir -p /home/$username && chown $username /home/$username"
 	if p.NodeJSVersion != nodeps.DefaultNodeJSVersion {
 		extraWebContent = extraWebContent + fmt.Sprintf(`
 ENV N_PREFIX=/home/$username/.n

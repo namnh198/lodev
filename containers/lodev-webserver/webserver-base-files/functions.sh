@@ -9,4 +9,3 @@ function lodev_custom_init_scripts {
     done
   fi
 }
-

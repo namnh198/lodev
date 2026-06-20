@@ -19,11 +19,9 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// Flag to control whether to run project validation (No need to run validation if removing a project)
-var RunValidate = true
+var RunValidate = true // Flag to control whether to run project validation (No need to run validation if removing a project)
 
-// Constant for the LODEV directory name
-const LodevDir = ".lodev"
+const LodevDir = ".lodev" // Constant for the LODEV directory name
 
 // NewProject creates a new Project struct with the given project root and default values.
 func NewProject(appRoot string) (*Project, error) {
@@ -53,7 +51,6 @@ func NewProject(appRoot string) (*Project, error) {
 	project.WorkingDir = nodeps.LodevWebWorkingDir
 
 	err := project.ReadProjectConfig()
-
 	if err != nil {
 		return project, fmt.Errorf("%v exist but could not read. Maybe invalid due to syntax error: %v", project.ConfigFile, err)
 	}
@@ -176,7 +173,6 @@ func GetActiveProjects() []*Project {
 			}
 
 			app, err := NewProject(approot)
-
 			// Artificially populate sitename and apptype based on labels
 			// if NewApp() failed.
 			if err != nil {
@@ -215,10 +211,10 @@ func GetProjectAppRootByName(prName string) (basePath string, err error) {
 	if prName == "" {
 		basePath, err = os.Getwd()
 		if err != nil {
-			return "", fmt.Errorf("Failed to get current working directory: %v", err)
+			return "", fmt.Errorf("failed to get current working directory: %v", err)
 		}
 		if _, err = IsProjectExists(basePath); err != nil {
-			return "", fmt.Errorf("Could not find a project in %s. Please specify a project name or change directories: %v", basePath, err)
+			return "", fmt.Errorf("could not find a project in %s. Please specify a project name or change directories: %v", basePath, err)
 		}
 	} else if p, ok := LodevProjectsRegistry[prName]; ok {
 		return p.AppRoot, nil
@@ -226,7 +222,7 @@ func GetProjectAppRootByName(prName string) (basePath string, err error) {
 		var ok bool
 		webContainer, err := FindContainerByType(nodeps.WebContainer, prName)
 		if err != nil {
-			return "", fmt.Errorf("Could not find a project with name %s: %v", prName, err)
+			return "", fmt.Errorf("could not find a project with name %s: %v", prName, err)
 		}
 		if !ok {
 			return "", fmt.Errorf("Project not found: %s", prName)
@@ -355,7 +351,7 @@ func (p *Project) WriteProjectConfig() error {
 		return err
 	}
 
-	err = os.WriteFile(pCopy.ConfigFile, cfgbytes, 0644)
+	err = os.WriteFile(pCopy.ConfigFile, cfgbytes, 0o644)
 	if err != nil {
 		return err
 	}
@@ -573,7 +569,7 @@ func CanCreateProject(appRoot string) error {
 func PrepLodevDirectory(p *Project) error {
 	dir := p.GetConfigPath()
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
+		err = os.MkdirAll(dir, 0o755)
 		if err != nil {
 			return err
 		}

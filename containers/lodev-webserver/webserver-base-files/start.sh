@@ -96,21 +96,8 @@ sudo mkdir -p ${TERMINUS_CACHE_DIR}
 sudo mkdir -p /mnt/lodev_default/data/{bashhistory/${HOSTNAME},mysqlhistory/${HOSTNAME},n_prefix/${HOSTNAME},npm,yarn/classic,yarn/berry}
 sudo chown -R "$(id -u):$(id -g)" /mnt/lodev_default/ /var/lib/php
 
-if [ "${N_PREFIX:-}" != "" ] && [ "${N_INSTALL_VERSION:-}" != "" ]; then
-  log-stderr.sh n-install.sh || true
-fi
-
-# The following ensures a persistent and shared "global" cache for
-# yarn classic (frozen v1) and yarn berry (active). In the case of berry, the global cache
-# will only be used if the project is configured to use it through it's own
-# enableGlobalCache configuration option. Assumes ~/.yarn/berry as the default
-# global folder.
-(if cd ~ || (echo "unable to cd to home directory"; exit 22); then
-  timeout 1 yarn config set cache-folder /mnt/lodev_default/data/yarn/classic >/dev/null || echo 'cache-folder "/mnt/lodev_default/data/yarn/classic"' >> ~/.yarnrc || true
-fi)
-# ensure default yarn berry global folder is there to symlink cache afterwards
-mkdir -p ~/.yarn/berry
-ln -sf /mnt/lodev_default/data/yarn/berry ~/.yarn/berry/cache
+# Remove ~/n/bin so the system Node.js is used by default; run `n install <version>` to switch
+ln -sf "${N_PREFIX}" ~/n && rm -rf ~/n/bin
 
 # /mnt/lodev_config/.homeadditions may be either
 # a bind-mount, or a volume mount, but we don't care,
@@ -127,8 +114,8 @@ export CAROOT="/mnt/lodev_default/traefik/mkcert"
 # It also creates them if they don't already exist
 if [ ! -f  "${CAROOT}/rootCA.pem" ]; then
   echo "rootCA.pem not found in ${CAROOT}"
+  mkcert -install
 fi
-mkcert -install
 
 # VIRTUAL_HOST is a comma-delimited set of fqdns, convert it to space-separated and mkcert
 CAROOT=$CAROOT mkcert -cert-file /etc/ssl/certs/master.crt -key-file /etc/ssl/certs/master.key ${VIRTUAL_HOST//,/ } localhost 127.0.0.1 ${DOCKER_IP} web lodev-${LODEV_PROJECT:-}-web lodev-${LODEV_PROJECT:-}-web.lodev

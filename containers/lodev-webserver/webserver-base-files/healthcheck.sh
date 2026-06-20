@@ -1,10 +1,8 @@
 #!/usr/bin/env sh
 
-# This uses /bin/sh, so it doesn't initialize profile/bashrc/etc
-
 # lodev-webserver healthcheck
 
-set -e
+set -eu -o pipefail
 
 sleeptime=59
 
@@ -16,8 +14,8 @@ sleeptime=59
 # sleep at startup. This requires the timeout to be set
 # higher than the sleeptime used here.
 if [ -f /tmp/healthy ]; then
-    printf "container was previously healthy, so sleeping %s seconds before continuing healthcheck... " ${sleeptime}
-    sleep ${sleeptime}
+  printf "container was previously healthy, so sleeping %s seconds before continuing healthcheck... " ${sleeptime}
+  sleep ${sleeptime}
 fi
 
 # Shutdown the supervisor if one of the critical processes is in the FATAL state

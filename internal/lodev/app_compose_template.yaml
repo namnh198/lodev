@@ -83,20 +83,13 @@ services:
       - HTTPS_EXPOSE=${LODEV_ROUTER_HTTPS_PORT}:80{{ .WebExtraHTTPSPorts }}
       - IS_LODEV_PROJECT=true
       - MYSQL_HISTFILE=/mnt/lodev_default/data/mysqlhistory/${LODEV_APPNAME}-web/mysql_history
+      - N_PREFIX=/mnt/ddev-global-cache/n_prefix/${LODEV_APPNAME}-web
       - NODE_EXTRA_CA_CERTS=/mnt/lodev_default/traefik/mkcert/rootCA.pem
       - npm_config_cache=/mnt/lodev_default/data/npm
-      {{- if ne (env "LODEV_PAGER") "" }}
-      - PAGER=${LODEV_PAGER}
-      {{- end }}
       - PHP_IDE_CONFIG=serverName={{ .Name | lower }}.${LODEV_TLD}
-      - SSH_AUTH_SOCK=/home/.ssh-agent/socket
       - TZ={{ .Timezone }}
       - USER={{ .Username }}
       - VIRTUAL_HOST=${LODEV_HOSTNAME}
-      # Web /start.sh timeout (default_container_timeout - 5s). Prevents startup scripts from
-      # hitting container timeout limit, which would cause "lodev start" to fail completely.
-      # For N uses: "div (sub .DefaultContainerTimeout 5) N". Currently: 1 use (n-install.sh)
-      - START_SCRIPT_TIMEOUT={{ sub .DefaultContainerTimeout 5 }}
       {{ range $env := .WebEnvironment }}- "{{ $env }}"
       {{ end }}
     healthcheck:
