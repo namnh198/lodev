@@ -3,7 +3,7 @@ FROM ubuntu:24.04 AS lodev-php-base
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-ARG PHP_VERSIONS="php5.6 php7.0 php7.1 php7.2 php7.3 php7.4 php8.0 php8.1 php8.2 php8.3 php8.4 php8.5"
+ARG PHP_VERSIONS="php8.1 php8.2 php8.3 php8.4 php8.5"
 ARG PHP_DEFAULT_VERSION="8.4"
 ARG N_PREFIX=/usr/local
 ARG XDEBUG_MODE="off"

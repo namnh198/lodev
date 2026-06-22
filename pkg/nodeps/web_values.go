@@ -19,7 +19,7 @@ const (
 // Valid PHP versions supported by LODEV
 var ValidPHPVersions = []string{PHP56, PHP70, PHP71, PHP72, PHP73, PHP74, PHP80, PHP81, PHP82, PHP83, PHP84, PHP85}
 
-var LegacyPHPVersions = []string{PHP56, PHP70, PHP71, PHP72, PHP73, PHP74, PHP80, PHP81}
+var LegacyPHPVersions = []string{PHP56, PHP70, PHP71, PHP72, PHP73, PHP74, PHP80}
 
 // List NodeJS versions supported by LODEV
 const (
