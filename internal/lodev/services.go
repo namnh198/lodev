@@ -72,7 +72,7 @@ func (sl *ServiceList) ServiceComposeYAMLPath() string {
 // marshaling the canonical version to YAML and then unmarshaling it back into a canonical version.
 func (sl *ServiceList) WriteDockerComposeYAML() error {
 	var composeFiles []string
-	SetCommonEnv(nodeps.ServiceComposeProjectName)
+	_ = SetCommonEnv(nodeps.ServiceComposeProjectName)
 	for _, s := range LodevConfig.ConnectedServices {
 		service := sl.FindService(s)
 		if service == nil {
@@ -564,7 +564,7 @@ func StartLodevService(startRouter bool, force bool) error {
 			}
 		}
 	}
-	SetCommonEnv(nodeps.ServiceComposeProjectName)
+	_ = SetCommonEnv(nodeps.ServiceComposeProjectName)
 	if err := LodevServices.WriteDockerComposeYAML(); err != nil {
 		return fmt.Errorf("Failed to write docker compose YAML: %w", err)
 	}
@@ -637,7 +637,7 @@ func StopLodevService() error {
 	stopSpin := tap.NewSpinner(tap.SpinnerOptions{Indicator: "timer"})
 	stopSpin.Start("Stopping LODEV services")
 
-	SetCommonEnv(nodeps.ServiceComposeProjectName)
+	_ =SetCommonEnv(nodeps.ServiceComposeProjectName)
 
 	fullPath := LodevServices.ServiceComposeFullPath()
 

@@ -348,7 +348,7 @@ func (p *Project) Start(profiles ...string) (err error) {
 	p.ComposeYAML = nil
 	portToCheck := []*string{&LodevConfig.HttpPort, &LodevConfig.HttpsPort}
 	GetEphemeralPortsIfNeeded(portToCheck, true)
-	p.DockerEnv()
+	_ = p.DockerEnv()
 
 	dockerutil.RemoveNetworkDuplicate(p.GetNetworkName())
 
@@ -556,7 +556,7 @@ func (p *Project) StartAppIfNotRunning() error {
 
 // Stop stops the project by running the docker compose down command and optionally removing data such as certs, hosts entries, and built images
 func (p *Project) Stop(removeData bool) error {
-	p.DockerEnv()
+	_ = p.DockerEnv()
 	if p.Name == "" {
 		return fmt.Errorf("invalid project.Name provided to project.Stop(), project=%v", p)
 	}
@@ -782,7 +782,7 @@ func (p *Project) buildContextFingerprint() string {
 }
 
 // SetCommonEnv sets the common environment variables for the project
-func SetCommonEnv(composeName string) {
+func SetCommonEnv(composeName string) map[string]string {
 	uidStr, gidStr, username := dockerutil.GetContainerUser()
 	// Warn about running as root if we're not on Windows.
 	if uidStr == "0" || gidStr == "0" {
@@ -790,7 +790,14 @@ func SetCommonEnv(composeName string) {
 	}
 
 	lodevDir := fileutil.WindowsPathToCygwinPath(GetLodevConfigDir())
-	lodevDataDir := fileutil.WindowsPathToCygwinPath(GetLodevConfigPath("data"))
+	lodevData := os.Getenv("LODEV_DATA")
+	if lodevData == "" {
+		lodevData = fileutil.WindowsPathToCygwinPath(GetLodevConfigPath("data"))
+	}
+
+	if !fileutil.FileExists(lodevData) {
+		os.MkdirAll(lodevData, 0755)
+	}
 
 	envVars := map[string]string{
 		"COMPOSE_PROJECT_NAME":           composeName,
@@ -801,7 +808,7 @@ func SetCommonEnv(composeName string) {
 		"LODEV_USER":                     username,
 		"LODEV_TLD":                      LodevConfig.ProjectTld,
 		"LODEV_DEFAULT":                  lodevDir,
-		"LODEV_DATA":                     lodevDataDir,
+		"LODEV_DATA":                     lodevData,
 		"LODEV_CONFIG":                   lodevDir,
 		"LODEV_GOOS":                     runtime.GOOS,
 		"LODEV_GOARCH":                   runtime.GOARCH,
@@ -817,6 +824,7 @@ func SetCommonEnv(composeName string) {
 			util.ErrorMessage(fmt.Sprintf("Failed to set the environment variable %s=%s: %v", k, v, err))
 		}
 	}
+	return envVars
 }
 
 // CheckExistingProjectRegistry looks to see if we already have a project in this approot with different name
@@ -832,8 +840,8 @@ func (p *Project) CheckExistingProjectRegistry() error {
 }
 
 // DockerEnv sets environment variables for a docker-compose run.
-func (p *Project) DockerEnv() {
-	SetCommonEnv(p.GetComposeProjectName())
+func (p *Project) DockerEnv() map[string]string {
+	envVars := SetCommonEnv(p.GetComposeProjectName())
 	if util.IsDevcontainer() {
 		if p.HostWebserverPort == "" {
 			p.HostWebserverPort = "8080"
@@ -864,7 +872,7 @@ func (p *Project) DockerEnv() {
 		hostHTTPSPortStr = p.HostHttpsPort
 	}
 
-	envVars := map[string]string{
+	newEnvVars := map[string]string{
 		// The compose project name can no longer contain dots; must be lower-case
 		"COMPOSE_PROJECT_NAME":    p.GetComposeProjectName(),
 		"LODEV_APPNAME":           p.Name,
@@ -886,11 +894,13 @@ func (p *Project) DockerEnv() {
 		"LODEV_PRIMARY_URL":       p.GetPrimaryURL(),
 	}
 
-	for k, v := range envVars {
+	maps.Copy(newEnvVars, envVars)
+	for k, v := range newEnvVars {
 		if err := os.Setenv(k, v); err != nil {
 			util.ErrorMessage(fmt.Sprintf("Failed to set the environment variable %s=%s: %v", k, v, err))
 		}
 	}
+	return newEnvVars
 }
 
 // injectLabelsComposeYAML stamps LODEV labels onto all services, build sections, and

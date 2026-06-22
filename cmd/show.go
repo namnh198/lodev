@@ -31,7 +31,7 @@ var ShowCmd = &cobra.Command{
 		}
 		// Ensure we have all services to describe for never-started projects.
 		if !fileutil.FileExists(project.DockerComposeFullRenderedYAMLPath()) {
-			project.DockerEnv()
+			_ = project.DockerEnv()
 			err = project.WriteDockerComposeYAML()
 			if err != nil {
 				util.Failed("Failed to run `docker-compose config` for '%s': %v", project.Name, err)

@@ -271,7 +271,7 @@ func makeHostCmd(p *lodev.Project, fullPath, name string) func(*cobra.Command, [
 	return func(_ *cobra.Command, _ []string) {
 		if p != nil {
 			status := p.SiteStatus()
-			p.DockerEnv()
+			_ = p.DockerEnv()
 			_ = os.Setenv("LODEV_PROJECT_STATUS", status)
 		} else {
 			_ = os.Setenv("LODEV_PROJECT_STATUS", "")
@@ -284,7 +284,7 @@ func makeHostCmd(p *lodev.Project, fullPath, name string) func(*cobra.Command, [
 		var err error
 		// Load environment variables that may be useful for script.
 		if p != nil {
-			p.DockerEnv()
+			_ = p.DockerEnv()
 		}
 
 		if util.IsWindows() {
@@ -315,7 +315,7 @@ func makeContainerCmd(project *lodev.Project, fullPath, name, service string, ex
 				util.Failed("Failed to start project for custom command: %v", err)
 			}
 		}
-		project.DockerEnv()
+		_ = project.DockerEnv()
 
 		osArgs := []string{}
 		if len(os.Args) > 2 {

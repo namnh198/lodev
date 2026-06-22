@@ -661,7 +661,7 @@ type ExecOpts struct {
 // Returns ComposeCmd results of stdout, stderr, err
 // If Nocapture arg is true, stdout/stderr will be empty and output directly to stdout/stderr
 func (p *Project) Exec(opts *ExecOpts) (string, error) {
-	p.DockerEnv()
+	_ = p.DockerEnv()
 
 	if opts.Cmd == "" && len(opts.RawCmd) == 0 {
 		return "", fmt.Errorf("no command provided")
@@ -802,7 +802,7 @@ func (p *Project) Logs(service string, follow bool, timestamps bool, tailLines s
 
 // Attach attaches to a given service container and executes a command with a TTY
 func (p *Project) Attach(opts *ExecOpts) error {
-	p.DockerEnv()
+	_ = p.DockerEnv()
 
 	if opts.Service == "" {
 		opts.Service = "web"

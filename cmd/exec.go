@@ -55,7 +55,7 @@ lodev exec --raw -- ls -lR`,
 			util.Failed("No running container found for service '%s' in '%s' project", serviceType, app.Name)
 		}
 
-		app.DockerEnv()
+		_ = app.DockerEnv()
 
 		opts := &lodev.ExecOpts{
 			Service: serviceType,
