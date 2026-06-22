@@ -12,5 +12,5 @@ services:
       - HTTPS_EXPOSE=443:8025
     restart: "always"
     volumes:
-      - ${MAILHOG_DATA:-${LODEV_DATA:-./data}}/mailhog:/maildir
-    command: [ "-storage=maildir", "-maildir-path=/maildir" ]
+      - ${LODEV_DATA:-./data}/mailhog:/maildir
+    command: ["-storage=maildir", "-maildir-path=/maildir"]

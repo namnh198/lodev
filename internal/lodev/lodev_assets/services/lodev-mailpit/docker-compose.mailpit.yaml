@@ -11,5 +11,9 @@ services:
       - VIRTUAL_HOST=${MAILPIT_HOSTNAME:-mailpit.test}
       - HTTP_EXPOSE=80:8025
       - HTTPS_EXPOSE=443:8025
+      - MP_MAX_MESSAGES=5000
+      - MP_DATABASE=/data/mailpit.db
+      - MP_SMTP_AUTH_ACCEPT_ANY=1
+      - MP_SMTP_AUTH_ALLOW_INSECURE=1
     volumes:
-      - ${MAILPIT_DATA:-${LODEV_DATA:-./data}}/mailpit:/data
+      - ${LODEV_DATA:-./data}/mailpit:/data
