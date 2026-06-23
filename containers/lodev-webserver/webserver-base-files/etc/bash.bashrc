@@ -47,4 +47,4 @@ if [ -x /usr/lib/command-not-found -o -x /usr/share/command-not-found/command-no
 	}
 fi
 
-export HISTFILE=/mnt/lodev_default/bashhistory/${HOSTNAME}/bash_history
+export HISTFILE=/mnt/lodev_data/bashhistory/${HOSTNAME}/bash_history

@@ -90,10 +90,10 @@ phpenmod assert
 
 ls /var/www/html >/dev/null || (echo "/var/www/html does not seem to be healthy/mounted; docker may not be mounting it., exiting" && exit 101)
 
-# Make sure the TERMINUS_CACHE_DIR (/mnt/lodev_default/data/terminus/cache) exists
 sudo mkdir -p ${TERMINUS_CACHE_DIR}
 
-sudo mkdir -p /mnt/lodev_default/data/{bashhistory/${HOSTNAME},mysqlhistory/${HOSTNAME},n_prefix/${HOSTNAME},npm,yarn/classic,yarn/berry}
+sudo mkdir -p /mnt/lodev_data/{bashhistory/${HOSTNAME},mysqlhistory/${HOSTNAME},n_prefix/${HOSTNAME},npm,yarn/classic,yarn/berry}
+sudo touch /mnt/lodev_data/{bashhistory/${HOSTNAME}/bash_history,mysqlhistory/${HOSTNAME}/mysql_history}
 sudo chown -R "$(id -u):$(id -g)" /mnt/lodev_default/ /var/lib/php
 
 # Remove ~/n/bin so the system Node.js is used by default; run `n install <version>` to switch

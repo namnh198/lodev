@@ -6,8 +6,8 @@ FROM ${BASEIMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NGINX_SITE_TEMPLATE=/etc/nginx/nginx-site.conf
 ENV APACHE_SITE_TEMPLATE=/etc/apache2/apache-site.conf
-ENV TERMINUS_CACHE_DIR=/mnt/lodev_default/data/terminus/cache
-ENV CAROOT=/mnt/lodev_default/data/mkcert
+ENV TERMINUS_CACHE_DIR=/mnt/lodev_data/terminus/cache
+ENV CAROOT=/mnt/lodev_default/traefik/mkcert
 
 ARG TARGETPLATFORM
 ARG TARGETARCH
@@ -188,11 +188,11 @@ FROM lodev-webserver-base AS lodev-webserver
 ENV PHP_DEFAULT_VERSION="8.4"
 ENV NGINX_SITE_TEMPLATE=/etc/nginx/nginx-site.conf
 ENV APACHE_SITE_TEMPLATE=/etc/apache2/apache-site.conf
-ENV TERMINUS_CACHE_DIR=/mnt/lodev_default/data/terminus/cache
+ENV TERMINUS_CACHE_DIR=/mnt/lodev_data/terminus/cache
 ENV TERMINUS_HIDE_UPDATE_MESSAGE=1
-ENV CAROOT=/mnt/lodev_default/data/mkcert
+ENV CAROOT=/mnt/lodev_default/traefik/mkcert
 ENV COMPOSER_ALLOW_SUPERUSER=1
-ENV COMPOSER_CACHE_DIR=/mnt/lodev_default/data/composer
+ENV COMPOSER_CACHE_DIR=/mnt/lodev_data/composer
 ENV COMPOSER_PROCESS_TIMEOUT=2000
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=xterm

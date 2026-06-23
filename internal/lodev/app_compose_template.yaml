@@ -34,6 +34,7 @@ services:
           nocopy: true
         {{ end }}
       - ${LODEV_DEFAULT}:/mnt/lodev_default:rw
+      - ${LODEV_DATA}:/mnt/lodev_data:rw
     restart: {{ if .IsRestartAlways }}always{{ else }}no{{ end }}
     user: '$LODEV_UID:$LODEV_GID'
     hostname: {{ .Name }}-web
@@ -68,7 +69,7 @@ services:
       - LODEV_FILES_DIRS
       - LODEV_WEB_ENTRYPOINT=/mnt/lodev_config/web-entrypoint.d
       - LODEV_WEBSERVER_TYPE
-      - LODEV_XDEBUG_ENABLED
+      - LODEV_DATA=/mnt/lodev_data
       - LODEV_XDEBUG_ENABLED
       - LODEV_VERSION
       - LODEV_CRON_ENABLED={{ if .CrontabEnabled }}true{{ else }}false{{ end }}
@@ -76,16 +77,18 @@ services:
       - DRUSH_OPTIONS_URI=$LODEV_PRIMARY_URL
       - DOCKER_IP={{ .DockerIP }}
       # HTTP_EXPOSE allows for ports accepting HTTP traffic to be accessible from <site>.lodev.site:<port>
-      # To expose a container port to a different host port, define the port as hostPort:containerPort
+      # To expose a container port to a dif≥ferent host port, define the port as hostPort:containerPort
       # You can optionally expose an HTTPS port option for any ports defined in HTTP_EXPOSE.
       # To expose an HTTPS port, define the port as securePort:containerPort.
       - HTTP_EXPOSE=${LODEV_ROUTER_HTTP_PORT}:80{{ .WebExtraHTTPPorts }}
       - HTTPS_EXPOSE=${LODEV_ROUTER_HTTPS_PORT}:80{{ .WebExtraHTTPSPorts }}
       - IS_LODEV_PROJECT=true
-      - MYSQL_HISTFILE=/mnt/lodev_default/data/mysqlhistory/${LODEV_APPNAME}-web/mysql_history
-      - N_PREFIX=/mnt/ddev-global-cache/n_prefix/${LODEV_APPNAME}-web
+      - MYSQL_HISTFILE=/mnt/lodev_data/mysqlhistory/${LODEV_APPNAME}-web/mysql_history
+      - HISTFILE=/mnt/lodev_data/bashhistory/${LODEV_APPNAME}-web/bash_history
+      - N_PREFIX=/usr/local/n
+      - N_CACHE_PREFIX=/mnt/lodev_data/n_prefix/${LODEV_APPNAME}-web
       - NODE_EXTRA_CA_CERTS=/mnt/lodev_default/traefik/mkcert/rootCA.pem
-      - npm_config_cache=/mnt/lodev_default/data/npm
+      - npm_config_cache=/mnt/lodev_data/npm
       - PHP_IDE_CONFIG=serverName={{ .Name | lower }}.${LODEV_TLD}
       - TZ={{ .Timezone }}
       - USER={{ .Username }}
