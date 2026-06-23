@@ -2,7 +2,7 @@
 
 # lodev-webserver healthcheck
 
-set -eu -o pipefail
+set -e
 
 sleeptime=59
 
