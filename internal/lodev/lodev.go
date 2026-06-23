@@ -1019,7 +1019,7 @@ func EnvFiles(src string) ([]string, error) {
 		if strings.HasSuffix(file, ".example") {
 			continue
 		}
-		orderedEnvFiles = append(orderedEnvFiles, filepath.Join(src, file))
+		orderedEnvFiles = append(orderedEnvFiles, file)
 	}
 	return orderedEnvFiles, nil
 }
