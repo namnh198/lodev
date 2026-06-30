@@ -316,9 +316,7 @@ func GetLodevConfigDir() string {
 	// If Linux and ~/.lodev doesn't exist and
 	// ~/.config/lodev exists, use it,
 	// we don't create this directory.
-	stat, userHomeDotErr := os.Stat(userHomeDot)
-	userHomeDotIsDir := userHomeDotErr == nil && stat.IsDir()
-	if util.IsLinux() && !userHomeDotIsDir {
+	if util.IsLinux() {
 		userConfigDir, err := os.UserConfigDir()
 		if err == nil {
 			linuxDir := filepath.Join(userConfigDir, "lodev")
