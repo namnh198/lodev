@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,15 +29,6 @@ func ExecArgs(project, file, user string, tty bool, cmd []string) []string {
 	return ComposeArgs(project, file, append(args, cmd...)...)
 }
 
-// PHPImage is the image a project on PHP ver runs.
-func PHPImage(ver string) string {
-	if slices.Contains(config.BundledPHP, ver) {
-		return "lodev/php"
-	}
-	// legacy- keeps clear of the old per-version lodev/php:<ver> images.
-	return "lodev/php:legacy-" + ver
-}
-
 func PHPBuildArgs(versions []string, uid, gid int, dir string) []string {
 	return []string{"build", "-t", "lodev/php",
 		"--build-arg", "PHP_VERSIONS=" + strings.Join(versions, " "),
@@ -48,7 +38,7 @@ func PHPBuildArgs(versions []string, uid, gid int, dir string) []string {
 }
 
 func LegacyBuildArgs(ver, dir string) []string {
-	return []string{"build", "-t", PHPImage(ver), "--build-arg", "PHP_VERSION=" + ver,
+	return []string{"build", "-t", config.PHPImage(ver), "--build-arg", "PHP_VERSION=" + ver,
 		"-f", filepath.Join(dir, "Dockerfile.legacy"), dir}
 }
 
@@ -125,7 +115,7 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 			return err
 		}
 	}
-	img := PHPImage(ver)
+	img := config.PHPImage(ver)
 	if img == "lodev/php" || (!rebuild && ImageExists(img)) {
 		return nil
 	}

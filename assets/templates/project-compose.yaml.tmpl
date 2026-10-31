@@ -7,7 +7,7 @@ networks:
 
 services:
   web:
-    image: {{.Image}}
+    image: {{phpImage .P.PHP}}
     container_name: lodev-{{.P.Name}}-web
     restart: unless-stopped
     environment:

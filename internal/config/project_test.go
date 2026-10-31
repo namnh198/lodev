@@ -147,3 +147,13 @@ func TestBundledPHPIsSupported(t *testing.T) {
 		}
 	}
 }
+
+func TestPHPImage(t *testing.T) {
+	for ver, want := range map[string]string{
+		"8.2": "lodev/php", "8.5": "lodev/php", "7.4": "lodev/php:legacy-7.4", "8.1": "lodev/php:legacy-8.1",
+	} {
+		if got := PHPImage(ver); got != want {
+			t.Errorf("PHPImage(%q) = %q, want %q", ver, got, want)
+		}
+	}
+}

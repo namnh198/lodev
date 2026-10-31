@@ -12,7 +12,8 @@ import (
 )
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
-	"q": strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
+	"phpImage": config.PHPImage,
+	"q":        strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
 }).ParseFS(assets.FS, "templates/*.tmpl"))
 
 func render(name string, data any) ([]byte, error) {
@@ -37,7 +38,6 @@ func SharedCompose(g *config.Global, home string) ([]byte, error) {
 
 type ProjectInput struct {
 	Project    *config.Project
-	Image      string
 	ExtraHosts []string
 	CAFile     string
 }
@@ -49,11 +49,10 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 	}
 	return render("project-compose.yaml.tmpl", struct {
 		P          *config.Project
-		Image      string
 		ExtraHosts []string
 		CAFile     string
 		Rule       string
-	}{in.Project, in.Image, in.ExtraHosts, in.CAFile, strings.Join(hosts, " || ")})
+	}{in.Project, in.ExtraHosts, in.CAFile, strings.Join(hosts, " || ")})
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

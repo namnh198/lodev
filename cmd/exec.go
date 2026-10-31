@@ -36,7 +36,6 @@ func runInWeb(user string, cmd []string) error {
 	return err
 }
 
-const xdebugIni = "/usr/local/etc/php/conf.d/zz-lodev-xdebug.ini"
 const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl restart php-fpm >/dev/null; } && echo "xdebug `
 
 func init() {
@@ -75,8 +74,8 @@ func init() {
 		ValidArgs: []string{"on", "off", "status"},
 		RunE: func(_ *cobra.Command, args []string) error {
 			script := map[string]string{
-				"on":     "cp /etc/lodev/xdebug.ini " + xdebugIni + reloadFPM + `on"`,
-				"off":    "rm -f " + xdebugIni + reloadFPM + `off"`,
+				"on":     `for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`,
+				"off":    `rm -f /etc/php/$LODEV_PHP/*/conf.d/99-lodev-xdebug.ini` + reloadFPM + `off"`,
 				"status": "php -m | grep -qi xdebug && echo on || echo off",
 			}[args[0]]
 			if script == "" {

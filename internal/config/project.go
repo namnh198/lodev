@@ -169,3 +169,12 @@ var nonName = regexp.MustCompile(`[^a-z0-9]+`)
 func SanitizeName(dir string) string {
 	return strings.Trim(nonName.ReplaceAllString(strings.ToLower(dir), "-"), "-")
 }
+
+// PHPImage is the image a project on PHP ver runs.
+func PHPImage(ver string) string {
+	if slices.Contains(BundledPHP, ver) {
+		return "lodev/php"
+	}
+	// legacy- keeps clear of the old per-version lodev/php:<ver> images.
+	return "lodev/php:legacy-" + ver
+}

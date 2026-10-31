@@ -64,7 +64,6 @@ func shop(webserver string) *config.Project {
 func projectInput(webserver string) ProjectInput {
 	return ProjectInput{
 		Project:    shop(webserver),
-		Image:      "lodev/php",
 		ExtraHosts: []string{"en.test", "shop.test", "mailpit.test", "phpmyadmin.test"},
 		CAFile:     home + "/ca/rootCA.pem",
 	}
@@ -192,6 +191,20 @@ func TestProjectComposeStructure(t *testing.T) {
 	for _, v := range none.Volumes {
 		if strings.Contains(v, "webserver.conf") {
 			t.Fatal("none mounts webserver.conf")
+		}
+	}
+}
+
+func TestProjectComposeImageFollowsPHPVersion(t *testing.T) {
+	for ver, want := range map[string]string{"8.3": "image: lodev/php\n", "7.4": "image: lodev/php:legacy-7.4\n"} {
+		in := projectInput("nginx")
+		in.Project.PHP = ver
+		b, err := ProjectCompose(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), want) {
+			t.Errorf("PHP %s: compose lacks %q", ver, want)
 		}
 	}
 }
