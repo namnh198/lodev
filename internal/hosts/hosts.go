@@ -11,7 +11,7 @@ import (
 var File = "/etc/hosts"
 
 // Render replaces (or appends) the block for name; no domains removes it.
-func Render(content, name string, domains []string) string {
+func Render(content, name string, domains []string) (string, error) {
 	begin, end := "# lodev:"+name+" begin", "# lodev:"+name+" end"
 	var block []string
 	if len(domains) > 0 {
@@ -30,10 +30,13 @@ func Render(content, name string, domains []string) string {
 			out = append(out, line)
 		}
 	}
+	if inBlock {
+		return "", fmt.Errorf("%s has %q without %q; fix the file by hand", File, begin, end)
+	}
 	if !found {
 		out = append(out, block...)
 	}
-	return strings.Join(out, "\n") + "\n"
+	return strings.Join(out, "\n") + "\n", nil
 }
 
 // Apply writes the block into File with sudo, only when it changes.
@@ -42,7 +45,10 @@ func Apply(name string, domains []string) error {
 	if err != nil {
 		return err
 	}
-	next := Render(string(data), name, domains)
+	next, err := Render(string(data), name, domains)
+	if err != nil {
+		return err
+	}
 	if next == string(data) {
 		return nil
 	}
