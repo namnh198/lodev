@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -34,10 +35,17 @@ func PortsToCheck(g *config.Global, stackRunning bool) []int {
 	return ports
 }
 
+// portInUse is true only for "address in use"; other bind errors (e.g. macOS
+// refusing 127.0.0.1:80 to normal users) say nothing about a conflict.
+func portInUse(err error) bool { return errors.Is(err, syscall.EADDRINUSE) }
+
 func checkPort(p int) error {
 	l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(p))
 	if err == nil {
 		return l.Close()
+	}
+	if !portInUse(err) {
+		return nil
 	}
 	owner, _ := exec.Command("lsof", "-nP", "-iTCP:"+strconv.Itoa(p), "-sTCP:LISTEN").Output()
 	return fmt.Errorf("port %d is in use:\n%s", p, owner)
