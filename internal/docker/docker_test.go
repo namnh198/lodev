@@ -28,7 +28,26 @@ func TestExecArgsNoTTY(t *testing.T) {
 		"compose -p P -f F exec -T -u www-data -w /var/www/html web php -v")
 }
 
+func TestPHPImage(t *testing.T) {
+	for ver, want := range map[string]string{
+		"8.2": "lodev/php", "8.5": "lodev/php", "7.4": "lodev/php:legacy-7.4", "8.1": "lodev/php:legacy-8.1",
+	} {
+		if got := PHPImage(ver); got != want {
+			t.Errorf("PHPImage(%q) = %q, want %q", ver, got, want)
+		}
+	}
+}
+
 func TestPHPBuildArgs(t *testing.T) {
-	check(t, PHPBuildArgs("8.3", 501, 20, "/tmp/x"),
-		"build -t lodev/php:8.3 --build-arg PHP_VERSION=8.3 --build-arg UID=501 --build-arg GID=20 /tmp/x")
+	got := PHPBuildArgs([]string{"8.2", "8.3"}, 501, 20, "/tmp/x")
+	want := []string{"build", "-t", "lodev/php", "--build-arg", "PHP_VERSIONS=8.2 8.3",
+		"--build-arg", "UID=501", "--build-arg", "GID=20", "/tmp/x"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+}
+
+func TestLegacyBuildArgs(t *testing.T) {
+	check(t, LegacyBuildArgs("7.4", "/tmp/x"),
+		"build -t lodev/php:legacy-7.4 --build-arg PHP_VERSION=7.4 -f /tmp/x/Dockerfile.legacy /tmp/x")
 }

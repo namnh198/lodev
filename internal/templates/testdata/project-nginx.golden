@@ -7,10 +7,11 @@ networks:
 
 services:
   web:
-    image: lodev/php:8.3
+    image: lodev/php
     container_name: lodev-shop-web
     restart: unless-stopped
     environment:
+      - LODEV_PHP=8.3
       - LODEV_WEBSERVER=nginx
       - DB_HOST=mysql
       - DB_PORT=3306

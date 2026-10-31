@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -136,5 +137,13 @@ func TestSaveLoadProject(t *testing.T) {
 	got, err := LoadProject(p.Root)
 	if err != nil || !reflect.DeepEqual(got, p) {
 		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+func TestBundledPHPIsSupported(t *testing.T) {
+	for _, v := range BundledPHP {
+		if !slices.Contains(SupportedPHP, v) {
+			t.Errorf("bundled PHP %s is not supported", v)
+		}
 	}
 }

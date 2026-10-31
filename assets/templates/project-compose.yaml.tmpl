@@ -7,10 +7,11 @@ networks:
 
 services:
   web:
-    image: lodev/php:{{.P.PHP}}
+    image: {{.Image}}
     container_name: lodev-{{.P.Name}}-web
     restart: unless-stopped
     environment:
+      - LODEV_PHP={{.P.PHP}}
       - LODEV_WEBSERVER={{.P.Webserver}}
       - DB_HOST=mysql
       - DB_PORT=3306

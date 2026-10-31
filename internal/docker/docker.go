@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"lodev/assets"
+	"lodev/internal/config"
 )
 
 func ComposeArgs(project, file string, sub ...string) []string {
@@ -27,12 +30,26 @@ func ExecArgs(project, file, user string, tty bool, cmd []string) []string {
 	return ComposeArgs(project, file, append(args, cmd...)...)
 }
 
-func PHPBuildArgs(ver string, uid, gid int, dir string) []string {
-	return []string{"build", "-t", "lodev/php:" + ver,
-		"--build-arg", "PHP_VERSION=" + ver,
+// PHPImage is the image a project on PHP ver runs.
+func PHPImage(ver string) string {
+	if slices.Contains(config.BundledPHP, ver) {
+		return "lodev/php"
+	}
+	// legacy- keeps clear of the old per-version lodev/php:<ver> images.
+	return "lodev/php:legacy-" + ver
+}
+
+func PHPBuildArgs(versions []string, uid, gid int, dir string) []string {
+	return []string{"build", "-t", "lodev/php",
+		"--build-arg", "PHP_VERSIONS=" + strings.Join(versions, " "),
 		"--build-arg", "UID=" + strconv.Itoa(uid),
 		"--build-arg", "GID=" + strconv.Itoa(gid),
 		dir}
+}
+
+func LegacyBuildArgs(ver, dir string) []string {
+	return []string{"build", "-t", PHPImage(ver), "--build-arg", "PHP_VERSION=" + ver,
+		"-f", filepath.Join(dir, "Dockerfile.legacy"), dir}
 }
 
 // Run runs docker with the terminal attached.
@@ -98,12 +115,20 @@ func BuildImage(sub string, args func(dir string) []string) error {
 	return Run(args(dir)...)
 }
 
+// EnsurePHPImage builds the base image, and the legacy image for ver, if missing or rebuild.
 func EnsurePHPImage(ver string, rebuild bool) error {
-	if !rebuild && ImageExists("lodev/php:"+ver) {
+	if rebuild || !ImageExists("lodev/php") {
+		fmt.Println("Building lodev/php (PHP 8.2-8.5, first time takes a few minutes)...")
+		if err := BuildImage("php", func(dir string) []string {
+			return PHPBuildArgs(config.BundledPHP, os.Getuid(), os.Getgid(), dir)
+		}); err != nil {
+			return err
+		}
+	}
+	img := PHPImage(ver)
+	if img == "lodev/php" || (!rebuild && ImageExists(img)) {
 		return nil
 	}
-	fmt.Printf("Building lodev/php:%s (first time takes a few minutes)...\n", ver)
-	return BuildImage("php", func(dir string) []string {
-		return PHPBuildArgs(ver, os.Getuid(), os.Getgid(), dir)
-	})
+	fmt.Printf("Building %s...\n", img)
+	return BuildImage("php", func(dir string) []string { return LegacyBuildArgs(ver, dir) })
 }

@@ -14,6 +14,7 @@ import (
 
 var (
 	SupportedPHP    = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
+	BundledPHP      = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
 	Types           = []string{"laravel", "wordpress", "magento", "php"}
 	Webservers      = []string{"nginx", "apache", "none"}
 	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin"}

@@ -64,6 +64,7 @@ func shop(webserver string) *config.Project {
 func projectInput(webserver string) ProjectInput {
 	return ProjectInput{
 		Project:    shop(webserver),
+		Image:      "lodev/php",
 		ExtraHosts: []string{"en.test", "shop.test", "mailpit.test", "phpmyadmin.test"},
 		CAFile:     home + "/ca/rootCA.pem",
 	}
