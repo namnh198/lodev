@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"net"
-	"os"
 	"slices"
-	"syscall"
 	"testing"
 
 	"lodev/internal/config"
@@ -21,12 +19,24 @@ func TestCheckPortReportsPortInUse(t *testing.T) {
 	}
 }
 
-func TestPortInUseIgnoresPermissionDenied(t *testing.T) {
-	// macOS lets normal users bind :80 but not 127.0.0.1:80; that is not a conflict.
-	denied := &net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EACCES)}
-	inUse := &net.OpError{Op: "listen", Err: os.NewSyscallError("bind", syscall.EADDRINUSE)}
-	if portInUse(denied) || !portInUse(inUse) {
-		t.Fatal("wrong classification")
+func TestCheckPortReportsWildcardListener(t *testing.T) {
+	// A listener on all interfaces (e.g. another dev proxy on :443) must count as a conflict.
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if err := checkPort(l.Addr().(*net.TCPAddr).Port); err == nil {
+		t.Fatal("wildcard listener not reported")
+	}
+}
+
+func TestCheckPortFree(t *testing.T) {
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	if err := checkPort(port); err != nil {
+		t.Fatal(err)
 	}
 }
 
