@@ -42,13 +42,13 @@ func TestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := map[string]func(p *Project){
-		"name":          func(p *Project) { p.Name = "Bad_Name" },
-		"php":           func(p *Project) { p.PHP = "7.3" },
-		"type":          func(p *Project) { p.Type = "drupal" },
-		"webserver":     func(p *Project) { p.Webserver = "caddy" },
-		"tld":           func(p *Project) { p.Domains = []string{"shop.local"} },
-		"reserved":      func(p *Project) { p.Domains = []string{"mailpit.test"} },
-		"service":       func(p *Project) { p.Services = []string{"postgres"} },
+		"name":      func(p *Project) { p.Name = "Bad_Name" },
+		"php":       func(p *Project) { p.PHP = "7.3" },
+		"type":      func(p *Project) { p.Type = "drupal" },
+		"webserver": func(p *Project) { p.Webserver = "caddy" },
+		"tld":       func(p *Project) { p.Domains = []string{"shop.local"} },
+		"reserved":  func(p *Project) { p.Domains = []string{"mailpit.test"} },
+		"service":   func(p *Project) { p.Services = []string{"postgres"} },
 	}
 	for name, mutate := range bad {
 		p := valid()
