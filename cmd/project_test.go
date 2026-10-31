@@ -1,0 +1,56 @@
+package cmd
+
+import (
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+)
+
+func TestNewProjectConfigDetects(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "My_Shop.v2")
+	os.MkdirAll(filepath.Join(root, "bin"), 0o755)
+	os.WriteFile(filepath.Join(root, "bin", "magento"), nil, 0o644)
+	p, err := newProjectConfig(root, "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "my-shop-v2" || p.Type != "magento" || p.Docroot != "pub" || p.PHP != "8.3" ||
+		p.Webserver != "nginx" || !slices.Equal(p.Services, []string{"mysql", "redis", "opensearch"}) || p.Root != root {
+		t.Fatalf("%+v", p)
+	}
+}
+
+func TestNewProjectConfigFlagsWin(t *testing.T) {
+	p, err := newProjectConfig(t.TempDir(), "x", "laravel", "7.4", "none")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "x" || p.Type != "laravel" || p.PHP != "7.4" || p.Webserver != "none" || p.Docroot != "public" ||
+		!slices.Equal(p.Services, []string{"mysql", "redis"}) {
+		t.Fatalf("%+v", p)
+	}
+}
+
+func TestNewProjectConfigRejectsInvalid(t *testing.T) {
+	if _, err := newProjectConfig(t.TempDir(), "x", "php", "7.3", ""); err == nil {
+		t.Fatal("php 7.3 accepted")
+	}
+}
+
+func TestEnsureGitignore(t *testing.T) {
+	root := t.TempDir()
+	want := ".lodev/compose.yaml\n.lodev/webserver.conf\n"
+	ensureGitignore(root)
+	if b, _ := os.ReadFile(filepath.Join(root, ".gitignore")); string(b) != want {
+		t.Fatalf("%q", b)
+	}
+
+	root = t.TempDir()
+	os.WriteFile(filepath.Join(root, ".gitignore"), []byte("vendor/"), 0o644)
+	ensureGitignore(root)
+	ensureGitignore(root)
+	if b, _ := os.ReadFile(filepath.Join(root, ".gitignore")); string(b) != "vendor/\n"+want {
+		t.Fatalf("%q", b)
+	}
+}
