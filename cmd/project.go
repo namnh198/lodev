@@ -185,6 +185,42 @@ func start(p *config.Project, rebuild bool) error {
 	return nil
 }
 
+func deleteProject(p *config.Project, dropDB, yes bool) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	// A copy (clone, worktree, cp -R) shares the name; never tear down the original.
+	if err := reg.Conflict(p); err != nil {
+		return fmt.Errorf("refusing to delete: %w", err)
+	}
+	if _, err := os.Stat(composeFile(p)); err == nil {
+		if err := projectCompose(p, "down"); err != nil {
+			return err
+		}
+	}
+	if err := hosts.Apply(p.Name, nil); err != nil {
+		return err
+	}
+	if err := certs.Remove(p.Name); err != nil {
+		return err
+	}
+	if err := certs.SyncTraefik(); err != nil {
+		return err
+	}
+	delete(reg, p.Name)
+	if err := reg.Save(); err != nil {
+		return err
+	}
+	if dropDB && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
+		if err := mysqlExec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
+			return err
+		}
+		fmt.Println("Dropped database", p.DBName())
+	}
+	return nil
+}
+
 func status(name string) string {
 	out, _ := docker.Output("ps", "-a", "--filter", "name=^lodev-"+name+"-web$", "--format", "{{.State}}")
 	if out == "" {
@@ -280,35 +316,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if _, err := os.Stat(composeFile(p)); err == nil {
-				if err := projectCompose(p, "down"); err != nil {
-					return err
-				}
-			}
-			if err := hosts.Apply(p.Name, nil); err != nil {
-				return err
-			}
-			if err := certs.Remove(p.Name); err != nil {
-				return err
-			}
-			if err := certs.SyncTraefik(); err != nil {
-				return err
-			}
-			reg, err := registry.Load()
-			if err != nil {
-				return err
-			}
-			delete(reg, p.Name)
-			if err := reg.Save(); err != nil {
-				return err
-			}
-			if dropDB && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
-				if err := mysqlExec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
-					return err
-				}
-				fmt.Println("Dropped database", p.DBName())
-			}
-			return nil
+			return deleteProject(p, dropDB, yes)
 		},
 	}
 	deleteCmd.Flags().BoolVar(&dropDB, "db", false, "also drop the project database")
