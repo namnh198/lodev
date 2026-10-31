@@ -1,6 +1,14 @@
 #!/bin/sh
 set -e
 
+if [ ! -x "/usr/sbin/php-fpm${LODEV_PHP}" ]; then
+  echo "unsupported LODEV_PHP: ${LODEV_PHP}" >&2
+  exit 1
+fi
+update-alternatives --quiet --set php "/usr/bin/php${LODEV_PHP}"
+ln -sf "/usr/sbin/php-fpm${LODEV_PHP}" /usr/local/sbin/php-fpm
+mkdir -p /run/php
+
 # Trust lodev's local CA so https://*.test works from inside the container.
 if [ -f /etc/lodev/rootCA.pem ]; then
   cp /etc/lodev/rootCA.pem /usr/local/share/ca-certificates/lodev.crt
