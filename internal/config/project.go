@@ -21,7 +21,10 @@ var (
 	ReservedDomains = []string{"mailpit.test", "phpmyadmin.test"}
 )
 
-var nameRe = regexp.MustCompile(`^[a-z0-9-]+$`)
+var (
+	nameRe   = regexp.MustCompile(`^[a-z0-9-]+$`)
+	domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+test$`)
+)
 
 type Project struct {
 	Name      string   `yaml:"name"`
@@ -102,6 +105,9 @@ func (p *Project) Validate() error {
 	if !nameRe.MatchString(p.Name) {
 		return fmt.Errorf("name %q is invalid (allowed: a-z, 0-9, -)", p.Name)
 	}
+	if p.Name == "lodev-services" { // the shared stack's cert and hosts block use this name
+		return fmt.Errorf("name %q is reserved by lodev", p.Name)
+	}
 	if err := oneOf("type", p.Type, Types); err != nil {
 		return err
 	}
@@ -112,8 +118,8 @@ func (p *Project) Validate() error {
 		return err
 	}
 	for _, d := range p.Domains {
-		if !strings.HasSuffix(d, ".test") {
-			return fmt.Errorf("domain %q must end with .test", d)
+		if !domainRe.MatchString(d) {
+			return fmt.Errorf("domain %q is invalid (lowercase host name ending in .test)", d)
 		}
 		if slices.Contains(ReservedDomains, d) {
 			return fmt.Errorf("domain %q is reserved by lodev", d)

@@ -75,3 +75,10 @@ func TestEnsureGitignore(t *testing.T) {
 		t.Fatalf("%q", b)
 	}
 }
+
+func TestNewProjectConfigEmptyNameHint(t *testing.T) {
+	_, err := newProjectConfig(filepath.Join(t.TempDir(), "___"), "", "php", "", "")
+	if err == nil || !strings.Contains(err.Error(), "--name") {
+		t.Fatalf("want a --name hint, got %v", err)
+	}
+}

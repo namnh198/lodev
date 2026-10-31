@@ -2,7 +2,9 @@
 package assets
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -36,4 +38,19 @@ func Extract(sub, dst string) error {
 		}
 		return os.WriteFile(target, data, mode)
 	})
+}
+
+// Hash fingerprints the embedded subtree sub, so a changed asset can be detected in a built image.
+func Hash(sub string) (string, error) {
+	h := sha256.New()
+	err := fs.WalkDir(FS, sub, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := fs.ReadFile(FS, path)
+		h.Write([]byte(path + "\x00"))
+		h.Write(data)
+		return err
+	})
+	return hex.EncodeToString(h.Sum(nil)), err
 }

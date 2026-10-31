@@ -50,6 +50,12 @@ func TestValidate(t *testing.T) {
 		"tld":       func(p *Project) { p.Domains = []string{"shop.local"} },
 		"reserved":  func(p *Project) { p.Domains = []string{"mailpit.test"} },
 		"service":   func(p *Project) { p.Services = []string{"postgres"} },
+		"space":     func(p *Project) { p.Domains = []string{"github.com shop.test"} },
+		"newline":   func(p *Project) { p.Domains = []string{"a.test\n1.2.3.4 bank.test"} },
+		"upper":     func(p *Project) { p.Domains = []string{"Shop.test"} },
+		"dash":      func(p *Project) { p.Domains = []string{"-shop.test"} },
+		"bare":      func(p *Project) { p.Domains = []string{".test"} },
+		"stack":     func(p *Project) { p.Name = "lodev-services" },
 	}
 	for name, mutate := range bad {
 		p := valid()
@@ -155,5 +161,13 @@ func TestPHPImage(t *testing.T) {
 		if got := PHPImage(ver); got != want {
 			t.Errorf("PHPImage(%q) = %q, want %q", ver, got, want)
 		}
+	}
+}
+
+func TestValidateAcceptsSubdomains(t *testing.T) {
+	p := valid()
+	p.Domains = []string{"store-en.test", "a.b.test", "x1.test"}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
 	}
 }

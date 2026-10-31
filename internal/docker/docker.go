@@ -29,17 +29,26 @@ func ExecArgs(project, file, user string, tty bool, cmd []string) []string {
 	return ComposeArgs(project, file, append(args, cmd...)...)
 }
 
-func PHPBuildArgs(versions []string, uid, gid int, dir string) []string {
-	return []string{"build", "-t", "lodev/php",
-		"--build-arg", "PHP_VERSIONS=" + strings.Join(versions, " "),
-		"--build-arg", "UID=" + strconv.Itoa(uid),
-		"--build-arg", "GID=" + strconv.Itoa(gid),
-		dir}
+// PHPBuildArgs builds the base image, labelled with the hash of the assets it came from.
+func PHPBuildArgs(versions []string, uid, gid int, hash string, noCache bool, dir string) []string {
+	return buildArgs(noCache, "-t", "lodev/php", "--label", "lodev.hash="+hash,
+		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "),
+		"--build-arg", "UID="+strconv.Itoa(uid),
+		"--build-arg", "GID="+strconv.Itoa(gid),
+		dir)
 }
 
-func LegacyBuildArgs(ver, dir string) []string {
-	return []string{"build", "-t", config.PHPImage(ver), "--build-arg", "PHP_VERSION=" + ver,
-		"-f", filepath.Join(dir, "Dockerfile.legacy"), dir}
+// LegacyBuildArgs builds a legacy image, labelled with the base image ID it was built on.
+func LegacyBuildArgs(ver, baseID string, noCache bool, dir string) []string {
+	return buildArgs(noCache, "-t", config.PHPImage(ver), "--label", "lodev.base="+baseID,
+		"--build-arg", "PHP_VERSION="+ver, "-f", filepath.Join(dir, "Dockerfile.legacy"), dir)
+}
+
+func buildArgs(noCache bool, rest ...string) []string {
+	if noCache {
+		return append([]string{"build", "--no-cache"}, rest...)
+	}
+	return append([]string{"build"}, rest...)
 }
 
 // Run runs docker with the terminal attached.
@@ -105,20 +114,44 @@ func BuildImage(sub string, args func(dir string) []string) error {
 	return Run(args(dir)...)
 }
 
-// EnsurePHPImage builds the base image, and the legacy image for ver, if missing or rebuild.
+// Swapped in tests.
+var (
+	// inspect formats an image; "" when it does not exist.
+	inspect = func(format, tag string) string {
+		out, err := Output("image", "inspect", "-f", format, tag)
+		if err != nil {
+			return ""
+		}
+		return out
+	}
+	build   = BuildImage
+	phpHash = func() (string, error) { return assets.Hash("php") }
+)
+
+// EnsurePHPImage (re)builds the base image when missing, built from other
+// assets (e.g. after upgrading lodev) or rebuild, and likewise the legacy
+// image for ver when it is missing or sits on an older base.
 func EnsurePHPImage(ver string, rebuild bool) error {
-	if rebuild || !ImageExists("lodev/php") {
-		fmt.Println("Building lodev/php (PHP 8.2-8.5, first time takes a few minutes)...")
-		if err := BuildImage("php", func(dir string) []string {
-			return PHPBuildArgs(config.BundledPHP, os.Getuid(), os.Getgid(), dir)
+	hash, err := phpHash()
+	if err != nil {
+		return err
+	}
+	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, "lodev/php") != hash {
+		fmt.Println("Building lodev/php (PHP 8.2-8.5, about a minute the first time)...")
+		if err := build("php", func(dir string) []string {
+			return PHPBuildArgs(config.BundledPHP, os.Getuid(), os.Getgid(), hash, rebuild, dir)
 		}); err != nil {
 			return err
 		}
 	}
 	img := config.PHPImage(ver)
-	if img == "lodev/php" || (!rebuild && ImageExists(img)) {
+	if img == "lodev/php" {
+		return nil
+	}
+	base := inspect("{{.Id}}", "lodev/php")
+	if !rebuild && inspect(`{{index .Config.Labels "lodev.base"}}`, img) == base {
 		return nil
 	}
 	fmt.Printf("Building %s...\n", img)
-	return BuildImage("php", func(dir string) []string { return LegacyBuildArgs(ver, dir) })
+	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, base, rebuild, dir) })
 }

@@ -53,7 +53,9 @@ func mysqlExec(sql string) error {
 // newProjectConfig fills unset values from what is detected in root.
 func newProjectConfig(root, name, typ, php, webserver string) (*config.Project, error) {
 	if name == "" {
-		name = config.SanitizeName(filepath.Base(root))
+		if name = config.SanitizeName(filepath.Base(root)); name == "" {
+			return nil, fmt.Errorf("cannot derive a project name from folder %q; use --name", filepath.Base(root))
+		}
 	}
 	if typ == "" {
 		typ = config.DetectType(root)
@@ -153,7 +155,25 @@ func start(p *config.Project, rebuild bool) error {
 	if err := hosts.Apply(p.Name, p.WebDomains()); err != nil {
 		return err
 	}
-	reg.Put(p)
+	dropped := reg.Put(p)
+	for _, old := range dropped {
+		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
+		fmt.Printf("Project was renamed from %s; removing its old container, hosts entries and certificate.\n", old)
+		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
+			return err
+		}
+		if err := hosts.Apply(old, nil); err != nil {
+			return err
+		}
+		if err := certs.Remove(old); err != nil {
+			return err
+		}
+	}
+	if len(dropped) > 0 {
+		if err := certs.SyncTraefik(); err != nil {
+			return err
+		}
+	}
 	if err := reg.Save(); err != nil {
 		return err
 	}
@@ -272,7 +292,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			return start(p, rebuild)
+			return withLock(func() error { return start(p, rebuild) })
 		},
 	}
 	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the PHP image")
@@ -299,10 +319,12 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if err := projectCompose(p, "stop"); err != nil {
-				return err
-			}
-			return start(p, false)
+			return withLock(func() error {
+				if err := projectCompose(p, "stop"); err != nil {
+					return err
+				}
+				return start(p, false)
+			})
 		},
 	}
 
@@ -316,7 +338,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			return deleteProject(p, dropDB, yes)
+			return withLock(func() error { return deleteProject(p, dropDB, yes) })
 		},
 	}
 	deleteCmd.Flags().BoolVar(&dropDB, "db", false, "also drop the project database")

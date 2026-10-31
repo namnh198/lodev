@@ -41,8 +41,8 @@ All projects share one image, `lodev/php`, with PHP 8.2–8.5; it is built on th
 (`lodev/php:legacy-<ver>`) on top of it the first time a project uses them.
 
 - Change a project's PHP version: edit `php:` in `.lodev/config.yaml`, then `lodev restart`.
-- After upgrading lodev: `lodev start --rebuild` (rebuilds the base, and the legacy image
-  if the project uses one).
+- After upgrading lodev, `lodev start` rebuilds the images by itself when their files
+  changed. `lodev start --rebuild` forces a clean rebuild (fresh PHP packages).
 - Coming from an older lodev that built one image per version? Free the space with
   `docker rmi lodev/php:7.4 lodev/php:8.0 lodev/php:8.1 lodev/php:8.2 lodev/php:8.3 lodev/php:8.4 lodev/php:8.5`
   ("No such image" errors are fine).

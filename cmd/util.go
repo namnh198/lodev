@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"lodev/internal/config"
 	"lodev/internal/docker"
@@ -34,4 +35,21 @@ func confirm(prompt string, yes bool) bool {
 // confirmTyped requires the user to type word exactly.
 func confirmTyped(prompt, word string) bool {
 	return readLine(prompt) == word
+}
+
+// withLock runs fn while holding ~/.lodev/lock, so two lodev commands do not
+// overwrite each other's registry and /etc/hosts changes.
+func withLock(fn func() error) error {
+	if err := os.MkdirAll(config.Home(), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(config.Home(), "lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	return fn()
 }

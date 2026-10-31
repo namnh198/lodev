@@ -19,7 +19,8 @@ for v in "$@"; do
   fi
 done
 
-apt-get update
+# --error-on=any: fail here, not later with "Unable to locate package", when sury is unreachable.
+apt-get update --error-on=any
 apt-get install -y --no-install-recommends "${pkgs[@]}"
 
 for v in "$@"; do

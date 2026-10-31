@@ -12,7 +12,8 @@ func TestSyncTraefik(t *testing.T) {
 	t.Setenv("LODEV_HOME", home)
 	dir := filepath.Join(home, "certs")
 	os.MkdirAll(dir, 0o755)
-	for _, f := range []string{"a.pem", "a-key.pem", "b.pem", "b-key.pem", "a.domains"} {
+	// Cert names come from .domains files; a project may itself be named *-key.
+	for _, f := range []string{"a.pem", "a-key.pem", "a.domains", "api-key.pem", "api-key-key.pem", "api-key.domains"} {
 		os.WriteFile(filepath.Join(dir, f), nil, 0o644)
 	}
 	if err := SyncTraefik(); err != nil {
@@ -20,18 +21,25 @@ func TestSyncTraefik(t *testing.T) {
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, "dynamic.yaml"))
 	s := string(data)
-	if strings.Count(s, "certFile:") != 2 || !strings.Contains(s, "certFile: /certs/a.pem") || !strings.Contains(s, "certFile: /certs/b.pem") {
+	if strings.Count(s, "certFile:") != 2 || !strings.Contains(s, "certFile: /certs/a.pem") || !strings.Contains(s, "certFile: /certs/api-key.pem") {
 		t.Fatal(s)
 	}
+}
+
+// noMkcert hides a host mkcert so CAFile is LODEV_HOME/ca/rootCA.pem.
+func noMkcert(t *testing.T, home string) string {
+	t.Setenv("PATH", t.TempDir())
+	return filepath.Join(home, "ca", "rootCA.pem") + "\n"
 }
 
 func TestEnsureSkipsWhenUnchanged(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("LODEV_HOME", home)
+	ca := noMkcert(t, home)
 	dir := filepath.Join(home, "certs")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "shop.pem"), nil, 0o644)
-	os.WriteFile(filepath.Join(dir, "shop.domains"), []byte("a.test b.test"), 0o644)
+	os.WriteFile(filepath.Join(dir, "shop.domains"), []byte(ca+"a.test b.test"), 0o644)
 	orig := mkcertRun
 	t.Cleanup(func() { mkcertRun = orig })
 	mkcertRun = func(args ...string) error { t.Fatal("mkcert called"); return nil }
@@ -43,10 +51,11 @@ func TestEnsureSkipsWhenUnchanged(t *testing.T) {
 func TestEnsureRegeneratesWhenDomainsChange(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("LODEV_HOME", home)
+	ca := noMkcert(t, home)
 	dir := filepath.Join(home, "certs")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "shop.pem"), nil, 0o644)
-	os.WriteFile(filepath.Join(dir, "shop.domains"), []byte("a.test"), 0o644)
+	os.WriteFile(filepath.Join(dir, "shop.domains"), []byte(ca+"a.test"), 0o644)
 	orig := mkcertRun
 	t.Cleanup(func() { mkcertRun = orig })
 	var got []string
@@ -58,7 +67,28 @@ func TestEnsureRegeneratesWhenDomainsChange(t *testing.T) {
 	if strings.Join(got, " ") != want {
 		t.Fatalf("got %v", got)
 	}
-	if d, _ := os.ReadFile(filepath.Join(dir, "shop.domains")); string(d) != "a.test c.test" {
+	if d, _ := os.ReadFile(filepath.Join(dir, "shop.domains")); string(d) != ca+"a.test c.test" {
 		t.Fatalf("domains file %q", d)
+	}
+}
+
+func TestEnsureRegeneratesWhenCAChanges(t *testing.T) {
+	// Certs signed by lodev's dockerized CA must be reissued once mkcert's CA is used.
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	noMkcert(t, home)
+	dir := filepath.Join(home, "certs")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "shop.pem"), nil, 0o644)
+	os.WriteFile(filepath.Join(dir, "shop.domains"), []byte("/other/ca/rootCA.pem\na.test"), 0o644)
+	orig := mkcertRun
+	t.Cleanup(func() { mkcertRun = orig })
+	called := false
+	mkcertRun = func(args ...string) error { called = true; return nil }
+	if err := Ensure("shop", []string{"a.test"}); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("cert from another CA was kept")
 	}
 }

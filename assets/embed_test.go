@@ -27,3 +27,15 @@ func TestExtract(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestHash(t *testing.T) {
+	a, err := Hash("php")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := Hash("php")
+	m, _ := Hash("mkcert")
+	if len(a) != 64 || a != b || a == m {
+		t.Fatalf("php %q again %q mkcert %q", a, b, m)
+	}
+}

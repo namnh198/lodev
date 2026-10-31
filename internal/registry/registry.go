@@ -69,8 +69,17 @@ func (r Registry) Conflict(p *config.Project) error {
 	return nil
 }
 
-func (r Registry) Put(p *config.Project) {
+// Put records p and returns the old names dropped for the same folder (a renamed `name:`).
+func (r Registry) Put(p *config.Project) []string {
+	var dropped []string
+	for name, e := range r {
+		if e.Path == p.Root && name != p.Name {
+			delete(r, name)
+			dropped = append(dropped, name)
+		}
+	}
 	r[p.Name] = Entry{Path: p.Root, Domains: p.WebDomains()}
+	return dropped
 }
 
 func (r Registry) Names() []string {

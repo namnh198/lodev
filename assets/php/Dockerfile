@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
 
 # Base packages and the deb.sury.org PHP repository; PHP itself is installed below.
 RUN test -n "$PHP_VERSIONS" \
-    && apt-get update \
+    && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
@@ -23,9 +23,10 @@ RUN test -n "$PHP_VERSIONS" \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/log/apt/* /var/log/dpkg.log
 
-COPY zz-lodev.ini /etc/lodev/zz-lodev.ini
 COPY install-php.sh /usr/local/bin/lodev-install-php
 RUN lodev-install-php $PHP_VERSIONS
+# After the install: the install only symlinks to this file, so editing it skips the PHP layer.
+COPY zz-lodev.ini /etc/lodev/zz-lodev.ini
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 # Mailpit's binary doubles as a sendmail replacement for PHP mail().

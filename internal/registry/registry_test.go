@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -77,5 +78,14 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	got, err := Load()
 	if err != nil || !reflect.DeepEqual(got, r) || !reflect.DeepEqual(got.Names(), []string{"shop"}) {
 		t.Fatal(got, err)
+	}
+}
+
+func TestPutDropsOldNameForSamePath(t *testing.T) {
+	d := projectDir(t)
+	r := Registry{"shop": {Path: d, Domains: []string{"shop.test"}}, "blog": {Path: projectDir(t)}}
+	dropped := r.Put(project("shop2", d, "shop2.test"))
+	if _, ok := r["shop"]; ok || r["shop2"].Path != d || len(r) != 2 || !slices.Equal(dropped, []string{"shop"}) {
+		t.Fatalf("%v", r)
 	}
 }

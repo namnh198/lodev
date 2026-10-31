@@ -22,13 +22,13 @@ import (
 	"lodev/internal/templates"
 )
 
-// PortsToCheck lists host ports to preflight; a running stack already owns them.
-func PortsToCheck(g *config.Global, stackRunning bool) []int {
-	if stackRunning {
+// PortsToCheck lists host ports to preflight; ports our own running containers hold are skipped.
+func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning bool) []int {
+	if traefikRunning {
 		return nil
 	}
 	ports := []int{g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard}
-	if g.Ports.MySQL != "" {
+	if g.Ports.MySQL != "" && !mysqlRunning {
 		n, _ := strconv.Atoi(g.Ports.MySQL)
 		ports = append(ports, n)
 	}
@@ -55,7 +55,7 @@ func servicesUp() error {
 	if err != nil {
 		return err
 	}
-	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik")) {
+	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql")) {
 		if err := checkPort(p); err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func init() {
 		Use:   "up",
 		Short: "Start Traefik and all enabled shared services",
 		Args:  cobra.NoArgs,
-		RunE:  func(*cobra.Command, []string) error { return servicesUp() },
+		RunE:  func(*cobra.Command, []string) error { return withLock(servicesUp) },
 	}
 
 	var volumes, yes bool
@@ -182,10 +182,12 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if err := setService(svc, true); err != nil {
-				return err
-			}
-			return servicesUp()
+			return withLock(func() error {
+				if err := setService(svc, true); err != nil {
+					return err
+				}
+				return servicesUp()
+			})
 		},
 	}
 

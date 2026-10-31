@@ -84,7 +84,12 @@ func CAFile() (string, error) {
 
 // Ensure issues <name>.pem for domains unless the existing cert already covers them.
 func Ensure(name string, domains []string) error {
-	want := strings.Join(domains, " ")
+	ca, err := CAFile()
+	if err != nil {
+		return err
+	}
+	// The CA is part of the key: certs from lodev's own CA are reissued once mkcert is used.
+	want := ca + "\n" + strings.Join(domains, " ")
 	domainsFile := filepath.Join(dir(), name+".domains")
 	if got, err := os.ReadFile(domainsFile); err == nil && string(got) == want && exists(filepath.Join(dir(), name+".pem")) {
 		return nil
@@ -110,15 +115,14 @@ func Remove(name string) error {
 
 // SyncTraefik rewrites Traefik's dynamic config to list every issued cert.
 func SyncTraefik() error {
-	pems, err := filepath.Glob(filepath.Join(dir(), "*.pem"))
+	// <name>.domains exists for every issued cert; *.pem would also match key files.
+	files, err := filepath.Glob(filepath.Join(dir(), "*.domains"))
 	if err != nil {
 		return err
 	}
 	var names []string
-	for _, p := range pems {
-		if n := strings.TrimSuffix(filepath.Base(p), ".pem"); !strings.HasSuffix(n, "-key") {
-			names = append(names, n)
-		}
+	for _, f := range files {
+		names = append(names, strings.TrimSuffix(filepath.Base(f), ".domains"))
 	}
 	sort.Strings(names)
 	data, err := templates.TraefikDynamic(names)
