@@ -15,7 +15,7 @@ RUN . /etc/os-release \
        fi \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-       nginx apache2 supervisor default-mysql-client msmtp git unzip curl ca-certificates \
+       nginx apache2 supervisor default-mysql-client git unzip curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/default \
     && a2dismod -f mpm_prefork \
     && a2enmod mpm_event proxy_fcgi rewrite headers setenvif
@@ -25,6 +25,8 @@ RUN install-php-extensions bcmath gd intl pdo_mysql mysqli zip soap xsl sockets 
     && mv /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini /usr/local/etc/php/xdebug.ini.disabled
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+# Mailpit's binary doubles as a sendmail replacement for PHP mail().
+COPY --from=axllent/mailpit /mailpit /usr/local/bin/mailpit
 RUN curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
     && chmod +x /usr/local/bin/wp
 
