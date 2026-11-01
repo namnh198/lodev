@@ -1,3 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
 <VirtualHost *:80>
     DocumentRoot /var/www/html/pub
     DirectoryIndex index.php index.html
@@ -7,6 +8,8 @@
         AllowOverride All
         Require all granted
     </Directory>
+
+    IncludeOptional /etc/apache2/custom.d/*.conf
 
     <FilesMatch \.php$>
         SetHandler "proxy:fcgi://127.0.0.1:9000"

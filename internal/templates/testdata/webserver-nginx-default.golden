@@ -1,9 +1,11 @@
+# lodev-generated: delete this line to manage this file yourself
 server {
     listen 80;
     server_name _;
     root /var/www/html/public;
     index index.php index.html;
     client_max_body_size 256m;
+    include /etc/nginx/custom.d/*.conf;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;

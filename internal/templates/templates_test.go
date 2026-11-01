@@ -66,6 +66,7 @@ func projectInput(webserver string) ProjectInput {
 		Project:    shop(webserver),
 		ExtraHosts: []string{"en.test", "shop.test", "mailpit.test", "phpmyadmin.test"},
 		CAFile:     home + "/ca/rootCA.pem",
+		Image:      "lodev/shop-web",
 	}
 }
 
@@ -195,16 +196,59 @@ func TestProjectComposeStructure(t *testing.T) {
 	}
 }
 
-func TestProjectComposeImageFollowsPHPVersion(t *testing.T) {
-	for ver, want := range map[string]string{"8.3": "image: lodev/php\n", "7.4": "image: lodev/php:legacy-7.4\n"} {
-		in := projectInput("nginx")
-		in.Project.PHP = ver
-		b, err := ProjectCompose(in)
-		if err != nil {
-			t.Fatal(err)
+func TestProjectComposeImage(t *testing.T) {
+	b := must(t)(ProjectCompose(projectInput("nginx")))
+	if !strings.Contains(string(b), "image: lodev/shop-web\n") {
+		t.Errorf("compose lacks image:\n%s", b)
+	}
+}
+
+func TestProjectComposeMounts(t *testing.T) {
+	has := func(vols []string, want string) bool {
+		return slices.ContainsFunc(vols, func(v string) bool { return strings.Contains(v, want) })
+	}
+	php := "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
+	for _, c := range []struct{ ws, conf, dir string }{
+		{"nginx", "/work/shop/.lodev/nginx-webserver.conf:/etc/lodev/webserver.conf:ro", "/work/shop/.lodev/nginx:/etc/nginx/custom.d:ro"},
+		{"apache", "/work/shop/.lodev/apache-webserver.conf:/etc/lodev/webserver.conf:ro", "/work/shop/.lodev/apache:/etc/apache2/custom.d:ro"},
+	} {
+		web := parse(t, must(t)(ProjectCompose(projectInput(c.ws))))["web"]
+		for _, w := range []string{c.conf, c.dir, php} {
+			if !has(web.Volumes, w) {
+				t.Errorf("%s: missing mount %s in %v", c.ws, w, web.Volumes)
+			}
 		}
-		if !strings.Contains(string(b), want) {
-			t.Errorf("PHP %s: compose lacks %q", ver, want)
+		if !slices.Equal(anyStrings(web.Networks), []string{"lodev", "default"}) {
+			t.Errorf("%s networks: %v", c.ws, web.Networks)
+		}
+	}
+	none := parse(t, must(t)(ProjectCompose(projectInput("none"))))["web"]
+	if !has(none.Volumes, php) || has(none.Volumes, "webserver.conf") || has(none.Volumes, "custom.d") {
+		t.Errorf("none mounts: %v", none.Volumes)
+	}
+}
+
+func anyStrings(v any) []string {
+	var out []string
+	for _, e := range v.([]any) {
+		out = append(out, e.(string))
+	}
+	return out
+}
+
+func TestWebserverConfigMarkerAndInclude(t *testing.T) {
+	laravel := &config.Project{Name: "app", Type: "laravel", Webserver: "nginx", Docroot: "public"}
+	for name, p := range map[string]*config.Project{"nginx-default": laravel, "nginx-magento": shop("nginx"), "apache": shop("apache")} {
+		s := string(must(t)(WebserverConfig(p)))
+		if first, _, _ := strings.Cut(s, "\n"); first != GeneratedMarker {
+			t.Errorf("%s: first line %q", name, first)
+		}
+		want := "include /etc/nginx/custom.d/*.conf;"
+		if name == "apache" {
+			want = "IncludeOptional /etc/apache2/custom.d/*.conf"
+		}
+		if !strings.Contains(s, want) {
+			t.Errorf("%s lacks %q", name, want)
 		}
 	}
 }

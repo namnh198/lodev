@@ -7,7 +7,7 @@ networks:
 
 services:
   web:
-    image: {{phpImage .P.PHP}}
+    image: {{.Image}}
     container_name: lodev-{{.P.Name}}-web
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       - OPENSEARCH_HOST=opensearch
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
-    networks: [lodev]
+    networks: [lodev, default]
     extra_hosts:
 {{- range .ExtraHosts}}
       - "{{.}}:172.30.0.2"
@@ -30,8 +30,10 @@ services:
     volumes:
       - {{q (print .P.Root ":/var/www/html")}}
       - {{q (print .CAFile ":/etc/lodev/rootCA.pem:ro")}}
+      - {{q (print .P.Root "/.lodev/php:/etc/lodev/php.d:ro")}}
 {{- if ne .P.Webserver "none"}}
-      - {{q (print .P.Root "/.lodev/webserver.conf:/etc/lodev/webserver.conf:ro")}}
+      - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}
+      - {{q (print .P.Root "/.lodev/" .P.Webserver ":" (index .CustomDir .P.Webserver) ":ro")}}
     labels:
       - traefik.enable=true
       - "traefik.http.routers.p-{{.P.Name}}.rule={{.Rule}}"

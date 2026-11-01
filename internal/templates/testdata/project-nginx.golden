@@ -7,7 +7,7 @@ networks:
 
 services:
   web:
-    image: lodev/php
+    image: lodev/shop-web
     container_name: lodev-shop-web
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       - OPENSEARCH_HOST=opensearch
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
-    networks: [lodev]
+    networks: [lodev, default]
     extra_hosts:
       - "en.test:172.30.0.2"
       - "shop.test:172.30.0.2"
@@ -31,7 +31,9 @@ services:
     volumes:
       - "/work/shop:/var/www/html"
       - "/home/u/.lodev/ca/rootCA.pem:/etc/lodev/rootCA.pem:ro"
-      - "/work/shop/.lodev/webserver.conf:/etc/lodev/webserver.conf:ro"
+      - "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
+      - "/work/shop/.lodev/nginx-webserver.conf:/etc/lodev/webserver.conf:ro"
+      - "/work/shop/.lodev/nginx:/etc/nginx/custom.d:ro"
     labels:
       - traefik.enable=true
       - "traefik.http.routers.p-shop.rule=Host(`shop.test`) || Host(`en.test`)"

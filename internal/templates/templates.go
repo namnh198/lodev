@@ -12,8 +12,7 @@ import (
 )
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
-	"phpImage": config.PHPImage,
-	"q":        strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
+	"q": strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
 }).ParseFS(assets.FS, "templates/*.tmpl"))
 
 func render(name string, data any) ([]byte, error) {
@@ -36,10 +35,17 @@ func SharedCompose(g *config.Global, home string) ([]byte, error) {
 	}{g, home, heap})
 }
 
+// GeneratedMarker is the first line of every lodev-generated file; removing it opts the file out of regeneration.
+const GeneratedMarker = "# lodev-generated: delete this line to manage this file yourself"
+
+// customDirs is where each webserver reads user snippets inside the container.
+var customDirs = map[string]string{"nginx": "/etc/nginx/custom.d", "apache": "/etc/apache2/custom.d"}
+
 type ProjectInput struct {
 	Project    *config.Project
 	ExtraHosts []string
 	CAFile     string
+	Image      string
 }
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
@@ -51,8 +57,10 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		P          *config.Project
 		ExtraHosts []string
 		CAFile     string
+		Image      string
 		Rule       string
-	}{in.Project, in.ExtraHosts, in.CAFile, strings.Join(hosts, " || ")})
+		CustomDir  map[string]string
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, strings.Join(hosts, " || "), customDirs})
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

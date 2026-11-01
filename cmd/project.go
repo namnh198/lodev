@@ -38,6 +38,11 @@ func currentProject() (*config.Project, error) {
 	return config.LoadProject(root)
 }
 
+// WebserverConfFile is the generated webserver config, mounted into the container.
+func WebserverConfFile(p *config.Project) string {
+	return filepath.Join(p.Root, ".lodev", p.Webserver+"-webserver.conf")
+}
+
 func composeFile(p *config.Project) string    { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
 func composeProject(p *config.Project) string { return "lodev-" + p.Name }
 
@@ -147,9 +152,15 @@ func start(p *config.Project, rebuild bool) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(p.Root, ".lodev", "webserver.conf"), conf, 0o644); err != nil {
+		if err := os.MkdirAll(filepath.Join(p.Root, ".lodev", p.Webserver), 0o755); err != nil {
 			return err
 		}
+		if err := os.WriteFile(WebserverConfFile(p), conf, 0o644); err != nil {
+			return err
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(p.Root, ".lodev", "php"), 0o755); err != nil {
+		return err
 	}
 	// WebDomains is nil for CLI projects, which also clears a block left from an earlier webserver.
 	if err := hosts.Apply(p.Name, p.WebDomains()); err != nil {
@@ -185,6 +196,7 @@ func start(p *config.Project, rebuild bool) error {
 		Project:    p,
 		ExtraHosts: append(reg.AllDomains(), config.ReservedDomains...),
 		CAFile:     ca,
+		Image:      config.PHPImage(p.PHP),
 	})
 	if err != nil {
 		return err

@@ -1,3 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
 # Based on Magento's nginx.conf.sample.
 upstream fastcgi_backend {
     server 127.0.0.1:9000;
@@ -12,6 +13,7 @@ server {
     autoindex off;
     charset UTF-8;
     client_max_body_size 256m;
+    include /etc/nginx/custom.d/*.conf;
     error_page 404 403 = /errors/404.php;
 
     location ~* ^/setup($|/) {
