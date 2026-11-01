@@ -169,6 +169,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
 | `lodev list` | All projects with status and domains (alias `ps`) |
+| `lodev poweroff` | Stop every project and take the shared services down (data, hosts entries and certificates are kept) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
@@ -204,4 +205,6 @@ next `lodev start` / `lodev restart`.
 20. `user: other` + `lodev restart` → `lodev exec id -un` prints `other`, no image build runs.
 21. After upgrading lodev, the first `lodev start` rebuilds `lodev/php`; a second builds nothing.
 22. `lodev start --all` from `~` → every project in `lodev list` is running; break one project's `.lodev/config.yaml` and `lodev restart --all` → that project's error is printed, the others restart, the exit code is non-zero.
-23. `lodev remove --db --yes` in each test project.
+23. `lodev xdebug toggle` twice → prints `xdebug on`, then `xdebug off` (from off).
+24. `lodev poweroff` → `docker ps --filter name=lodev-` lists nothing; `lodev start` in a project brings it back with its data.
+25. `lodev remove --db --yes` in each test project.

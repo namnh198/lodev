@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/registry"
 )
 
 func TestCheckPortReportsPortInUse(t *testing.T) {
@@ -78,5 +80,53 @@ func TestWithLockExcludesOthers(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// stubDocker records dockerRun calls and answers `docker ps` with running.
+func stubDocker(t *testing.T, running string) *[]string {
+	t.Helper()
+	oldRun, oldOut := dockerRun, dockerOutput
+	t.Cleanup(func() { dockerRun, dockerOutput = oldRun, oldOut })
+	var calls []string
+	dockerRun = func(a ...string) error { calls = append(calls, strings.Join(a, " ")); return nil }
+	dockerOutput = func(a ...string) (string, error) {
+		if a[0] == "ps" {
+			return running, nil
+		}
+		return "", nil
+	}
+	return &calls
+}
+
+func TestPoweroff(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	registry.Registry{"a": {Path: t.TempDir()}, "b": {Path: t.TempDir()}}.Save()
+	os.MkdirAll(filepath.Dir(servicesFile()), 0o755)
+	os.WriteFile(servicesFile(), nil, 0o644)
+	calls := stubDocker(t, "lodev-b-web\nlodev-x-web")
+	if err := poweroff(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"compose -p lodev-a stop",
+		"compose -p lodev-b stop",
+		"compose -p lodev-x stop",
+		"compose -p lodev-services -f " + servicesFile() + " down",
+	}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("calls:\n%s", strings.Join(*calls, "\n"))
+	}
+}
+
+func TestPoweroffNoServicesFile(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	registry.Registry{"b": {Path: t.TempDir()}}.Save()
+	calls := stubDocker(t, "")
+	if err := poweroff(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(*calls, []string{"compose -p lodev-b stop"}) {
+		t.Errorf("calls: %v", *calls)
 	}
 }

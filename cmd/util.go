@@ -16,8 +16,11 @@ import (
 
 func servicesFile() string { return filepath.Join(config.Home(), "services", "compose.yaml") }
 
+// dockerRun is docker.Run, swappable in tests.
+var dockerRun = docker.Run
+
 func servicesCompose(sub ...string) error {
-	return docker.Run(docker.ComposeArgs("lodev-services", servicesFile(), sub...)...)
+	return dockerRun(docker.ComposeArgs("lodev-services", servicesFile(), sub...)...)
 }
 
 func readLine(prompt string) string {

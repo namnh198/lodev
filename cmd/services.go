@@ -100,11 +100,41 @@ func startService(svc string) error {
 }
 
 func runningProjects() ([]string, error) {
-	out, err := docker.Output("ps", "--filter", "name=^lodev-.*-web$", "--format", "{{.Names}}")
+	out, err := dockerOutput("ps", "--filter", "name=^lodev-.*-web$", "--format", "{{.Names}}")
 	if err != nil || out == "" {
 		return nil, err
 	}
 	return strings.Fields(out), nil
+}
+
+// poweroff stops every project (known or still running) and takes the shared services down.
+func poweroff() error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	running, err := runningProjects()
+	if err != nil {
+		return err
+	}
+	names := reg.Names()
+	for _, c := range running {
+		names = append(names, strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web"))
+	}
+	slices.Sort(names)
+	// No compose file needed: compose finds the project's containers by its name label.
+	for _, name := range slices.Compact(names) {
+		if err := dockerRun("compose", "-p", "lodev-"+name, "stop"); err != nil {
+			return err
+		}
+	}
+	if _, err := os.Stat(servicesFile()); err == nil {
+		if err := servicesCompose("down"); err != nil {
+			return err
+		}
+	}
+	ui.Success("lodev is powered off")
+	return nil
 }
 
 func sharedServiceArg(args []string) (string, error) {
@@ -222,5 +252,10 @@ func init() {
 	}
 
 	servicesCmd.AddCommand(up, down, status, logs, enable, disable)
-	rootCmd.AddCommand(servicesCmd)
+	rootCmd.AddCommand(servicesCmd, &cobra.Command{
+		Use:   "poweroff",
+		Short: "Stop all projects and the shared services",
+		Args:  cobra.NoArgs,
+		RunE:  func(*cobra.Command, []string) error { return withLock(poweroff) },
+	})
 }
