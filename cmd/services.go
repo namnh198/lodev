@@ -154,6 +154,8 @@ func warnImageChange(g *config.Global) {
 	}
 }
 
+const volumesWarning = "This deletes all shared service data: MySQL, MariaDB, Redis, OpenSearch and RabbitMQ."
+
 // startService starts one shared service from the existing compose file.
 func startService(svc string) error {
 	return servicesCompose("up", "-d", svc)
@@ -262,7 +264,7 @@ func init() {
 			}
 			sub := []string{"down"}
 			if volumes {
-				if !yes && !confirmTyped("This deletes all MySQL and OpenSearch data. Type 'yes' to continue:", "yes") {
+				if !yes && !confirmTyped(volumesWarning+" Type 'yes' to continue:", "yes") {
 					return errors.New("aborted")
 				}
 				sub = append(sub, "-v")
@@ -270,7 +272,7 @@ func init() {
 			return servicesCompose(sub...)
 		},
 	}
-	down.Flags().BoolVar(&volumes, "volumes", false, "also delete MySQL and OpenSearch data")
+	down.Flags().BoolVar(&volumes, "volumes", false, "also delete all shared service data (MySQL, MariaDB, Redis, OpenSearch, RabbitMQ)")
 	down.Flags().BoolVar(&yes, "yes", false, "skip confirmation")
 
 	status := &cobra.Command{

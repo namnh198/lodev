@@ -182,3 +182,14 @@ func TestGlobalValidateMariaDBPort(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestGlobalEmptyBlocksKeepDefaults(t *testing.T) {
+	writeGlobal(t, "services:\nversions:\n")
+	g, err := LoadGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Image("mysql") != "mysql:8.0" || !g.Services["mysql"] || g.Services["rabbitmq"] {
+		t.Fatalf("versions %v, services %v", g.Versions, g.Services)
+	}
+}

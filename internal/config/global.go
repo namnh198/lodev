@@ -75,6 +75,14 @@ func LoadGlobal() (*Global, error) {
 	if err := yaml.Unmarshal(data, g); err != nil {
 		return nil, fmt.Errorf("%s: %w", globalPath(), err)
 	}
+	// An empty `versions:` or `services:` block decodes as null and drops the whole default map.
+	d := defaultGlobal()
+	if g.Versions == nil {
+		g.Versions = d.Versions
+	}
+	if g.Services == nil {
+		g.Services = d.Services
+	}
 	if err := g.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", globalPath(), err)
 	}

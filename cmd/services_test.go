@@ -236,3 +236,11 @@ func TestWarnImageChange(t *testing.T) {
 		}
 	}
 }
+
+func TestVolumesWarningNamesAllData(t *testing.T) {
+	for _, svc := range []string{"MySQL", "MariaDB", "Redis", "OpenSearch", "RabbitMQ"} {
+		if !strings.Contains(volumesWarning, svc) {
+			t.Errorf("--volumes warning does not mention %s: %q", svc, volumesWarning)
+		}
+	}
+}
