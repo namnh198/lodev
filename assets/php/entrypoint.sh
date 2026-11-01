@@ -7,6 +7,13 @@ if [ ! -x "/usr/sbin/php-fpm${LODEV_PHP}" ]; then
 fi
 update-alternatives --quiet --set php "/usr/bin/php${LODEV_PHP}"
 ln -sf "/usr/sbin/php-fpm${LODEV_PHP}" /usr/local/sbin/php-fpm
+for sapi in cli fpm; do
+  d="/etc/php/${LODEV_PHP}/${sapi}/conf.d"
+  rm -f "$d"/99-zz-*
+  for f in /etc/lodev/php.d/*.ini; do
+    [ -e "$f" ] && ln -sf "$f" "$d/99-zz-$(basename "$f")"
+  done
+done
 mkdir -p /run/php
 
 # Trust lodev's local CA so https://*.test works from inside the container.
