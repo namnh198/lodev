@@ -1,14 +1,59 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"lodev/internal/config"
 	"lodev/internal/registry"
 )
+
+func TestExtraComposeFiles(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ".lodev")
+	os.MkdirAll(dir, 0o755)
+	for _, n := range []string{"b.compose.yaml", "a.compose.yml", "x.compose.yml.example", "lodev.compose-base.yml"} {
+		os.WriteFile(filepath.Join(dir, n), nil, 0o644)
+	}
+	got, err := extraComposeFiles(&config.Project{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(dir, "a.compose.yml"), filepath.Join(dir, "b.compose.yaml")}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+}
+
+func TestMergeCompose(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
+	p := &config.Project{Name: "x", Root: root}
+	full := composeFile(p)
+	os.WriteFile(full, []byte("old"), 0o644)
+	orig := composeConfig
+	defer func() { composeConfig = orig }()
+
+	composeConfig = func(...string) (string, error) { return "", errors.New("boom") }
+	if err := mergeCompose(p); err == nil {
+		t.Fatal("want error")
+	}
+	if b, _ := os.ReadFile(full); string(b) != "old" {
+		t.Fatalf("full file clobbered: %q", b)
+	}
+
+	composeConfig = func(...string) (string, error) { return "name: x", nil }
+	if err := mergeCompose(p); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(full); string(b) != "name: x\n" {
+		t.Fatalf("got %q", b)
+	}
+}
 
 func TestNewProjectConfigDetects(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "My_Shop.v2")

@@ -238,3 +238,7 @@ func TestEnsureProjectImage(t *testing.T) {
 		})
 	}
 }
+
+func TestComposeConfigArgs(t *testing.T) {
+	check(t, ComposeConfigArgs("P", []string{"a.yml", "b.yaml"}), "compose -p P -f a.yml -f b.yaml config")
+}

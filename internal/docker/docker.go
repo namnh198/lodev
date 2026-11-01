@@ -24,6 +24,15 @@ func ComposeArgs(project, file string, sub ...string) []string {
 	return append([]string{"compose", "-p", project, "-f", file}, sub...)
 }
 
+// ComposeConfigArgs merges compose files into one document on stdout.
+func ComposeConfigArgs(project string, files []string) []string {
+	args := []string{"compose", "-p", project}
+	for _, f := range files {
+		args = append(args, "-f", f)
+	}
+	return append(args, "config")
+}
+
 func ExecArgs(project, file, user string, tty bool, cmd []string) []string {
 	args := []string{"exec"}
 	if !tty {

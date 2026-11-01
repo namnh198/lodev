@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -43,8 +44,45 @@ func WebserverConfFile(p *config.Project) string {
 	return filepath.Join(p.Root, ".lodev", p.Webserver+"-webserver.conf")
 }
 
-func composeFile(p *config.Project) string    { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
+func composeBase(p *config.Project) string {
+	return filepath.Join(p.Root, ".lodev", "lodev.compose-base.yml")
+}
+
+// composeFile is the merged file every compose call uses.
+func composeFile(p *config.Project) string {
+	return filepath.Join(p.Root, ".lodev", "lodev.compose-full.yml")
+}
+func composeLegacy(p *config.Project) string  { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
 func composeProject(p *config.Project) string { return "lodev-" + p.Name }
+
+var composeConfig = func(args ...string) (string, error) { return docker.Output(args...) }
+
+// extraComposeFiles lists the user's .lodev/*.compose.{yml,yaml}, sorted.
+func extraComposeFiles(p *config.Project) ([]string, error) {
+	var files []string
+	for _, ext := range []string{"yml", "yaml"} {
+		m, err := filepath.Glob(filepath.Join(p.Root, ".lodev", "*.compose."+ext))
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, m...)
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
+// mergeCompose writes the full file only if `docker compose config` succeeds.
+func mergeCompose(p *config.Project) error {
+	extra, err := extraComposeFiles(p)
+	if err != nil {
+		return err
+	}
+	out, err := composeConfig(docker.ComposeConfigArgs(composeProject(p), append([]string{composeBase(p)}, extra...))...)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(composeFile(p), []byte(out+"\n"), 0o644)
+}
 
 func projectCompose(p *config.Project, sub ...string) error {
 	return docker.Run(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
@@ -201,7 +239,13 @@ func start(p *config.Project, rebuild bool) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(composeFile(p), data, 0o644); err != nil {
+	if err := os.WriteFile(composeBase(p), data, 0o644); err != nil {
+		return err
+	}
+	if err := mergeCompose(p); err != nil {
+		return err
+	}
+	if err := os.Remove(composeLegacy(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	if err := projectCompose(p, "up", "-d"); err != nil {
@@ -226,9 +270,13 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 	if err := reg.Conflict(p); err != nil {
 		return fmt.Errorf("refusing to delete: %w", err)
 	}
-	if _, err := os.Stat(composeFile(p)); err == nil {
-		if err := projectCompose(p, "down"); err != nil {
-			return err
+	// A project never started with the new lodev only has the legacy file.
+	for _, f := range []string{composeFile(p), composeLegacy(p)} {
+		if _, err := os.Stat(f); err == nil {
+			if err := docker.Run(docker.ComposeArgs(composeProject(p), f, "down")...); err != nil {
+				return err
+			}
+			break
 		}
 	}
 	if err := hosts.Apply(p.Name, nil); err != nil {
