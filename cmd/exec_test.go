@@ -32,6 +32,7 @@ func TestSplitService(t *testing.T) {
 		{[]string{"--service=db", "x"}, "db", []string{"x"}, false},
 		{[]string{"ls", "-s"}, "web", []string{"ls", "-s"}, false},
 		{[]string{"-s"}, "", nil, true},
+		{[]string{"-s", ""}, "", nil, true},
 		{[]string{"--service="}, "", nil, true},
 		{[]string{"-s", "db"}, "db", []string{}, false},
 	}

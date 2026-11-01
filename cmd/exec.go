@@ -21,6 +21,8 @@ func shortcutCmd(name string) []string {
 	return []string{name}
 }
 
+var errServiceName = errors.New("-s/--service needs a service name")
+
 // splitService consumes one leading -s/--service flag; the rest is the command, unchanged.
 func splitService(args []string) (svc string, rest []string, err error) {
 	if len(args) == 0 {
@@ -29,12 +31,12 @@ func splitService(args []string) (svc string, rest []string, err error) {
 	switch a := args[0]; {
 	case a == "-s" || a == "--service":
 		if len(args) < 2 || args[1] == "" {
-			return "", nil, errors.New(a + " needs a service name")
+			return "", nil, errServiceName
 		}
 		return args[1], args[2:], nil
 	case strings.HasPrefix(a, "--service="):
 		if svc = strings.TrimPrefix(a, "--service="); svc == "" {
-			return "", nil, errors.New("--service needs a service name")
+			return "", nil, errServiceName
 		}
 		return svc, args[1:], nil
 	}
@@ -74,6 +76,9 @@ func init() {
 		Short: "Open a shell in a service container (default web)",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
+			if sshService == "" {
+				return errServiceName
+			}
 			shell := []string{"bash"}
 			if sshService != "web" {
 				shell = []string{"sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"}
