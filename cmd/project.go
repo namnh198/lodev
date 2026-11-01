@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"lodev/internal/certs"
 	"lodev/internal/config"
@@ -104,7 +105,7 @@ func mysqlExec(sql string) error {
 }
 
 // newProjectConfig fills unset values from what is detected in root.
-func newProjectConfig(root, name, typ, php, webserver string) (*config.Project, error) {
+func newProjectConfig(root, name, typ, php, webserver, docroot string) (*config.Project, error) {
 	if name == "" {
 		if name = config.SanitizeName(filepath.Base(root)); name == "" {
 			return nil, fmt.Errorf("cannot derive a project name from folder %q; use --name", filepath.Base(root))
@@ -116,9 +117,15 @@ func newProjectConfig(root, name, typ, php, webserver string) (*config.Project, 
 	if php == "" {
 		php = "8.3"
 	}
+	switch docroot {
+	case "":
+		docroot = config.DefaultDocroot(typ)
+	case ".":
+		docroot = ""
+	}
 	p := &config.Project{
 		Name: name, Type: typ, PHP: php, Webserver: webserver,
-		Docroot: config.DefaultDocroot(typ), Services: defaultServices[typ], Root: root,
+		Docroot: docroot, Services: defaultServices[typ], Root: root,
 	}
 	p.ApplyDefaults()
 	return p, p.Validate()
@@ -347,12 +354,13 @@ func status(name string) string {
 }
 
 func init() {
-	var name, typ, php, webserver string
+	var name, typ, php, webserver, docroot string
+	var noAsk bool
 	initCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create .lodev/config.yaml for the project in the current folder",
 		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		RunE: func(c *cobra.Command, _ []string) error {
 			root, err := os.Getwd()
 			if err != nil {
 				return err
@@ -360,11 +368,21 @@ func init() {
 			if _, err := os.Stat(filepath.Join(root, ".lodev", "config.yaml")); err == nil {
 				return errors.New("already initialized (.lodev/config.yaml exists)")
 			}
-			p, err := newProjectConfig(root, name, typ, php, webserver)
+			p, err := newProjectConfig(root, name, typ, php, webserver, docroot)
 			if err != nil {
 				return err
 			}
+			if !noAsk && stdinTTY() {
+				set := map[string]bool{}
+				c.Flags().Visit(func(f *pflag.Flag) { set[f.Name] = true })
+				if err := askProject(p, set); err != nil {
+					return err
+				}
+			}
 			if err := config.SaveProject(p); err != nil {
+				return err
+			}
+			if err := scaffold(root, p.Webserver); err != nil {
 				return err
 			}
 			if err := writeLodevGitignore(p); err != nil {
@@ -378,6 +396,8 @@ func init() {
 	initCmd.Flags().StringVar(&typ, "type", "", "laravel | wordpress | magento | php (default: detected)")
 	initCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.3)")
 	initCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
+	initCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
+	initCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 
 	var rebuild bool
 	startCmd := &cobra.Command{

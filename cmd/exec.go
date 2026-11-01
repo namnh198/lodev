@@ -26,9 +26,7 @@ func runInWeb(user string, cmd []string) error {
 	if err != nil {
 		return err
 	}
-	fi, err := os.Stdin.Stat()
-	tty := err == nil && fi.Mode()&os.ModeCharDevice != 0
-	err = docker.Run(docker.ExecArgs(composeProject(p), composeFile(p), user, tty, cmd)...)
+	err = docker.Run(docker.ExecArgs(composeProject(p), composeFile(p), user, stdinTTY(), cmd)...)
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		os.Exit(exitErr.ExitCode())

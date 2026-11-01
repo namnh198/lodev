@@ -61,7 +61,7 @@ func TestNewProjectConfigDetects(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "My_Shop.v2")
 	os.MkdirAll(filepath.Join(root, "bin"), 0o755)
 	os.WriteFile(filepath.Join(root, "bin", "magento"), nil, 0o644)
-	p, err := newProjectConfig(root, "", "", "", "")
+	p, err := newProjectConfig(root, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestNewProjectConfigDetects(t *testing.T) {
 }
 
 func TestNewProjectConfigFlagsWin(t *testing.T) {
-	p, err := newProjectConfig(t.TempDir(), "x", "laravel", "7.4", "none")
+	p, err := newProjectConfig(t.TempDir(), "x", "laravel", "7.4", "none", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestNewProjectConfigFlagsWin(t *testing.T) {
 }
 
 func TestNewProjectConfigRejectsInvalid(t *testing.T) {
-	if _, err := newProjectConfig(t.TempDir(), "x", "php", "7.3", ""); err == nil {
+	if _, err := newProjectConfig(t.TempDir(), "x", "php", "7.3", "", ""); err == nil {
 		t.Fatal("php 7.3 accepted")
 	}
 }
@@ -96,7 +96,7 @@ func TestDeleteRefusesCopyOfAnotherProject(t *testing.T) {
 	reg := registry.Registry{"shop": {Path: orig, Domains: []string{"shop.test"}}}
 	reg.Save()
 
-	copyP, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "")
+	copyP, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
 	err := deleteProject(copyP, true, true)
 	if err == nil || !strings.Contains(err.Error(), orig) {
 		t.Fatalf("delete of a copy must refuse and name the original: %v", err)
@@ -114,7 +114,7 @@ func TestDeleteRemovesProjectImage(t *testing.T) {
 	hosts.File = hf
 	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
 
-	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "")
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
 	var got []string
 	for _, rmiErr := range []error{nil, errors.New("Error response from daemon: No such image: lodev/shop-web:latest")} {
 		got = nil
@@ -134,7 +134,7 @@ func TestDeleteRemovesProjectImage(t *testing.T) {
 
 func confProject(t *testing.T, ws string) *config.Project {
 	t.Helper()
-	p, err := newProjectConfig(t.TempDir(), "app", "php", "8.3", ws)
+	p, err := newProjectConfig(t.TempDir(), "app", "php", "8.3", ws, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,8 +215,73 @@ func TestWriteLodevGitignore(t *testing.T) {
 }
 
 func TestNewProjectConfigEmptyNameHint(t *testing.T) {
-	_, err := newProjectConfig(filepath.Join(t.TempDir(), "___"), "", "php", "", "")
+	_, err := newProjectConfig(filepath.Join(t.TempDir(), "___"), "", "php", "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "--name") {
 		t.Fatalf("want a --name hint, got %v", err)
+	}
+}
+
+func TestNewProjectConfigDocroot(t *testing.T) {
+	for _, c := range []struct{ typ, in, want string }{
+		{"php", ".", ""}, {"php", "web", "web"}, {"laravel", "", "public"}, {"laravel", ".", ""},
+	} {
+		p, err := newProjectConfig(t.TempDir(), "x", c.typ, "", "", c.in)
+		if err != nil || p.Docroot != c.want {
+			t.Fatalf("%s %q: got %q, %v want %q", c.typ, c.in, p.Docroot, err, c.want)
+		}
+	}
+}
+
+func TestScaffold(t *testing.T) {
+	for ws, dir := range map[string]string{"nginx": "nginx", "apache": "apache", "none": ""} {
+		root := t.TempDir()
+		if err := scaffold(root, ws); err != nil {
+			t.Fatal(err)
+		}
+		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/example.compose.yml.example"}
+		if dir != "" {
+			files = append(files, ".lodev/"+dir+"/example.conf.example")
+		}
+		for _, f := range files {
+			if _, err := os.Stat(filepath.Join(root, f)); err != nil {
+				t.Fatalf("%s: %v", ws, err)
+			}
+		}
+		for _, other := range []string{"nginx", "apache"} {
+			if other != dir {
+				if _, err := os.Stat(filepath.Join(root, ".lodev", other)); err == nil {
+					t.Fatalf("%s: unexpected %s dir", ws, other)
+				}
+			}
+		}
+	}
+	root := t.TempDir()
+	scaffold(root, "nginx")
+	f := filepath.Join(root, ".lodev", "php", "example.ini.example")
+	os.WriteFile(f, []byte("mine"), 0o644)
+	scaffold(root, "nginx")
+	if b, _ := os.ReadFile(f); string(b) != "mine" {
+		t.Fatalf("overwritten: %q", b)
+	}
+}
+
+func TestInitNoAsk(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "artisan"), nil, 0o644)
+	t.Chdir(root)
+	rootCmd.SetArgs([]string{"init", "--no-ask"})
+	defer rootCmd.SetArgs(nil)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	p, err := config.LoadProject(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Type != "laravel" || p.Docroot != "public" || p.PHP != "8.3" || p.Webserver != "nginx" {
+		t.Fatalf("got %+v", p)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".lodev", ".gitignore")); err != nil {
+		t.Fatal(err)
 	}
 }

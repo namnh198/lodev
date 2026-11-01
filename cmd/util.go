@@ -37,6 +37,11 @@ func confirmTyped(prompt, word string) bool {
 	return readLine(prompt) == word
 }
 
+func stdinTTY() bool {
+	fi, err := os.Stdin.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
 // withLock runs fn while holding ~/.lodev/lock, so two lodev commands do not
 // overwrite each other's registry and /etc/hosts changes.
 func withLock(fn func() error) error {
