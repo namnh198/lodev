@@ -243,9 +243,6 @@ func start(p *config.Project, rebuild bool) error {
 		if err := certs.SyncTraefik(); err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Join(p.Root, ".lodev", p.Webserver), 0o755); err != nil {
-			return err
-		}
 		if err := writeWebserverConf(p); err != nil {
 			return err
 		}
@@ -254,7 +251,8 @@ func start(p *config.Project, rebuild bool) error {
 			return err
 		}
 	}
-	if err := os.MkdirAll(filepath.Join(p.Root, ".lodev", "php"), 0o755); err != nil {
+	// Also creates the bind-mounted php/ and <webserver>/ dirs, and brings projects made before them up to date.
+	if err := scaffold(p.Root, p.Webserver); err != nil {
 		return err
 	}
 	if err := writeLodevGitignore(p); err != nil {
