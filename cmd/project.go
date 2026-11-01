@@ -19,6 +19,7 @@ import (
 	"lodev/internal/hosts"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
 
 var defaultServices = map[string][]string{
@@ -196,7 +197,7 @@ func writeWebserverConf(p *config.Project) error {
 	}
 	path := WebserverConfFile(p)
 	if !generated(path) {
-		fmt.Printf(".lodev/%s-webserver.conf is user-managed; not regenerating\n", p.Webserver)
+		ui.Info(".lodev/%s-webserver.conf is user-managed; not regenerating", p.Webserver)
 		return nil
 	}
 	conf, err := templates.WebserverConfig(p)
@@ -228,7 +229,7 @@ func writeLodevGitignore(p *config.Project) error {
 func start(p *config.Project, rebuild bool) error {
 	user, from := p.ContainerUser()
 	if w := userWarning(user, from); w != "" {
-		fmt.Fprintln(os.Stderr, "warning: "+w)
+		ui.Warn("%s", w)
 	}
 	reg, err := registry.Load()
 	if err != nil {
@@ -249,7 +250,7 @@ func start(p *config.Project, rebuild bool) error {
 			if err := startService(svc); err != nil {
 				return err
 			}
-			fmt.Printf("hint: %s is disabled globally; started it for now. Run `lodev services enable %s` to keep it on.\n", svc, svc)
+			ui.Info("hint: %s is disabled globally; started it for now. Run `lodev services enable %s` to keep it on.", svc, svc)
 		}
 	}
 	if err := docker.EnsurePHPImage(p.PHP, rebuild); err != nil {
@@ -296,7 +297,7 @@ func start(p *config.Project, rebuild bool) error {
 	dropped := reg.Put(p)
 	for _, old := range dropped {
 		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
-		fmt.Printf("Project was renamed from %s; removing its old container, hosts entries and certificate.\n", old)
+		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
 		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
 			return err
 		}
@@ -350,14 +351,14 @@ func start(p *config.Project, rebuild bool) error {
 		return err
 	}
 	if err := dropStaleProjectImage(p, img); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not remove the old project image: %v\n", err)
+		ui.Warn("could not remove the old project image: %v", err)
 	}
 	fmt.Println()
 	if p.Webserver == "none" {
-		fmt.Println("CLI project ready: lodev ssh")
+		ui.Success("CLI project ready: lodev ssh")
 	}
 	for _, d := range p.WebDomains() {
-		fmt.Println("https://" + d)
+		ui.Success("https://%s", d)
 	}
 	return nil
 }
@@ -397,7 +398,7 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 		if err := mysqlExec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
 			return err
 		}
-		fmt.Println("Dropped database", p.DBName())
+		ui.Success("Dropped database %s", p.DBName())
 	}
 	return nil
 }
@@ -445,7 +446,7 @@ func init() {
 			if err := writeLodevGitignore(p); err != nil {
 				return err
 			}
-			fmt.Printf("Created .lodev/config.yaml (%s, PHP %s, %s)\nRun: lodev start\n", p.Type, p.PHP, p.Webserver)
+			ui.Success("Created .lodev/config.yaml (%s, PHP %s, %s)\nRun: lodev start", p.Type, p.PHP, p.Webserver)
 			return nil
 		},
 	}

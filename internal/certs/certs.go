@@ -12,6 +12,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
 
 func dir() string   { return filepath.Join(config.Home(), "certs") }
@@ -54,13 +55,12 @@ func runMkcert(args ...string) error {
 	}
 	if fresh {
 		ca := filepath.Join(caDir(), "rootCA.pem")
-		fmt.Printf(`
-mkcert is not installed, so lodev created its own local CA. To remove browser warnings:
+		fmt.Println()
+		ui.Info(`mkcert is not installed, so lodev created its own local CA. To remove browser warnings:
   macOS/Chrome/Safari:
     sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain %s
-  Firefox: Settings → Certificates → Import %s
-
-`, ca, ca)
+  Firefox: Settings → Certificates → Import %s`, ca, ca)
+		fmt.Println()
 	}
 	return nil
 }

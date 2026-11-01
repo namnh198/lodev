@@ -1,15 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"lodev/cmd"
+	"lodev/internal/ui"
 )
 
 func main() {
+	var on bool
+	os.Args, on = cmd.StripDebugArg(os.Args)
+	if on {
+		ui.SetDebug(true)
+	}
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		ui.Error("%v", err)
 		os.Exit(1)
 	}
 }

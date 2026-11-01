@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"lodev/internal/ui"
 )
 
 var File = "/etc/hosts"
@@ -61,7 +63,7 @@ func Apply(name string, domains []string) error {
 		return err
 	}
 	tmp.Close()
-	fmt.Println("Updating", File, "(sudo)")
+	ui.Info("Updating %s (sudo)", File)
 	for _, args := range [][]string{{"cp", File, "/etc/hosts.lodev.bak"}, {"cp", tmp.Name(), File}} {
 		c := exec.Command("sudo", args...)
 		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr

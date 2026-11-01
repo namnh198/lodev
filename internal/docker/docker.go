@@ -176,7 +176,7 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 		return err
 	}
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, "lodev/php") != hash {
-		fmt.Println("Building lodev/php (PHP 8.2-8.5, about a minute the first time)...")
+		ui.Info("Building lodev/php (PHP 8.2-8.5, about a minute the first time)...")
 		if err := build("php", func(dir string) []string {
 			return PHPBuildArgs(config.BundledPHP, hash, rebuild, dir)
 		}); err != nil {
@@ -191,7 +191,7 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 	if !rebuild && inspect(`{{index .Config.Labels "lodev.base"}}`, img) == base {
 		return nil
 	}
-	fmt.Printf("Building %s...\n", img)
+	ui.Info("Building %s...", img)
 	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, base, rebuild, dir) })
 }
 
@@ -280,7 +280,7 @@ func EnsureProjectImage(p *config.Project, rebuild bool) (string, error) {
 		return "", err
 	}
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, tag) != hash {
-		fmt.Printf("Building %s...\n", tag)
+		ui.Info("Building %s...", tag)
 		if err := run(ProjectBuildArgs(tag, hash, dfPath, ctx, rebuild)...); err != nil {
 			return "", fmt.Errorf("building %s failed; check .lodev/web-images/ and php_extensions/packages: %w", tag, err)
 		}

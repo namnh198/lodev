@@ -171,6 +171,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
 | `lodev xdebug on\|off\|status` | Toggle Xdebug (port 9003) |
+| `lodev --debug <cmd>` | Also print every docker command lodev runs (or set `LODEV_DEBUG=1`); set `NO_COLOR=1` to turn colors off |
 
 **Known limit:** a running project learns about domains of projects started after it on its
 next `lodev start` / `lodev restart`.

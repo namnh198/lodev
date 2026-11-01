@@ -20,6 +20,7 @@ import (
 	"lodev/internal/hosts"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
 
 // PortsToCheck lists host ports to preflight; ports our own running containers hold are skipped.
@@ -82,12 +83,13 @@ func servicesUp() error {
 	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
 		return err
 	}
-	fmt.Printf("\nTraefik dashboard: http://localhost:%d\n", g.Ports.Dashboard)
+	fmt.Println()
+	ui.Success("Traefik dashboard: http://localhost:%d", g.Ports.Dashboard)
 	if g.Services["phpmyadmin"] {
-		fmt.Println("phpMyAdmin:        https://phpmyadmin.test")
+		ui.Success("phpMyAdmin:        https://phpmyadmin.test")
 	}
 	if g.Services["mailpit"] {
-		fmt.Println("Mailpit:           https://mailpit.test")
+		ui.Success("Mailpit:           https://mailpit.test")
 	}
 	return nil
 }
@@ -212,7 +214,7 @@ func init() {
 			}
 			for _, name := range reg.Names() {
 				if p, err := config.LoadProject(reg[name].Path); err == nil && p.Uses(svc) {
-					fmt.Printf("warning: project %s uses %s\n", name, svc)
+					ui.Warn("project %s uses %s", name, svc)
 				}
 			}
 			return nil
