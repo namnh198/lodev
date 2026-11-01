@@ -100,6 +100,9 @@ func printServiceURLs() error {
 	if g.Services["mailpit"] {
 		ui.Success("Mailpit:           https://mailpit.test")
 	}
+	if g.Services["rabbitmq"] {
+		ui.Success("RabbitMQ:          https://rabbitmq.test")
+	}
 	return nil
 }
 

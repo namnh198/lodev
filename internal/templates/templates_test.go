@@ -129,6 +129,7 @@ func TestTraefikDynamicGolden(t *testing.T) {
 }
 
 type service struct {
+	Image       string   `yaml:"image"`
 	Ports       []string `yaml:"ports"`
 	MemLimit    string   `yaml:"mem_limit"`
 	Environment []string `yaml:"environment"`
@@ -151,8 +152,11 @@ func parse(t *testing.T, b []byte) map[string]service {
 
 func TestSharedComposeStructure(t *testing.T) {
 	def := parse(t, must(t)(SharedCompose(defaultGlobal(t), home)))
-	if len(def) != 6 {
-		t.Fatalf("want 6 services, got %d", len(def))
+	if len(def) != 7 {
+		t.Fatalf("want 7 services, got %d", len(def))
+	}
+	if r := def["rabbitmq"]; r.Image != "rabbitmq:4-management" || !slices.Contains(r.Volumes, "lodev-rabbitmq:/var/lib/rabbitmq") {
+		t.Errorf("rabbitmq %+v", r)
 	}
 	if ip := def["traefik"].Networks.(map[string]any)["lodev"].(map[string]any)["ipv4_address"]; ip != "172.30.0.2" {
 		t.Fatal("traefik ip", def["traefik"].Networks)

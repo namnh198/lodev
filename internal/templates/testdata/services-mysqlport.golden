@@ -18,6 +18,8 @@ volumes:
     name: lodev-opensearch
   lodev-redis:
     name: lodev-redis
+  lodev-rabbitmq:
+    name: lodev-rabbitmq
 
 services:
   traefik:
@@ -111,4 +113,18 @@ services:
       - traefik.http.routers.phpmyadmin.entrypoints=websecure
       - traefik.http.routers.phpmyadmin.tls=true
       - traefik.http.services.phpmyadmin.loadbalancer.server.port=80
+    networks: [lodev]
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: lodev-rabbitmq
+    restart: unless-stopped
+    volumes:
+      - lodev-rabbitmq:/var/lib/rabbitmq
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.test`)
+      - traefik.http.routers.rabbitmq.entrypoints=websecure
+      - traefik.http.routers.rabbitmq.tls=true
+      - traefik.http.services.rabbitmq.loadbalancer.server.port=15672
     networks: [lodev]

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -26,12 +27,25 @@ func TestGlobalDefaultsWhenMissing(t *testing.T) {
 		t.Fatalf("%+v", g.Ports)
 	}
 	for _, s := range SharedServices {
-		if !g.Services[s] {
-			t.Errorf("%s disabled", s)
+		if g.Services[s] == slices.Contains(DefaultOff, s) {
+			t.Errorf("%s default = %v", s, g.Services[s])
 		}
 	}
 	if g.Memory.OpenSearch != "2g" {
 		t.Fatal(g.Memory.OpenSearch)
+	}
+}
+
+func TestGlobalRabbitMQDefaultOff(t *testing.T) {
+	writeGlobal(t, "")
+	g, _ := LoadGlobal()
+	if g.Services["rabbitmq"] || !g.Services["redis"] {
+		t.Fatalf("defaults %v", g.Services)
+	}
+	writeGlobal(t, "services:\n  redis: false\n")
+	g, err := LoadGlobal()
+	if err != nil || g.Services["rabbitmq"] || g.Services["redis"] || !g.Services["mysql"] {
+		t.Fatalf("partial file: %v %v", err, g.Services)
 	}
 }
 

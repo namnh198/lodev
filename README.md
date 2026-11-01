@@ -2,7 +2,7 @@
 
 A lightweight, DDEV-like CLI for local PHP development on macOS with Docker.
 
-Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin — run **once,
+Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin (and opt-in RabbitMQ) — run **once,
 shared by all projects**. Each project only runs one small PHP container (php-fpm + nginx or
 apache), so ten projects cost about the RAM of ten php-fpm processes, not ten databases.
 
@@ -28,7 +28,8 @@ lodev magento setup:upgrade
 `start` asks for your password once to add `.test` names to `/etc/hosts`.
 
 Shared tools: Traefik dashboard <http://localhost:8080>, <https://phpmyadmin.test>,
-<https://mailpit.test>. All ports listen on `127.0.0.1` only.
+<https://mailpit.test>, and <https://rabbitmq.test> (guest/guest) once RabbitMQ is enabled.
+All ports listen on `127.0.0.1` only.
 
 Inside a project container: `DB_HOST=mysql`, `DB_PORT=3306`, `DB_DATABASE=<name>`,
 `DB_USERNAME=root`, `DB_PASSWORD=root`, `REDIS_HOST=redis`, `OPENSEARCH_HOST=opensearch`,
@@ -63,6 +64,7 @@ services:           # traefik is always on
   opensearch: true
   mailpit: true
   phpmyadmin: true
+  rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 ```
@@ -213,4 +215,6 @@ next `lodev start` / `lodev restart`.
 22. `lodev start --all` from `~` → every project in `lodev list` is running; break one project's `.lodev/config.yaml` and `lodev restart --all` → that project's error is printed, the others restart, the exit code is non-zero.
 23. `lodev xdebug toggle` twice → prints `xdebug on`, then `xdebug off` (from off).
 24. `lodev poweroff` → `docker ps -a --filter name=lodev-` and `docker network ls --filter name=lodev` list nothing; `lodev start --all` then starts every project (traefik keeps `172.30.0.2`); `lodev start` in a project brings it back with its data.
-25. `lodev remove --db --yes` in each test project.
+25. `lodev services enable rabbitmq` → `https://rabbitmq.test` loads (guest/guest) and `lodev exec php -r 'var_dump((bool) fsockopen("rabbitmq", 5672));'` prints `bool(true)`.
+26. `lodev services up`, `lodev poweroff`, `lodev services up` → `docker volume ls | wc -l` is the same after each `up`.
+27. `lodev remove --db --yes` in each test project.
