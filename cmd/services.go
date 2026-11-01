@@ -25,14 +25,19 @@ import (
 )
 
 // PortsToCheck lists host ports to preflight; ports our own running containers hold are skipped.
-func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning bool) []int {
+func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning, mariadbRunning bool) []int {
 	if traefikRunning {
 		return nil
 	}
 	ports := []int{g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard}
-	if g.Ports.MySQL != "" && !mysqlRunning {
-		n, _ := strconv.Atoi(g.Ports.MySQL)
-		ports = append(ports, n)
+	for _, db := range []struct {
+		port    string
+		running bool
+	}{{g.Ports.MySQL, mysqlRunning}, {g.Ports.MariaDB, mariadbRunning}} {
+		if db.port != "" && !db.running {
+			n, _ := strconv.Atoi(db.port)
+			ports = append(ports, n)
+		}
 	}
 	return ports
 }
@@ -57,7 +62,7 @@ func servicesUp() error {
 	if err != nil {
 		return err
 	}
-	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql")) {
+	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql"), docker.Running("lodev-mariadb")) {
 		if err := checkPort(p); err != nil {
 			return err
 		}
@@ -316,6 +321,12 @@ func init() {
 			}
 			if err := servicesCompose("rm", "-sf", svc); err != nil {
 				return err
+			}
+			// phpMyAdmin's server list (PMA_HOSTS) follows the enabled databases.
+			if svc == "mysql" || svc == "mariadb" {
+				if err := withLock(servicesUp); err != nil {
+					return err
+				}
 			}
 			reg, err := registry.Load()
 			if err != nil {

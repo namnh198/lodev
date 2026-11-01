@@ -153,8 +153,9 @@ func projectCompose(p *config.Project, sub ...string) error {
 	return docker.Run(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
 }
 
-func mysqlExec(sql string) error {
-	_, err := docker.Output("exec", "lodev-mysql", "mysql", "-uroot", "-proot", "-e", sql)
+// dbExec runs sql as root in the shared database db ("mysql" or "mariadb"; MariaDB 11 has no mysql client).
+func dbExec(db, sql string) error {
+	_, err := dockerOutput("exec", "lodev-"+db, db, "-uroot", "-proot", "-e", sql)
 	return err
 }
 
@@ -264,11 +265,11 @@ func start(p *config.Project, rebuild bool) error {
 	if err != nil {
 		return err
 	}
-	if p.Uses("mysql") {
-		if err := docker.WaitHealthy("lodev-mysql", 60*time.Second); err != nil {
+	if db := p.DB(); db != "" {
+		if err := docker.WaitHealthy("lodev-"+db, 60*time.Second); err != nil {
 			return err
 		}
-		if err := mysqlExec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName())); err != nil {
+		if err := dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName())); err != nil {
 			return err
 		}
 	}
@@ -404,8 +405,8 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 	if err := reg.Save(); err != nil {
 		return err
 	}
-	if dropDB && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
-		if err := mysqlExec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
+	if dropDB && p.DB() != "" && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
+		if err := dbExec(p.DB(), fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
 			return err
 		}
 		ui.Success("Dropped database %s", p.DBName())

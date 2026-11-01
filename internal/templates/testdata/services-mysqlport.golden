@@ -20,6 +20,8 @@ volumes:
     name: lodev-redis
   lodev-rabbitmq:
     name: lodev-rabbitmq
+  lodev-mariadb:
+    name: lodev-mariadb
 
 services:
   traefik:
@@ -64,6 +66,20 @@ services:
       - "127.0.0.1:3306:3306"
     networks: [lodev]
 
+  mariadb:
+    image: mariadb:11.4
+    container_name: lodev-mariadb
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=root
+    volumes:
+      - lodev-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 20
+    networks: [lodev]
+
   redis:
     image: redis:7-alpine
     container_name: lodev-redis
@@ -104,7 +120,7 @@ services:
     container_name: lodev-phpmyadmin
     restart: unless-stopped
     environment:
-      - PMA_HOST=mysql
+      - PMA_HOSTS=mysql
       - PMA_USER=root
       - PMA_PASSWORD=root
     labels:

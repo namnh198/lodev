@@ -20,6 +20,7 @@ type Global struct {
 		HTTPS     int    `yaml:"https"`
 		Dashboard int    `yaml:"dashboard"`
 		MySQL     string `yaml:"mysql"`
+		MariaDB   string `yaml:"mariadb"`
 	} `yaml:"ports"`
 	Services map[string]bool   `yaml:"services"`
 	Versions map[string]string `yaml:"versions"`
@@ -92,10 +93,16 @@ func SaveGlobal(g *Global) error {
 }
 
 func (g *Global) Validate() error {
-	if g.Ports.MySQL != "" {
-		if n, err := strconv.Atoi(g.Ports.MySQL); err != nil || n < 1 || n > 65535 {
-			return fmt.Errorf("ports.mysql %q is not a valid port", g.Ports.MySQL)
+	for _, p := range []struct{ key, val string }{{"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB}} {
+		if p.val == "" {
+			continue
 		}
+		if n, err := strconv.Atoi(p.val); err != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("ports.%s %q is not a valid port", p.key, p.val)
+		}
+	}
+	if g.Ports.MariaDB != "" && g.Ports.MariaDB == g.Ports.MySQL {
+		return errors.New("ports.mariadb must differ from ports.mysql")
 	}
 	for s := range g.Services {
 		if err := oneOf("services", s, SharedServices); err != nil {
@@ -112,6 +119,20 @@ func (g *Global) Validate() error {
 	}
 	_, err := HeapSize(g.Memory.OpenSearch)
 	return err
+}
+
+// PMAHosts is phpMyAdmin's server list: the enabled databases, or mysql when none is.
+func (g *Global) PMAHosts() string {
+	var hosts []string
+	for _, db := range []string{"mysql", "mariadb"} {
+		if g.Services[db] {
+			hosts = append(hosts, db)
+		}
+	}
+	if len(hosts) == 0 {
+		return "mysql"
+	}
+	return strings.Join(hosts, ",")
 }
 
 func (g *Global) EnabledServices() []string {

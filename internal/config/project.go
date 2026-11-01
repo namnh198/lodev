@@ -18,10 +18,10 @@ var (
 	BundledPHP      = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
 	Types           = []string{"laravel", "wordpress", "magento", "php"}
 	Webservers      = []string{"nginx", "apache", "none"}
-	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq"}
+	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb"}
 	ReservedDomains = []string{"mailpit.test", "phpmyadmin.test", "rabbitmq.test"}
 	// DefaultOff lists shared services that stay off until enabled (or a project needs them).
-	DefaultOff = []string{"rabbitmq"}
+	DefaultOff = []string{"rabbitmq", "mariadb"}
 )
 
 var (
@@ -159,6 +159,9 @@ func (p *Project) Validate() error {
 			return err
 		}
 	}
+	if p.Uses("mysql") && p.Uses("mariadb") {
+		return errors.New("use either mysql or mariadb, not both")
+	}
 	if p.NodeJS != "" && !nodeRe.MatchString(p.NodeJS) {
 		return fmt.Errorf("nodejs %q is invalid (allowed: lts, latest, current, or a version like 20 or 18.19.0)", p.NodeJS)
 	}
@@ -212,6 +215,16 @@ func (p *Project) ContainerUser() (name, from string) {
 func (p *Project) DBName() string { return strings.ReplaceAll(p.Name, "-", "_") }
 
 func (p *Project) Uses(svc string) bool { return slices.Contains(p.Services, svc) }
+
+// DB is the shared database the project uses: "mysql", "mariadb", or "" for none.
+func (p *Project) DB() string {
+	for _, db := range []string{"mariadb", "mysql"} {
+		if p.Uses(db) {
+			return db
+		}
+	}
+	return ""
+}
 
 // WebDomains is the routed domains; CLI-only projects have none.
 func (p *Project) WebDomains() []string {

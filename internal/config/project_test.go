@@ -276,3 +276,17 @@ func TestSaveProjectOmitsUser(t *testing.T) {
 		t.Fatalf("user: written:\n%s", data)
 	}
 }
+
+func TestProjectDB(t *testing.T) {
+	for svcs, want := range map[string]string{"mysql redis": "mysql", "mariadb": "mariadb", "redis": ""} {
+		p := &Project{Services: strings.Fields(svcs)}
+		if got := p.DB(); got != want {
+			t.Errorf("%q: %q", svcs, got)
+		}
+	}
+	p := &Project{Name: "shop", Type: "php", PHP: "8.3", Webserver: "nginx", Services: []string{"mysql", "mariadb"}}
+	p.ApplyDefaults()
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "use either mysql or mariadb, not both") {
+		t.Fatal(err)
+	}
+}

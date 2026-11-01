@@ -517,3 +517,15 @@ func TestStartAllOutsideProject(t *testing.T) {
 		t.Fatalf("--all --rebuild: %v", err)
 	}
 }
+
+func TestDBExec(t *testing.T) {
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+	var got []string
+	dockerOutput = func(a ...string) (string, error) { got = append(got, strings.Join(a, " ")); return "", nil }
+	dbExec("mariadb", "SELECT 1")
+	dbExec("mysql", "SELECT 1")
+	want := []string{"exec lodev-mariadb mariadb -uroot -proot -e SELECT 1", "exec lodev-mysql mysql -uroot -proot -e SELECT 1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %v", got)
+	}
+}

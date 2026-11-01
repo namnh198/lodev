@@ -151,3 +151,34 @@ func TestGlobalSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("%+v %v", got, err)
 	}
 }
+
+func TestPMAHosts(t *testing.T) {
+	writeGlobal(t, "")
+	g, _ := LoadGlobal()
+	for _, c := range []struct {
+		mysql, mariadb bool
+		want           string
+	}{{true, false, "mysql"}, {true, true, "mysql,mariadb"}, {false, true, "mariadb"}, {false, false, "mysql"}} {
+		g.Services["mysql"], g.Services["mariadb"] = c.mysql, c.mariadb
+		if got := g.PMAHosts(); got != c.want {
+			t.Errorf("%+v: %q", c, got)
+		}
+	}
+}
+
+func TestGlobalValidateMariaDBPort(t *testing.T) {
+	writeGlobal(t, "")
+	g, _ := LoadGlobal()
+	g.Ports.MariaDB = "x"
+	if err := g.Validate(); err == nil || !strings.Contains(err.Error(), `ports.mariadb "x" is not a valid port`) {
+		t.Error(err)
+	}
+	g.Ports.MySQL, g.Ports.MariaDB = "3306", "3306"
+	if err := g.Validate(); err == nil || !strings.Contains(err.Error(), "must differ") {
+		t.Error(err)
+	}
+	g.Ports.MariaDB = "3307"
+	if err := g.Validate(); err != nil {
+		t.Error(err)
+	}
+}

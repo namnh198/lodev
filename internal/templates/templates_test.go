@@ -152,8 +152,14 @@ func parse(t *testing.T, b []byte) map[string]service {
 
 func TestSharedComposeStructure(t *testing.T) {
 	def := parse(t, must(t)(SharedCompose(defaultGlobal(t), home)))
-	if len(def) != 7 {
-		t.Fatalf("want 7 services, got %d", len(def))
+	if len(def) != 8 {
+		t.Fatalf("want 8 services, got %d", len(def))
+	}
+	if m := def["mariadb"]; m.Image != "mariadb:11.4" || !slices.Contains(m.Volumes, "lodev-mariadb:/var/lib/mysql") || m.Ports != nil {
+		t.Errorf("mariadb %+v", m)
+	}
+	if !slices.Contains(def["phpmyadmin"].Environment, "PMA_HOSTS=mysql") {
+		t.Errorf("phpmyadmin %v", def["phpmyadmin"].Environment)
 	}
 	if r := def["rabbitmq"]; r.Image != "rabbitmq:4-management" || !slices.Contains(r.Volumes, "lodev-rabbitmq:/var/lib/rabbitmq") {
 		t.Errorf("rabbitmq %+v", r)
@@ -332,4 +338,24 @@ func TestSharedComposeVersions(t *testing.T) {
 	g := defaultGlobal(t)
 	g.Versions["mysql"], g.Versions["redis"] = "8.4", "6"
 	golden(t, "services-versions", must(t)(SharedCompose(g, home)))
+}
+
+func TestSharedComposeMariaDB(t *testing.T) {
+	g := defaultGlobal(t)
+	g.Services["mariadb"], g.Ports.MariaDB = true, "3307"
+	b := must(t)(SharedCompose(g, home))
+	golden(t, "services-mariadb", b)
+	def := parse(t, b)
+	if !slices.Equal(def["mariadb"].Ports, []string{"127.0.0.1:3307:3306"}) || !slices.Contains(def["phpmyadmin"].Environment, "PMA_HOSTS=mysql,mariadb") {
+		t.Errorf("mariadb %v, phpmyadmin %v", def["mariadb"].Ports, def["phpmyadmin"].Environment)
+	}
+}
+
+func TestProjectComposeMariaDB(t *testing.T) {
+	in := projectInput("nginx")
+	in.Project.Services = []string{"mariadb", "redis"}
+	web := parse(t, must(t)(ProjectCompose(in)))["web"]
+	if !slices.Contains(web.Environment, "DB_HOST=mariadb") {
+		t.Errorf("env %v", web.Environment)
+	}
 }

@@ -18,7 +18,7 @@ services:
       - LODEV_UID={{.UID}}
       - LODEV_GID={{.GID}}
       - PHP_IDE_CONFIG=serverName={{.P.Name}}
-      - DB_HOST=mysql
+      - DB_HOST={{or .P.DB "mysql"}}
       - DB_PORT=3306
       - DB_DATABASE={{.P.DBName}}
       - DB_USERNAME=root

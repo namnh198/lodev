@@ -2,7 +2,7 @@
 
 A lightweight, DDEV-like CLI for local PHP development on macOS with Docker.
 
-Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin (and opt-in RabbitMQ) — run **once,
+Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin (and opt-in MariaDB, RabbitMQ) — run **once,
 shared by all projects**. Each project only runs one small PHP container (php-fpm + nginx or
 apache), so ten projects cost about the RAM of ten php-fpm processes, not ten databases.
 
@@ -31,7 +31,7 @@ Shared tools: Traefik dashboard <http://localhost:8080>, <https://phpmyadmin.tes
 <https://mailpit.test>, and <https://rabbitmq.test> (guest/guest) once RabbitMQ is enabled.
 All ports listen on `127.0.0.1` only.
 
-Inside a project container: `DB_HOST=mysql`, `DB_PORT=3306`, `DB_DATABASE=<name>`,
+Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses MariaDB), `DB_PORT=3306`, `DB_DATABASE=<name>`,
 `DB_USERNAME=root`, `DB_PASSWORD=root`, `REDIS_HOST=redis`, `OPENSEARCH_HOST=opensearch`,
 `MAIL_HOST=mailpit`, `MAIL_PORT=1025`. PHP `mail()` goes to Mailpit.
 
@@ -58,12 +58,14 @@ ports:
   https: 443
   dashboard: 8080   # Traefik dashboard
   mysql: ""         # e.g. 3306 to reach MySQL from TablePlus etc.
+  mariadb: ""       # e.g. 3307; must differ from mysql
 services:           # traefik is always on
   mysql: true
   redis: true
   opensearch: true
   mailpit: true
   phpmyadmin: true
+  mariadb: false     # opt-in: `lodev services enable mariadb`, or `services: [mariadb]` in a project
   rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
@@ -96,7 +98,7 @@ docroot: pub
 domains:                     # default <name>.test; all must end in .test
   - myshop.test
   - store-en.test
-services: [mysql, redis, opensearch]
+services: [mysql, redis, opensearch]   # mariadb instead of mysql for MariaDB (not both)
 nodejs: "20"                 # optional: lts | latest | current | 20 | 20.11 | 20.11.1 (installed with n)
 php_extensions: [imagick]    # optional: a-z 0-9 _ ; installed for the project's PHP version
 packages: [ffmpeg]           # optional: extra apt packages
@@ -243,4 +245,5 @@ next `lodev start` / `lodev restart`.
 26. `lodev services up`, `lodev poweroff`, `lodev services up` → `docker volume ls | wc -l` is the same after each `up`.
 27. The `opensearch.compose.yml` above + `lodev services up` → `docker inspect -f '{{.HostConfig.Memory}}' lodev-opensearch` prints `3221225472`; a broken YAML file there makes `services up` fail and leaves `compose-full.yaml` as it was.
 28. `versions: {mysql: "8.4"}` + `lodev services up` → a warning `lodev-mysql: mysql:8.0 → mysql:8.4`, then `lodev exec mysql -hmysql -uroot -proot -e 'select version()'` prints `8.4.x`; `versions: {mysql: "8.x"}` makes every command fail naming `versions.mysql`.
-29. `lodev remove --db --yes` in each test project.
+29. `lodev services enable mariadb` → the phpMyAdmin login offers `mysql` and `mariadb`; a project with `services: [mariadb]` + `lodev start` → `lodev exec printenv DB_HOST` prints `mariadb` and its database shows up under `mariadb` in phpMyAdmin; `services: [mysql, mariadb]` is rejected.
+30. `lodev remove --db --yes` in each test project.

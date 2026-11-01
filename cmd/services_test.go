@@ -50,18 +50,25 @@ func TestCheckPortFree(t *testing.T) {
 func TestPortsToCheck(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	g, _ := config.LoadGlobal()
-	if got := PortsToCheck(g, true, false); len(got) != 0 {
+	if got := PortsToCheck(g, true, false, false); len(got) != 0 {
 		t.Fatalf("running stack must not be checked: %v", got)
 	}
-	if got := PortsToCheck(g, false, false); !slices.Equal(got, []int{80, 443, 8080}) {
+	if got := PortsToCheck(g, false, false, false); !slices.Equal(got, []int{80, 443, 8080}) {
 		t.Fatal(got)
 	}
 	g.Ports.MySQL = "3306"
-	if got := PortsToCheck(g, false, false); !slices.Equal(got, []int{80, 443, 8080, 3306}) {
+	if got := PortsToCheck(g, false, false, false); !slices.Equal(got, []int{80, 443, 8080, 3306}) {
 		t.Fatal(got)
 	}
 	// Traefik down but our own MySQL up: its port is ours, not a conflict.
-	if got := PortsToCheck(g, false, true); !slices.Equal(got, []int{80, 443, 8080}) {
+	if got := PortsToCheck(g, false, true, false); !slices.Equal(got, []int{80, 443, 8080}) {
+		t.Fatal(got)
+	}
+	g.Ports.MySQL, g.Ports.MariaDB = "", "3307"
+	if got := PortsToCheck(g, false, false, false); !slices.Equal(got, []int{80, 443, 8080, 3307}) {
+		t.Fatal(got)
+	}
+	if got := PortsToCheck(g, false, false, true); !slices.Equal(got, []int{80, 443, 8080}) {
 		t.Fatal(got)
 	}
 }
