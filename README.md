@@ -170,7 +170,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev delete [--db] [--yes]` | Remove container, hosts entries, cert; `--db` drops the database |
 | `lodev list` | All projects with status and domains |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
-| `lodev composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
+| `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
 | `lodev xdebug on\|off\|status` | Toggle Xdebug (port 9003) |
 | `lodev --debug <cmd>` | Also print every docker command lodev runs (or set `LODEV_DEBUG=1`); set `NO_COLOR=1` to turn colors off |
 

@@ -28,6 +28,8 @@ server {
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             fastcgi_param HTTPS on;
             include fastcgi_params;
+            # Xdebug IDEs (PhpStorm) match the server by SERVER_NAME; "_" from server_name would not match.
+            fastcgi_param SERVER_NAME $host;
         }
         location ~ ^/setup/(?!pub/). {
             deny all;
@@ -125,6 +127,8 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param HTTPS on;
         include fastcgi_params;
+        # Xdebug IDEs (PhpStorm) match the server by SERVER_NAME; "_" from server_name would not match.
+        fastcgi_param SERVER_NAME $host;
     }
 
     gzip on;
