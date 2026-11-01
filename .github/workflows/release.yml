@@ -18,7 +18,7 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test ./...
-      - run: make packages VERSION=${{ github.ref_name }}
+      - run: make packages VERSION="$GITHUB_REF_NAME" # env var, not ${{ }}: no shell injection from tag names
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

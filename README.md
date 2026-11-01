@@ -60,8 +60,8 @@ nix run github:namnh198/lodev -- version
 ### From source
 
 ```bash
-make install                 # builds every target, installs this machine's binary to /usr/local
-make install PREFIX=~/.local # no sudo
+make && sudo make install                  # build as yourself, install to /usr/local
+make && make install PREFIX=~/.local       # no sudo
 ```
 
 `make` targets: `build` (default; all of linux/darwin/windows × amd64/arm64 into

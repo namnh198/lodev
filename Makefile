@@ -58,8 +58,10 @@ packaging:
 ## packages: dist + deb + packaging (what a release uploads)
 packages: dist deb packaging
 
-## install: install this machine's binary and completions under PREFIX
-install: completions
+## install: install this machine's binary and completions under PREFIX (run `make` first, as yourself)
+install:
+	@test -x $(HOSTBIN) && test -f dist/completions/lodev.bash || \
+		{ echo "nothing to install: run \`make\` first (then \`sudo make install\`)"; exit 1; }
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
 		$(DESTDIR)$(PREFIX)/share/zsh/site-functions $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d
 	install -m 0755 $(HOSTBIN) $(DESTDIR)$(PREFIX)/bin/lodev
