@@ -24,21 +24,20 @@ var (
 var (
 	nameRe   = regexp.MustCompile(`^[a-z0-9-]+$`)
 	domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+test$`)
-	nodeRe   = regexp.MustCompile(`^(lts|[0-9]+(\.[0-9]+){0,2})$`)
+	nodeRe   = regexp.MustCompile(`^(lts|latest|current|[0-9]+(\.[0-9]+){0,2})$`)
 	extRe    = regexp.MustCompile(`^[a-z0-9_]+$`)
-	pkgRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
+	pkgRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)
 )
 
 type Project struct {
-	Name      string   `yaml:"name"`
-	Type      string   `yaml:"type"`
-	PHP       string   `yaml:"php"`
-	Webserver string   `yaml:"webserver"`
-	Docroot   string   `yaml:"docroot"`
-	Domains   []string `yaml:"domains,omitempty"`
-	Services  []string `yaml:"services"`
-	NodeJS    string   `yaml:"nodejs,omitempty"`
-	// PHPExtensions and Packages are extra PECL extensions / apt packages for the project image.
+	Name          string   `yaml:"name"`
+	Type          string   `yaml:"type"`
+	PHP           string   `yaml:"php"`
+	Webserver     string   `yaml:"webserver"`
+	Docroot       string   `yaml:"docroot"`
+	Domains       []string `yaml:"domains,omitempty"`
+	Services      []string `yaml:"services"`
+	NodeJS        string   `yaml:"nodejs,omitempty"`
 	PHPExtensions []string `yaml:"php_extensions,omitempty"`
 	Packages      []string `yaml:"packages,omitempty"`
 	Root          string   `yaml:"-"`
@@ -146,7 +145,7 @@ func (p *Project) Validate() error {
 		}
 	}
 	if p.NodeJS != "" && !nodeRe.MatchString(p.NodeJS) {
-		return fmt.Errorf("nodejs %q is invalid (allowed: lts, or a version like 20 or 18.19.0)", p.NodeJS)
+		return fmt.Errorf("nodejs %q is invalid (allowed: lts, latest, current, or a version like 20 or 18.19.0)", p.NodeJS)
 	}
 	for _, e := range p.PHPExtensions {
 		if !extRe.MatchString(e) {
@@ -155,7 +154,7 @@ func (p *Project) Validate() error {
 	}
 	for _, k := range p.Packages {
 		if !pkgRe.MatchString(k) {
-			return fmt.Errorf("packages %q is invalid (allowed: a-z, 0-9, . + -, not starting with - or .)", k)
+			return fmt.Errorf("packages %q is invalid (allowed: 2+ chars of a-z, 0-9, + . -, starting with a letter or digit)", k)
 		}
 	}
 	return nil

@@ -121,6 +121,8 @@ func TestValidateCustomization(t *testing.T) {
 		func(p *Project) { p.NodeJS = "20" },
 		func(p *Project) { p.NodeJS = "18.19.0" },
 		func(p *Project) { p.NodeJS = "lts" },
+		func(p *Project) { p.NodeJS = "latest" },
+		func(p *Project) { p.NodeJS = "current" },
 		func(p *Project) { p.PHPExtensions = []string{"imagick", "pdo_sqlsrv"} },
 		func(p *Project) { p.Packages = []string{"vim", "libstdc++6", "g++"} },
 	}
@@ -132,6 +134,7 @@ func TestValidateCustomization(t *testing.T) {
 		{"nodejs", func(p *Project) { p.NodeJS = "20.x" }},
 		{"php_extensions", func(p *Project) { p.PHPExtensions = []string{"imagick; rm -rf /"} }},
 		{"packages", func(p *Project) { p.Packages = []string{"-vim"} }},
+		{"packages", func(p *Project) { p.Packages = []string{"v"} }},
 	}
 	for _, f := range ok {
 		p := valid()
