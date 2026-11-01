@@ -83,7 +83,10 @@ func TestWithLockExcludesOthers(t *testing.T) {
 	}
 }
 
-// stubDocker records dockerRun calls and answers `docker ps` with running.
+const composeLabel = "label=com.docker.compose.project=lodev-"
+
+// stubDocker records dockerRun calls, answers the running-projects `docker ps` with running,
+// and a per-project `docker ps -q` with the id "id-<name>".
 func stubDocker(t *testing.T, running string) *[]string {
 	t.Helper()
 	oldRun, oldOut := dockerRun, dockerOutput
@@ -91,6 +94,9 @@ func stubDocker(t *testing.T, running string) *[]string {
 	var calls []string
 	dockerRun = func(a ...string) error { calls = append(calls, strings.Join(a, " ")); return nil }
 	dockerOutput = func(a ...string) (string, error) {
+		if slices.Equal(a[:2], []string{"ps", "-q"}) {
+			return "id-" + strings.TrimPrefix(a[3], composeLabel), nil
+		}
 		if a[0] == "ps" {
 			return running, nil
 		}
@@ -108,10 +114,12 @@ func TestPoweroff(t *testing.T) {
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
+	// By label, not `compose -p … stop`: compose would read a docker-compose.yml in the cwd
+	// and silently skip containers whose service is not in it.
 	want := []string{
-		"compose -p lodev-a stop",
-		"compose -p lodev-b stop",
-		"compose -p lodev-x stop",
+		"stop id-a",
+		"stop id-b",
+		"stop id-x",
 		"compose -p lodev-services -f " + servicesFile() + " down",
 	}
 	if !slices.Equal(*calls, want) {
@@ -126,7 +134,7 @@ func TestPoweroffNoServicesFile(t *testing.T) {
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(*calls, []string{"compose -p lodev-b stop"}) {
+	if !slices.Equal(*calls, []string{"stop id-b"}) {
 		t.Errorf("calls: %v", *calls)
 	}
 }

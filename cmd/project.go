@@ -416,11 +416,14 @@ func forAll(fn func(*config.Project) error) error {
 	for _, name := range reg.Names() {
 		ui.Info("==> %s", name)
 		p, err := config.LoadProject(reg[name].Path)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			ui.Warn("%s: %v (skipped)", name, err)
 			continue
 		}
-		if err := fn(p); err != nil {
+		if err == nil {
+			err = fn(p)
+		}
+		if err != nil {
 			ui.Error("%s: %v", name, err)
 			failed = append(failed, name)
 		}

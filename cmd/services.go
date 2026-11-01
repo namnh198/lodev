@@ -122,9 +122,17 @@ func poweroff() error {
 		names = append(names, strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web"))
 	}
 	slices.Sort(names)
-	// No compose file needed: compose finds the project's containers by its name label.
+	// By label, not `compose -p … stop`: compose reads any docker-compose.yml in the cwd
+	// and then silently skips the project's containers that file does not name.
 	for _, name := range slices.Compact(names) {
-		if err := dockerRun("compose", "-p", "lodev-"+name, "stop"); err != nil {
+		ids, err := dockerOutput("ps", "-q", "--filter", "label=com.docker.compose.project=lodev-"+name)
+		if err != nil {
+			return err
+		}
+		if ids == "" {
+			continue
+		}
+		if err := dockerRun(append([]string{"stop"}, strings.Fields(ids)...)...); err != nil {
 			return err
 		}
 	}

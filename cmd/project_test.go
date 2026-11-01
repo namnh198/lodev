@@ -439,7 +439,10 @@ func saveProjects(t *testing.T, names []string, extra registry.Registry) {
 
 func TestForAll(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
-	saveProjects(t, []string{"a", "b"}, registry.Registry{"c": {Path: t.TempDir()}})
+	broken := t.TempDir()
+	os.MkdirAll(filepath.Join(broken, ".lodev"), 0o755)
+	os.WriteFile(filepath.Join(broken, ".lodev", "config.yaml"), []byte("php: ["), 0o644)
+	saveProjects(t, []string{"a", "b"}, registry.Registry{"c": {Path: t.TempDir()}, "d": {Path: broken}})
 	_, stderr, restore := ui.Capture(false)
 	defer restore()
 	var seen []string
@@ -453,7 +456,8 @@ func TestForAll(t *testing.T) {
 	if !slices.Equal(seen, []string{"a", "b"}) {
 		t.Errorf("seen %v", seen)
 	}
-	if err == nil || err.Error() != "failed: a" {
+	// c's folder is gone (skipped); d's config is broken (a failure, not a skip).
+	if err == nil || err.Error() != "failed: a, d" {
 		t.Errorf("err = %v", err)
 	}
 	if s := stderr.String(); !strings.Contains(s, "c:") || !strings.Contains(s, "skipped") {
