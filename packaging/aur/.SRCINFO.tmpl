@@ -1,0 +1,17 @@
+pkgbase = lodev-bin
+	pkgdesc = DDEV-like local PHP development with shared Docker services
+	pkgver = {{pkgver .Version}}
+	pkgrel = 1
+	url = https://github.com/{{.Repo}}
+	arch = x86_64
+	arch = aarch64
+	license = custom
+	optdepends = docker: runs the project and shared service containers
+	provides = lodev
+	conflicts = lodev
+	source_x86_64 = https://github.com/{{.Repo}}/releases/download/v{{.Version}}/lodev_{{.Version}}_linux_amd64.tar.gz
+	sha256sums_x86_64 = {{sha "linux_amd64"}}
+	source_aarch64 = https://github.com/{{.Repo}}/releases/download/v{{.Version}}/lodev_{{.Version}}_linux_arm64.tar.gz
+	sha256sums_aarch64 = {{sha "linux_arm64"}}
+
+pkgname = lodev-bin

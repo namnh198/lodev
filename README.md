@@ -15,6 +15,12 @@ lodev runs mkcert in Docker and tells you how to trust its CA.
 
 Every method below also installs bash, zsh and fish completions.
 
+### Homebrew (macOS, Linux)
+
+```bash
+brew install namnh198/tap/lodev
+```
+
 ### Debian / Ubuntu (apt)
 
 Download `lodev_<version>_amd64.deb` (or `_arm64.deb`) from the
@@ -23,6 +29,23 @@ Download `lodev_<version>_amd64.deb` (or `_arm64.deb`) from the
 ```bash
 sudo apt install ./lodev_<version>_amd64.deb
 ```
+
+### Arch Linux (AUR)
+
+```bash
+yay -S lodev-bin        # or paru -S lodev-bin
+```
+
+### Nix
+
+```bash
+nix profile install github:namnh198/lodev
+nix run github:namnh198/lodev -- version
+```
+
+`flake.nix` builds from source. Its `vendorHash` is a placeholder until the first build: run
+`nix build`, copy the `got: sha256-…` value from the error into `vendorHash`, and commit it
+(again whenever `go.mod` changes).
 
 ### From source
 
