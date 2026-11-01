@@ -15,6 +15,16 @@ lodev runs mkcert in Docker and tells you how to trust its CA.
 
 Every method below also installs bash, zsh and fish completions.
 
+### Install script (macOS, Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | sh
+```
+
+It picks the archive for your OS and CPU (x86_64 / arm64), verifies its sha256 against the
+release's `checksums.txt`, and installs `lodev` plus completions under `/usr/local` (sudo only
+if needed). Options: `VERSION=v1.2.3` (default: latest), `PREFIX=$HOME/.local`.
+
 ### Homebrew (macOS, Linux)
 
 ```bash

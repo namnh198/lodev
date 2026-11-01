@@ -36,7 +36,7 @@ dist: completions
 		mkdir -p $$dir/completions && cp dist/bin/$${os}_$$arch/* $$dir/ && \
 		cp dist/completions/* $$dir/completions/ && cp README.md $$dir/ || exit 1; \
 		if [ $$os = windows ]; then (cd dist/stage && zip -qr ../$$name.zip $$name); \
-		else tar -czf dist/$$name.tar.gz -C dist/stage $$name; fi || exit 1; \
+		else COPYFILE_DISABLE=1 tar --no-xattrs -czf dist/$$name.tar.gz -C dist/stage $$name; fi || exit 1; \
 		echo "dist  $$name"; \
 	done
 	@cd dist && shasum -a 256 *.tar.gz *.zip > checksums.txt
