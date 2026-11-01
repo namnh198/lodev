@@ -12,6 +12,7 @@ import (
 
 	"lodev/internal/config"
 	"lodev/internal/registry"
+	"lodev/internal/ui"
 )
 
 func TestCheckPortReportsPortInUse(t *testing.T) {
@@ -205,5 +206,26 @@ func TestServicesComposeFile(t *testing.T) {
 	}
 	if !slices.Equal(*calls, want) {
 		t.Errorf("calls %v", *calls)
+	}
+}
+
+func TestWarnImageChange(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+	dockerOutput = func(a ...string) (string, error) {
+		if a[len(a)-1] == "lodev-mysql" {
+			return "mysql:8.0", nil
+		}
+		return "", errors.New("No such object")
+	}
+	g, _ := config.LoadGlobal()
+	for ver, want := range map[string]string{"8.4": "lodev-mysql: mysql:8.0 → mysql:8.4", "8.0": ""} {
+		g.Versions["mysql"] = ver
+		_, stderr, restore := ui.Capture(false)
+		warnImageChange(g)
+		restore()
+		if want == "" && stderr.Len() != 0 || want != "" && !strings.Contains(stderr.String(), want) {
+			t.Errorf("mysql %s: stderr %q", ver, stderr.String())
+		}
 	}
 }

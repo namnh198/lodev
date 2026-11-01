@@ -67,7 +67,17 @@ services:           # traefik is always on
   rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
+versions:           # 8 | 8.0 | 8.0.36; only these keys
+  mysql: "8.0"
+  mariadb: "11.4"
+  redis: "7"        # redis:<v>-alpine
+  opensearch: "2"
+  rabbitmq: "4"     # rabbitmq:<v>-management
 ```
+
+Changing a MySQL/MariaDB version recreates its container on the existing data volume;
+`lodev services up` warns when the image changes. Dump your databases first: a major
+downgrade (or skipping majors) may not read the old data.
 
 Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …), kept across
 `poweroff` and `services down`. Older lodev versions left an anonymous volume behind each time
@@ -232,4 +242,5 @@ next `lodev start` / `lodev restart`.
 25. `lodev services enable rabbitmq` → `https://rabbitmq.test` loads (guest/guest) and `lodev exec php -r 'var_dump((bool) fsockopen("rabbitmq", 5672));'` prints `bool(true)`.
 26. `lodev services up`, `lodev poweroff`, `lodev services up` → `docker volume ls | wc -l` is the same after each `up`.
 27. The `opensearch.compose.yml` above + `lodev services up` → `docker inspect -f '{{.HostConfig.Memory}}' lodev-opensearch` prints `3221225472`; a broken YAML file there makes `services up` fail and leaves `compose-full.yaml` as it was.
-28. `lodev remove --db --yes` in each test project.
+28. `versions: {mysql: "8.4"}` + `lodev services up` → a warning `lodev-mysql: mysql:8.0 → mysql:8.4`, then `lodev exec mysql -hmysql -uroot -proot -e 'select version()'` prints `8.4.x`; `versions: {mysql: "8.x"}` makes every command fail naming `versions.mysql`.
+29. `lodev remove --db --yes` in each test project.

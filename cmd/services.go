@@ -84,6 +84,7 @@ func servicesUp() error {
 	if err := hosts.Apply("lodev-services", config.ReservedDomains); err != nil {
 		return err
 	}
+	warnImageChange(g)
 	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
 		return err
 	}
@@ -133,6 +134,19 @@ func mergeServicesCompose() error {
 		return err
 	}
 	return mergeComposeFiles("lodev-services", servicesFile(), servicesFullFile(), extra)
+}
+
+// warnImageChange warns before a database container is recreated on another image (e.g. a version change).
+func warnImageChange(g *config.Global) {
+	for _, svc := range []string{"mysql", "mariadb"} {
+		cur, err := dockerOutput("inspect", "-f", "{{.Config.Image}}", "lodev-"+svc)
+		if err != nil { // no container yet
+			continue
+		}
+		if want := g.Image(svc); cur != want {
+			ui.Warn("lodev-%s: %s → %s; a major downgrade may not read the existing data, dump it first", svc, cur, want)
+		}
+	}
 }
 
 // startService starts one shared service from the existing compose file.

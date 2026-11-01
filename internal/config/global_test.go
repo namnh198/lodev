@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -104,6 +105,36 @@ func TestGlobalValidate(t *testing.T) {
 	g.Memory.OpenSearch = "8g"
 	if g.Validate() == nil {
 		t.Error("memory 8g accepted")
+	}
+	g.Memory.OpenSearch = "2g"
+	for _, c := range []struct{ key, val, want string }{
+		{"mysql", "8.x", `versions.mysql "8.x" is not a version`},
+		{"mysql", "", `versions.mysql "" is not a version`},
+		{"postgres", "16", `unknown service "postgres"`},
+		{"mysql", "8.0.36", ""},
+	} {
+		writeGlobal(t, "")
+		g, _ := LoadGlobal()
+		g.Versions[c.key] = c.val
+		err := g.Validate()
+		if c.want == "" && err != nil || c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)) {
+			t.Errorf("versions.%s=%q: %v", c.key, c.val, err)
+		}
+	}
+}
+
+func TestGlobalVersions(t *testing.T) {
+	writeGlobal(t, "")
+	g, _ := LoadGlobal()
+	for svc, want := range map[string]string{"mysql": "mysql:8.0", "redis": "redis:7-alpine", "rabbitmq": "rabbitmq:4-management", "opensearch": "opensearchproject/opensearch:2"} {
+		if got := g.Image(svc); got != want {
+			t.Errorf("%s: %s", svc, got)
+		}
+	}
+	writeGlobal(t, "versions:\n  mysql: \"8.4\"\n")
+	g, err := LoadGlobal()
+	if err != nil || g.Image("mysql") != "mysql:8.4" || g.Image("redis") != "redis:7-alpine" {
+		t.Fatalf("partial versions: %v %v", err, g.Versions)
 	}
 }
 

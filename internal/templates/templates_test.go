@@ -327,3 +327,9 @@ func TestProjectComposeUser(t *testing.T) {
 		t.Fatal("hostname missing")
 	}
 }
+
+func TestSharedComposeVersions(t *testing.T) {
+	g := defaultGlobal(t)
+	g.Versions["mysql"], g.Versions["redis"] = "8.4", "6"
+	golden(t, "services-versions", must(t)(SharedCompose(g, home)))
+}
