@@ -1,0 +1,88 @@
+# Build, package and install lodev. Run `make help`.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VER      = $(VERSION:v%=%)
+REPO    ?= namnh198/lodev
+PREFIX  ?= /usr/local
+TARGETS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+
+HOST    := $(shell go env GOOS)_$(shell go env GOARCH)
+HOSTBIN  = dist/bin/$(HOST)/lodev
+LDFLAGS  = -s -w -X lodev/cmd.Version=$(VERSION)
+LINUX_ARCHES = $(patsubst linux/%,%,$(filter linux/%,$(TARGETS)))
+
+.PHONY: build completions dist deb packaging packages install uninstall test clean help
+
+## build: cross-build every target into dist/bin/<os>_<arch>/ (default)
+build:
+	@for t in $(TARGETS); do \
+		os=$${t%/*}; arch=$${t#*/}; ext=; [ $$os = windows ] && ext=.exe; \
+		echo "build $$os/$$arch"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" \
+			-o dist/bin/$${os}_$$arch/lodev$$ext . || exit 1; \
+	done
+
+## completions: bash/zsh/fish completion scripts into dist/completions/
+completions: build
+	@mkdir -p dist/completions
+	$(HOSTBIN) completion bash > dist/completions/lodev.bash
+	$(HOSTBIN) completion zsh > dist/completions/_lodev
+	$(HOSTBIN) completion fish > dist/completions/lodev.fish
+
+## dist: one archive per target plus dist/checksums.txt
+dist: completions
+	@rm -rf dist/stage dist/*.tar.gz dist/*.zip dist/checksums.txt
+	@for t in $(TARGETS); do \
+		os=$${t%/*}; arch=$${t#*/}; name=lodev_$(VER)_$${os}_$$arch; dir=dist/stage/$$name; \
+		mkdir -p $$dir/completions && cp dist/bin/$${os}_$$arch/* $$dir/ && \
+		cp dist/completions/* $$dir/completions/ && cp README.md $$dir/ || exit 1; \
+		if [ $$os = windows ]; then (cd dist/stage && zip -qr ../$$name.zip $$name); \
+		else tar -czf dist/$$name.tar.gz -C dist/stage $$name; fi || exit 1; \
+		echo "dist  $$name"; \
+	done
+	@cd dist && shasum -a 256 *.tar.gz *.zip > checksums.txt
+	@rm -rf dist/stage
+
+## deb: lodev_<ver>_<arch>.deb for each Linux target
+deb: completions
+	@for arch in $(LINUX_ARCHES); do \
+		go run ./tools/mkdeb -version $(VER) -arch $$arch -bin dist/bin/linux_$$arch/lodev \
+			-completions dist/completions -out dist/lodev_$(VER)_$$arch.deb || exit 1; \
+		echo "deb   dist/lodev_$(VER)_$$arch.deb"; \
+	done
+
+## packaging: Homebrew formula, AUR PKGBUILD/.SRCINFO into dist/packaging/ (needs dist)
+packaging:
+	go run ./tools/pkggen -version $(VER) -repo $(REPO) -checksums dist/checksums.txt \
+		-templates packaging -out dist/packaging
+
+## packages: dist + deb + packaging (what a release uploads)
+packages: dist deb packaging
+
+## install: install this machine's binary and completions under PREFIX
+install: completions
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
+		$(DESTDIR)$(PREFIX)/share/zsh/site-functions $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d
+	install -m 0755 $(HOSTBIN) $(DESTDIR)$(PREFIX)/bin/lodev
+	install -m 0644 dist/completions/lodev.bash $(DESTDIR)$(PREFIX)/share/bash-completion/completions/lodev
+	install -m 0644 dist/completions/_lodev $(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev
+	install -m 0644 dist/completions/lodev.fish $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish
+
+## uninstall: remove what install put under PREFIX
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/lodev \
+		$(DESTDIR)$(PREFIX)/share/bash-completion/completions/lodev \
+		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev \
+		$(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish
+
+## test: go vet + go test
+test:
+	go vet ./...
+	go test ./...
+
+## clean: remove dist/
+clean:
+	rm -rf dist
+
+## help: list targets
+help:
+	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  /'

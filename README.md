@@ -9,18 +9,23 @@ apache), so ten projects cost about the RAM of ten php-fpm processes, not ten da
 ## Install
 
 Requirements: macOS or Linux with Docker (Docker Desktop, OrbStack, …). Windows binaries are built
-but not supported at runtime: lodev edits `/etc/hosts` with sudo and checks ports with `lsof`. [mkcert](https://github.com/FiloSottile/mkcert) is optional
-(`brew install mkcert`); without it lodev runs mkcert in Docker and tells you how to trust its CA.
+but not supported at runtime: lodev edits `/etc/hosts` with sudo and checks ports with `lsof`.
+[mkcert](https://github.com/FiloSottile/mkcert) is optional (`brew install mkcert`); without it
+lodev runs mkcert in Docker and tells you how to trust its CA.
+
+Every method below also installs bash, zsh and fish completions.
+
+### From source
 
 ```bash
-go build -o lodev . && sudo mv lodev /usr/local/bin/
+make install                 # builds every target, installs this machine's binary to /usr/local
+make install PREFIX=~/.local # no sudo
 ```
 
-To stamp a version (shown by `lodev version`; otherwise it reads `dev (<commit>)`):
-
-```bash
-go build -ldflags "-X lodev/cmd.Version=$(git describe --tags --always)" -o lodev .
-```
+`make` targets: `build` (default; all of linux/darwin/windows × amd64/arm64 into
+`dist/bin/<os>_<arch>/`), `completions`, `dist` (archives + `checksums.txt`), `deb`, `packaging`,
+`packages` (all of these), `install`, `uninstall`, `test`, `clean`. The version comes from
+`git describe`; override with `make VERSION=v1.2.3`.
 
 ## Quick start
 
