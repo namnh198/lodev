@@ -15,6 +15,15 @@ lodev runs mkcert in Docker and tells you how to trust its CA.
 
 Every method below also installs bash, zsh and fish completions.
 
+### Debian / Ubuntu (apt)
+
+Download `lodev_<version>_amd64.deb` (or `_arm64.deb`) from the
+[releases](https://github.com/namnh198/lodev/releases), then:
+
+```bash
+sudo apt install ./lodev_<version>_amd64.deb
+```
+
 ### From source
 
 ```bash
