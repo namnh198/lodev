@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -474,7 +473,7 @@ func allThenServiceURLs(fn func(*config.Project) error) error {
 }
 
 func status(name string) string {
-	out, _ := docker.Output("ps", "-a", "--filter", "name=^lodev-"+name+"-web$", "--format", "{{.State}}")
+	out, _ := dockerOutput("ps", "-a", "--filter", "name=^lodev-"+name+"-web$", "--format", "{{.State}}")
 	if out == "" {
 		return "stopped"
 	}
@@ -610,26 +609,26 @@ func init() {
 		Aliases: []string{"ps"},
 		Short:   "List projects",
 		Args:    cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		RunE: func(c *cobra.Command, _ []string) error {
 			reg, err := registry.Load()
 			if err != nil {
 				return err
 			}
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tSTATUS\tTYPE\tDOMAINS\tPATH")
+			var rows [][]string
 			for _, name := range reg.Names() {
 				e := reg[name]
 				typ := "missing"
 				if p, err := config.LoadProject(e.Path); err == nil {
 					typ = p.Type
 				}
-				domains := strings.Join(e.Domains, ",")
+				domains := strings.Join(e.Domains, "\n")
 				if domains == "" {
 					domains = "CLI"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, status(name), typ, domains, e.Path)
+				rows = append(rows, []string{name, status(name), typ, domains, shortPath(e.Path)})
 			}
-			return w.Flush()
+			printTable(c.OutOrStdout(), []string{"NAME", "STATUS", "TYPE", "DOMAINS", "PATH"}, rows)
+			return nil
 		},
 	}
 

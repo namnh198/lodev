@@ -203,7 +203,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev start [--rebuild \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image; `--all` starts every known project from any folder |
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
-| `lodev list` | All projects with status and domains (alias `ps`) |
+| `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
