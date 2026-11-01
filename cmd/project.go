@@ -117,6 +117,33 @@ func dropStaleProjectImage(p *config.Project, img string) error {
 	return removeProjectImage(p.Name)
 }
 
+func userWarning(name, from string) string {
+	if from == "" {
+		return ""
+	}
+	return fmt.Sprintf("%q is not a valid container user name; using %q (set user: in .lodev/config.yaml to choose another)", from, name)
+}
+
+var userPoll = time.Second
+
+// userReady reports whether the entrypoint has created user in the web container.
+var userReady = func(p *config.Project, user string) bool {
+	_, err := docker.Output(docker.ExecArgs(composeProject(p), composeFile(p), "web", "", "", false, []string{"id", "-u", user})...)
+	return err == nil
+}
+
+// waitForUser blocks until the entrypoint has created user, so ssh/exec right after start work.
+func waitForUser(p *config.Project, user string, timeout time.Duration) error {
+	for deadline := time.Now().Add(timeout); ; time.Sleep(userPoll) {
+		if userReady(p, user) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("user %q was not created in the web container; check: docker logs lodev-%s-web", user, p.Name)
+		}
+	}
+}
+
 func projectCompose(p *config.Project, sub ...string) error {
 	return docker.Run(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
 }
@@ -291,11 +318,18 @@ func start(p *config.Project, rebuild bool) error {
 	if err != nil {
 		return err
 	}
+	user, from := p.ContainerUser()
+	if w := userWarning(user, from); w != "" {
+		fmt.Fprintln(os.Stderr, "warning: "+w)
+	}
 	data, err := templates.ProjectCompose(templates.ProjectInput{
 		Project:    p,
 		ExtraHosts: append(reg.AllDomains(), config.ReservedDomains...),
 		CAFile:     ca,
 		Image:      img,
+		User:       user,
+		UID:        os.Getuid(),
+		GID:        os.Getgid(),
 	})
 	if err != nil {
 		return err
@@ -310,6 +344,9 @@ func start(p *config.Project, rebuild bool) error {
 		return err
 	}
 	if err := projectCompose(p, "up", "-d", "--remove-orphans"); err != nil {
+		return err
+	}
+	if err := waitForUser(p, user, 10*time.Second); err != nil {
 		return err
 	}
 	if err := dropStaleProjectImage(p, img); err != nil {

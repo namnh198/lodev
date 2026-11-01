@@ -67,6 +67,7 @@ func projectInput(webserver string) ProjectInput {
 		ExtraHosts: []string{"en.test", "shop.test", "mailpit.test", "phpmyadmin.test"},
 		CAFile:     home + "/ca/rootCA.pem",
 		Image:      "lodev/shop-web",
+		User:       "kuroko", UID: 501, GID: 20,
 	}
 }
 
@@ -305,5 +306,17 @@ func TestWebBuildDockerfileNoTrailingNewline(t *testing.T) {
 	}
 	if !strings.Contains(string(got), "RUN echo hi\n# --- ") {
 		t.Errorf("part not newline-terminated:\n%s", got)
+	}
+}
+
+func TestProjectComposeUser(t *testing.T) {
+	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
+	for _, e := range []string{"LODEV_USER=kuroko", "LODEV_UID=501", "LODEV_GID=20"} {
+		if !slices.Contains(web.Environment, e) {
+			t.Fatalf("missing %s in %v", e, web.Environment)
+		}
+	}
+	if !strings.Contains(string(must(t)(ProjectCompose(projectInput("none")))), "hostname: shop-web\n") {
+		t.Fatal("hostname missing")
 	}
 }

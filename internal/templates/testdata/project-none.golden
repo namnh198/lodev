@@ -9,10 +9,14 @@ services:
   web:
     image: lodev/shop-web
     container_name: lodev-shop-web
+    hostname: shop-web
     restart: unless-stopped
     environment:
       - LODEV_PHP=8.3
       - LODEV_WEBSERVER=none
+      - LODEV_USER=kuroko
+      - LODEV_UID=501
+      - LODEV_GID=20
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_DATABASE=shop

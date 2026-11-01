@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"lodev/internal/config"
 	"lodev/internal/hosts"
@@ -385,5 +386,30 @@ func TestSettleAnswers(t *testing.T) {
 	settleAnswers(p, "x", "laravel", false)
 	if p.Docroot != "" {
 		t.Fatalf("got %q", p.Docroot)
+	}
+}
+
+func TestStartUserWarning(t *testing.T) {
+	if got := userWarning("john_doe", "John.Doe"); got != `"John.Doe" is not a valid container user name; using "john_doe" (set user: in .lodev/config.yaml to choose another)` {
+		t.Fatal(got)
+	}
+	if got := userWarning("kuroko", ""); got != "" {
+		t.Fatal(got)
+	}
+}
+
+func TestWaitForUser(t *testing.T) {
+	defer func(r func(*config.Project, string) bool, i time.Duration) { userReady, userPoll = r, i }(userReady, userPoll)
+	userPoll = time.Millisecond
+	p := &config.Project{Name: "shop"}
+	n := 0
+	userReady = func(*config.Project, string) bool { n++; return n == 3 }
+	if err := waitForUser(p, "kuroko", time.Second); err != nil || n != 3 {
+		t.Fatalf("%v %d", err, n)
+	}
+	userReady = func(*config.Project, string) bool { return false }
+	err := waitForUser(p, "kuroko", 20*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "docker logs lodev-shop-web") {
+		t.Fatal(err)
 	}
 }
