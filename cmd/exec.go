@@ -86,6 +86,18 @@ func checkWebUser(p *config.Project, user string) error {
 
 const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl restart php-fpm >/dev/null; } && echo "xdebug `
 
+// xdebugScript returns the root shell script for a `lodev xdebug` action, or "" if unknown.
+func xdebugScript(action string) string {
+	on := `for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`
+	off := `rm -f /etc/php/$LODEV_PHP/*/conf.d/99-lodev-xdebug.ini` + reloadFPM + `off"`
+	return map[string]string{
+		"on":     on,
+		"off":    off,
+		"toggle": "if php -m | grep -qi xdebug; then " + off + "; else " + on + "; fi",
+		"status": "php -m | grep -qi xdebug && echo on || echo off",
+	}[action]
+}
+
 func init() {
 	var sshService string
 	sshCmd := &cobra.Command{
@@ -135,18 +147,14 @@ func init() {
 	}
 
 	xdebugCmd := &cobra.Command{
-		Use:       "xdebug on|off|status",
+		Use:       "xdebug on|off|toggle|status",
 		Short:     "Toggle Xdebug in the web container",
 		Args:      cobra.ExactArgs(1),
-		ValidArgs: []string{"on", "off", "status"},
+		ValidArgs: []string{"on", "off", "toggle", "status"},
 		RunE: func(_ *cobra.Command, args []string) error {
-			script := map[string]string{
-				"on":     `for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`,
-				"off":    `rm -f /etc/php/$LODEV_PHP/*/conf.d/99-lodev-xdebug.ini` + reloadFPM + `off"`,
-				"status": "php -m | grep -qi xdebug && echo on || echo off",
-			}[args[0]]
+			script := xdebugScript(args[0])
 			if script == "" {
-				return errors.New("usage: lodev xdebug on|off|status")
+				return errors.New("usage: lodev xdebug on|off|toggle|status")
 			}
 			return runInService("web", "root", []string{"sh", "-c", script})
 		},

@@ -46,6 +46,17 @@ func TestShortcutCmd(t *testing.T) {
 	}
 }
 
+func TestXdebugScript(t *testing.T) {
+	on, off := xdebugScript("on"), xdebugScript("off")
+	if on == "" || off == "" || xdebugScript("bogus") != "" {
+		t.Fatal("on/off must exist, unknown must be empty")
+	}
+	want := "if php -m | grep -qi xdebug; then " + off + "; else " + on + "; fi"
+	if got := xdebugScript("toggle"); got != want {
+		t.Errorf("toggle = %q", got)
+	}
+}
+
 func TestSplitService(t *testing.T) {
 	cases := []struct {
 		in      []string
