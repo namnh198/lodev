@@ -33,12 +33,19 @@ func ComposeConfigArgs(project string, files []string) []string {
 	return append(args, "config")
 }
 
-func ExecArgs(project, file, user string, tty bool, cmd []string) []string {
+// ExecArgs execs in a compose service; empty user/workdir keep the service's defaults.
+func ExecArgs(project, file, service, user, workdir string, tty bool, cmd []string) []string {
 	args := []string{"exec"}
 	if !tty {
 		args = append(args, "-T")
 	}
-	args = append(args, "-u", user, "-w", "/var/www/html", "web")
+	if user != "" {
+		args = append(args, "-u", user)
+	}
+	if workdir != "" {
+		args = append(args, "-w", workdir)
+	}
+	args = append(args, service)
 	return ComposeArgs(project, file, append(args, cmd...)...)
 }
 
