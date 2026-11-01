@@ -247,5 +247,5 @@ next `lodev start` / `lodev restart`.
 27. The `opensearch.compose.yml` above + `lodev services up` → `docker inspect -f '{{.HostConfig.Memory}}' lodev-opensearch` prints `3221225472`; a broken YAML file there makes `services up` fail and leaves `compose-full.yaml` as it was.
 28. `versions: {mysql: "8.4"}` + `lodev services up` → a warning `lodev-mysql: mysql:8.0 → mysql:8.4`, then `lodev exec mysql -hmysql -uroot -proot -e 'select version()'` prints `8.4.x`; `versions: {mysql: "8.x"}` makes every command fail naming `versions.mysql`.
 29. `lodev services enable mariadb` → the phpMyAdmin login offers `mysql` and `mariadb`; a project with `services: [mariadb]` + `lodev start` → `lodev exec printenv DB_HOST` prints `mariadb` and its database shows up under `mariadb` in phpMyAdmin; `services: [mysql, mariadb]` is rejected.
-30. With the stack running, `lodev start` in a project prints no Traefik/phpMyAdmin lines and asks for no password for the shared services; `lodev services stop redis` (or `docker stop lodev-redis`) then `lodev start` brings it back.
+30. With the stack running, `lodev start` in a project prints no Traefik/phpMyAdmin lines and asks for no password for the shared services; `docker stop lodev-redis` then `lodev start` brings it back.
 31. `lodev remove --db --yes` in each test project.
