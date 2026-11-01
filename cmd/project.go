@@ -84,6 +84,16 @@ func mergeCompose(p *config.Project) error {
 	return os.WriteFile(composeFile(p), []byte(out+"\n"), 0o644)
 }
 
+var dockerOutput = docker.Output
+
+// removeProjectImage drops the built web image; a project that never built one has none.
+func removeProjectImage(name string) error {
+	if _, err := dockerOutput("rmi", config.ProjectImage(name)); err != nil && !strings.Contains(err.Error(), "No such image") {
+		return err
+	}
+	return nil
+}
+
 func projectCompose(p *config.Project, sub ...string) error {
 	return docker.Run(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
 }
@@ -185,6 +195,10 @@ func start(p *config.Project, rebuild bool) error {
 	if err := docker.EnsurePHPImage(p.PHP, rebuild); err != nil {
 		return err
 	}
+	img, err := docker.EnsureProjectImage(p, rebuild)
+	if err != nil {
+		return err
+	}
 	if p.Uses("mysql") {
 		if err := docker.WaitHealthy("lodev-mysql", 60*time.Second); err != nil {
 			return err
@@ -228,6 +242,9 @@ func start(p *config.Project, rebuild bool) error {
 		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
 			return err
 		}
+		if err := removeProjectImage(old); err != nil {
+			return err
+		}
 		if err := hosts.Apply(old, nil); err != nil {
 			return err
 		}
@@ -251,7 +268,7 @@ func start(p *config.Project, rebuild bool) error {
 		Project:    p,
 		ExtraHosts: append(reg.AllDomains(), config.ReservedDomains...),
 		CAFile:     ca,
-		Image:      config.PHPImage(p.PHP),
+		Image:      img,
 	})
 	if err != nil {
 		return err
@@ -295,6 +312,9 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 			}
 			break
 		}
+	}
+	if err := removeProjectImage(p.Name); err != nil {
+		return err
 	}
 	if err := hosts.Apply(p.Name, nil); err != nil {
 		return err

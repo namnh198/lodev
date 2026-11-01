@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/hosts"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
 )
@@ -102,6 +103,32 @@ func TestDeleteRefusesCopyOfAnotherProject(t *testing.T) {
 	}
 	if got, _ := registry.Load(); got["shop"].Path != orig {
 		t.Fatal("original registry entry was removed")
+	}
+}
+
+func TestDeleteRemovesProjectImage(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	hf := filepath.Join(t.TempDir(), "hosts")
+	os.WriteFile(hf, []byte("127.0.0.1 localhost\n"), 0o644)
+	defer func(o string) { hosts.File = o }(hosts.File)
+	hosts.File = hf
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "")
+	var got []string
+	for _, rmiErr := range []error{nil, errors.New("Error response from daemon: No such image: lodev/shop-web:latest")} {
+		got = nil
+		dockerOutput = func(a ...string) (string, error) { got = a; return "", rmiErr }
+		if err := deleteProject(p, false, true); err != nil {
+			t.Fatalf("delete failed with rmi err %v: %v", rmiErr, err)
+		}
+		if strings.Join(got, " ") != "rmi lodev/shop-web" {
+			t.Fatalf("docker call = %v", got)
+		}
+	}
+	dockerOutput = func(...string) (string, error) { return "", errors.New("conflict: image in use") }
+	if err := deleteProject(p, false, true); err == nil {
+		t.Fatal("other rmi errors must surface")
 	}
 }
 
