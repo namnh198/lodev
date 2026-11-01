@@ -59,6 +59,27 @@ func TestComposeFileFallsBackToLegacy(t *testing.T) {
 	}
 }
 
+func TestMergeComposeFromLegacyCreatesFull(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
+	p := &config.Project{Name: "x", Root: root}
+	os.WriteFile(composeLegacy(p), []byte("legacy"), 0o644)
+	defer func(o func(...string) (string, error)) { composeConfig = o }(composeConfig)
+	composeConfig = func(...string) (string, error) { return "name: x", nil }
+	if err := mergeCompose(p); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(composeFull(p)); string(b) != "name: x\n" {
+		t.Fatalf("full = %q", b)
+	}
+	if b, _ := os.ReadFile(composeLegacy(p)); string(b) != "legacy" {
+		t.Fatalf("legacy clobbered: %q", b)
+	}
+	if composeFile(p) != composeFull(p) {
+		t.Fatalf("composeFile = %s", composeFile(p))
+	}
+}
+
 func TestDropStaleProjectImage(t *testing.T) {
 	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
 	var got []string
@@ -76,7 +97,7 @@ func TestMergeCompose(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
 	p := &config.Project{Name: "x", Root: root}
-	full := composeFile(p)
+	full := composeFull(p)
 	os.WriteFile(full, []byte("old"), 0o644)
 	orig := composeConfig
 	defer func() { composeConfig = orig }()

@@ -49,10 +49,14 @@ func composeBase(p *config.Project) string {
 	return filepath.Join(p.Root, ".lodev", "lodev.compose-base.yml")
 }
 
+func composeFull(p *config.Project) string {
+	return filepath.Join(p.Root, ".lodev", "lodev.compose-full.yml")
+}
+
 // composeFile is the merged file every compose call uses.
 // Projects last started by an older lodev only have the legacy file.
 func composeFile(p *config.Project) string {
-	full := filepath.Join(p.Root, ".lodev", "lodev.compose-full.yml")
+	full := composeFull(p)
 	if _, err := os.Stat(full); err != nil {
 		if _, lerr := os.Stat(composeLegacy(p)); lerr == nil {
 			return composeLegacy(p)
@@ -91,7 +95,7 @@ func mergeCompose(p *config.Project) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(composeFile(p), []byte(out+"\n"), 0o644)
+	return os.WriteFile(composeFull(p), []byte(out+"\n"), 0o644)
 }
 
 var dockerOutput = docker.Output
@@ -311,7 +315,7 @@ func start(p *config.Project, rebuild bool) error {
 		return err
 	}
 	if err := dropStaleProjectImage(p, img); err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "warning: could not remove the old project image: %v\n", err)
 	}
 	fmt.Println()
 	if p.Webserver == "none" {
