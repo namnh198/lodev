@@ -24,6 +24,9 @@ var (
 var (
 	nameRe   = regexp.MustCompile(`^[a-z0-9-]+$`)
 	domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+test$`)
+	nodeRe   = regexp.MustCompile(`^(lts|[0-9]+(\.[0-9]+){0,2})$`)
+	extRe    = regexp.MustCompile(`^[a-z0-9_]+$`)
+	pkgRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9.+-]*$`)
 )
 
 type Project struct {
@@ -34,7 +37,11 @@ type Project struct {
 	Docroot   string   `yaml:"docroot"`
 	Domains   []string `yaml:"domains,omitempty"`
 	Services  []string `yaml:"services"`
-	Root      string   `yaml:"-"`
+	NodeJS    string   `yaml:"nodejs,omitempty"`
+	// PHPExtensions and Packages are extra PECL extensions / apt packages for the project image.
+	PHPExtensions []string `yaml:"php_extensions,omitempty"`
+	Packages      []string `yaml:"packages,omitempty"`
+	Root          string   `yaml:"-"`
 }
 
 func configPath(root string) string { return filepath.Join(root, ".lodev", "config.yaml") }
@@ -101,12 +108,20 @@ func oneOf(field, v string, allowed []string) error {
 	return fmt.Errorf("%s %q is invalid (allowed: %s)", field, v, strings.Join(allowed, ", "))
 }
 
-func (p *Project) Validate() error {
-	if !nameRe.MatchString(p.Name) {
-		return fmt.Errorf("name %q is invalid (allowed: a-z, 0-9, -)", p.Name)
+// CheckName validates a project name.
+func CheckName(name string) error {
+	if !nameRe.MatchString(name) {
+		return fmt.Errorf("name %q is invalid (allowed: a-z, 0-9, -)", name)
 	}
-	if p.Name == "lodev-services" { // the shared stack's cert and hosts block use this name
-		return fmt.Errorf("name %q is reserved by lodev", p.Name)
+	if name == "lodev-services" { // the shared stack's cert and hosts block use this name
+		return fmt.Errorf("name %q is reserved by lodev", name)
+	}
+	return nil
+}
+
+func (p *Project) Validate() error {
+	if err := CheckName(p.Name); err != nil {
+		return err
 	}
 	if err := oneOf("type", p.Type, Types); err != nil {
 		return err
@@ -130,6 +145,19 @@ func (p *Project) Validate() error {
 			return err
 		}
 	}
+	if p.NodeJS != "" && !nodeRe.MatchString(p.NodeJS) {
+		return fmt.Errorf("nodejs %q is invalid (allowed: lts, or a version like 20 or 18.19.0)", p.NodeJS)
+	}
+	for _, e := range p.PHPExtensions {
+		if !extRe.MatchString(e) {
+			return fmt.Errorf("php_extensions %q is invalid (allowed: a-z, 0-9, _)", e)
+		}
+	}
+	for _, k := range p.Packages {
+		if !pkgRe.MatchString(k) {
+			return fmt.Errorf("packages %q is invalid (allowed: a-z, 0-9, . + -, not starting with - or .)", k)
+		}
+	}
 	return nil
 }
 
@@ -149,11 +177,11 @@ func exists(path string) bool { _, err := os.Stat(path); return err == nil }
 
 func DetectType(root string) string {
 	switch {
+	case exists(filepath.Join(root, "bin", "magento")): // before artisan: Magento trees can carry both
+		return "magento"
 	case exists(filepath.Join(root, "artisan")):
 		return "laravel"
-	case exists(filepath.Join(root, "bin", "magento")):
-		return "magento"
-	case exists(filepath.Join(root, "wp-config.php")), exists(filepath.Join(root, "wp-includes")):
+	case exists(filepath.Join(root, "wp-login.php")), exists(filepath.Join(root, "wp-config.php")), exists(filepath.Join(root, "wp-includes")):
 		return "wordpress"
 	}
 	return "php"
@@ -175,6 +203,9 @@ var nonName = regexp.MustCompile(`[^a-z0-9]+`)
 func SanitizeName(dir string) string {
 	return strings.Trim(nonName.ReplaceAllString(strings.ToLower(dir), "-"), "-")
 }
+
+// ProjectImage is the per-project web image lodev builds.
+func ProjectImage(name string) string { return "lodev/" + name + "-web" }
 
 // PHPImage is the image a project on PHP ver runs.
 func PHPImage(ver string) string {

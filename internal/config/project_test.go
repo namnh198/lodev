@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -81,7 +82,7 @@ func TestUnquotedPHPVersion(t *testing.T) {
 }
 
 func TestDetectType(t *testing.T) {
-	cases := map[string]string{"artisan": "laravel", "bin/magento": "magento", "wp-config.php": "wordpress", "wp-includes/": "wordpress", "": "php"}
+	cases := map[string]string{"artisan": "laravel", "bin/magento": "magento", "wp-config.php": "wordpress", "wp-includes/": "wordpress", "wp-login.php": "wordpress", "": "php"}
 	for path, want := range cases {
 		d := t.TempDir()
 		if path != "" {
@@ -95,6 +96,55 @@ func TestDetectType(t *testing.T) {
 		}
 		if got := DetectType(d); got != want {
 			t.Errorf("%q: got %s want %s", path, got, want)
+		}
+	}
+}
+
+func TestDetectTypeMagentoBeatsLaravel(t *testing.T) {
+	d := t.TempDir()
+	os.MkdirAll(filepath.Join(d, "bin"), 0o755)
+	os.WriteFile(filepath.Join(d, "bin", "magento"), nil, 0o644)
+	os.WriteFile(filepath.Join(d, "artisan"), nil, 0o644)
+	if got := DetectType(d); got != "magento" {
+		t.Errorf("got %s want magento", got)
+	}
+}
+
+func TestProjectImage(t *testing.T) {
+	if got := ProjectImage("shop"); got != "lodev/shop-web" {
+		t.Errorf("got %s", got)
+	}
+}
+
+func TestValidateCustomization(t *testing.T) {
+	ok := []func(*Project){
+		func(p *Project) { p.NodeJS = "20" },
+		func(p *Project) { p.NodeJS = "18.19.0" },
+		func(p *Project) { p.NodeJS = "lts" },
+		func(p *Project) { p.PHPExtensions = []string{"imagick", "pdo_sqlsrv"} },
+		func(p *Project) { p.Packages = []string{"vim", "libstdc++6", "g++"} },
+	}
+	bad := []struct {
+		key string
+		set func(*Project)
+	}{
+		{"nodejs", func(p *Project) { p.NodeJS = "v20" }},
+		{"nodejs", func(p *Project) { p.NodeJS = "20.x" }},
+		{"php_extensions", func(p *Project) { p.PHPExtensions = []string{"imagick; rm -rf /"} }},
+		{"packages", func(p *Project) { p.Packages = []string{"-vim"} }},
+	}
+	for _, f := range ok {
+		p := valid()
+		f(p)
+		if err := p.Validate(); err != nil {
+			t.Error(err)
+		}
+	}
+	for _, c := range bad {
+		p := valid()
+		c.set(p)
+		if err := p.Validate(); err == nil || !strings.Contains(err.Error(), c.key) {
+			t.Errorf("%s: want error naming the key, got %v", c.key, err)
 		}
 	}
 }
