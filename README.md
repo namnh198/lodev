@@ -69,6 +69,21 @@ make install PREFIX=~/.local # no sudo
 `packages` (all of these), `install`, `uninstall`, `test`, `clean`. The version comes from
 `git describe`; override with `make VERSION=v1.2.3`.
 
+### Releasing
+
+CI (`.github/workflows/ci.yml`) runs `go vet`, `go test` and `make build` on pushes to `main` and
+on pull requests. Pushing a tag releases:
+
+```bash
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+`.github/workflows/release.yml` runs `make packages` and creates the GitHub release with the
+archives, `.deb` files, `checksums.txt`, `lodev.rb`, `PKGBUILD` and `.SRCINFO` (a tag with `-`,
+like `v1.3.0-rc1`, is marked pre-release). Publishing is then manual: copy `lodev.rb` to
+`Formula/` in the `namnh198/homebrew-tap` repo, and `PKGBUILD` + `.SRCINFO` to the `lodev-bin`
+AUR repo; bump `version` in `flake.nix`.
+
 ## Quick start
 
 ```bash
