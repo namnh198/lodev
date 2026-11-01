@@ -269,7 +269,7 @@ func TestInitNoAsk(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "artisan"), nil, 0o644)
 	t.Chdir(root)
-	rootCmd.SetArgs([]string{"init", "--no-ask"})
+	rootCmd.SetArgs([]string{"init", "--no-ask", "--docroot", "."})
 	defer rootCmd.SetArgs(nil)
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -278,10 +278,50 @@ func TestInitNoAsk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Type != "laravel" || p.Docroot != "public" || p.PHP != "8.3" || p.Webserver != "nginx" {
+	if p.Type != "laravel" || p.Docroot != "" || p.PHP != "8.3" || p.Webserver != "nginx" {
 		t.Fatalf("got %+v", p)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".lodev", ".gitignore")); err != nil {
-		t.Fatal(err)
+	for _, f := range []string{".gitignore", "web-images/Dockerfile.example"} {
+		if _, err := os.Stat(filepath.Join(root, ".lodev", f)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSettleAnswers(t *testing.T) {
+	p, _ := newProjectConfig(t.TempDir(), "old", "php", "", "", "")
+	p.Name = "shop"
+	settleAnswers(p, "old", "php", false)
+	p.ApplyDefaults()
+	if len(p.Domains) != 1 || p.Domains[0] != "shop.test" {
+		t.Fatalf("domains %v", p.Domains)
+	}
+
+	p, _ = newProjectConfig(t.TempDir(), "old", "php", "", "", "")
+	p.Domains = []string{"custom.test"}
+	p.Name = "shop"
+	settleAnswers(p, "old", "php", false)
+	if p.Domains[0] != "custom.test" {
+		t.Fatalf("custom domain lost: %v", p.Domains)
+	}
+
+	p, _ = newProjectConfig(t.TempDir(), "x", "php", "", "", "")
+	p.Type = "laravel"
+	settleAnswers(p, "x", "php", false)
+	if p.Docroot != "public" || !slices.Equal(p.Services, defaultServices["laravel"]) {
+		t.Fatalf("got %q %v", p.Docroot, p.Services)
+	}
+
+	p, _ = newProjectConfig(t.TempDir(), "x", "php", "", "", "web")
+	p.Type = "laravel"
+	settleAnswers(p, "x", "php", true)
+	if p.Docroot != "web" {
+		t.Fatalf("set docroot overridden: %q", p.Docroot)
+	}
+
+	p.Docroot = "."
+	settleAnswers(p, "x", "laravel", false)
+	if p.Docroot != "" {
+		t.Fatalf("got %q", p.Docroot)
 	}
 }

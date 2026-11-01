@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/term"
+
 	"lodev/internal/config"
 	"lodev/internal/docker"
 )
@@ -38,8 +40,7 @@ func confirmTyped(prompt, word string) bool {
 }
 
 func stdinTTY() bool {
-	fi, err := os.Stdin.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 // withLock runs fn while holding ~/.lodev/lock, so two lodev commands do not

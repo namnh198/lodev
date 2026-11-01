@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"charm.land/huh/v2"
 
@@ -12,7 +13,7 @@ import (
 
 // askProject prompts for every value whose flag was not given (set is keyed by flag name).
 func askProject(p *config.Project, set map[string]bool) error {
-	oldType := p.Type
+	oldName, oldType := p.Name, p.Type
 	var f1 []huh.Field
 	if !set["name"] {
 		f1 = append(f1, huh.NewInput().Title("Project name").Value(&p.Name).Validate(config.CheckName))
@@ -26,12 +27,7 @@ func askProject(p *config.Project, set map[string]bool) error {
 	if err := runFields(f1); err != nil {
 		return err
 	}
-	if p.Type != oldType {
-		p.Services = defaultServices[p.Type]
-		if !set["docroot"] {
-			p.Docroot = config.DefaultDocroot(p.Type)
-		}
-	}
+	settleAnswers(p, oldName, oldType, set["docroot"])
 	var f2 []huh.Field
 	if !set["docroot"] {
 		f2 = append(f2, huh.NewInput().Title("Document root").Description("relative to the project; empty for the project root").
@@ -43,8 +39,25 @@ func askProject(p *config.Project, set map[string]bool) error {
 	if err := runFields(f2); err != nil {
 		return err
 	}
+	settleAnswers(p, p.Name, p.Type, true)
 	p.ApplyDefaults()
 	return p.Validate()
+}
+
+// settleAnswers makes values derived from earlier defaults follow the user's answers.
+func settleAnswers(p *config.Project, oldName, oldType string, docrootSet bool) {
+	if p.Name != oldName && slices.Equal(p.Domains, []string{oldName + ".test"}) {
+		p.Domains = nil
+	}
+	if p.Type != oldType {
+		p.Services = defaultServices[p.Type]
+		if !docrootSet {
+			p.Docroot = config.DefaultDocroot(p.Type)
+		}
+	}
+	if p.Docroot == "." {
+		p.Docroot = ""
+	}
 }
 
 func runFields(fields []huh.Field) error {
