@@ -22,3 +22,25 @@ func TestStripDebugArg(t *testing.T) {
 		}
 	}
 }
+
+func TestCommandAliases(t *testing.T) {
+	cases := map[string]string{
+		"create": "create", "init": "create",
+		"remove": "remove", "down": "remove",
+		"start": "start", "up": "start",
+		"list": "list", "ps": "list",
+		"services": "services", "service": "services", "svc": "services",
+	}
+	for in, want := range cases {
+		c, _, err := rootCmd.Find([]string{in})
+		if err != nil || c.Name() != want {
+			t.Errorf("%s → %v %v, want %s", in, c.Name(), err, want)
+		}
+	}
+	if c, _, err := rootCmd.Find([]string{"delete"}); err == nil && c.Name() == "remove" {
+		t.Error("delete must not resolve to remove")
+	}
+	if c, _, _ := rootCmd.Find([]string{"services", "down"}); c.Parent().Name() != "services" {
+		t.Errorf("services down → %s", c.CommandPath())
+	}
+}

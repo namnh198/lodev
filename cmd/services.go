@@ -124,7 +124,7 @@ func setService(svc string, on bool) error {
 }
 
 func init() {
-	servicesCmd := &cobra.Command{Use: "services", Short: "Manage the shared services stack"}
+	servicesCmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "Manage the shared services stack"}
 
 	up := &cobra.Command{
 		Use:   "up",

@@ -414,10 +414,11 @@ func status(name string) string {
 func init() {
 	var name, typ, php, webserver, docroot string
 	var noAsk bool
-	initCmd := &cobra.Command{
-		Use:   "init",
-		Short: "Create .lodev/config.yaml for the project in the current folder",
-		Args:  cobra.NoArgs,
+	createCmd := &cobra.Command{
+		Use:     "create",
+		Aliases: []string{"init"},
+		Short:   "Create .lodev/config.yaml for the project in the current folder",
+		Args:    cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			root, err := os.Getwd()
 			if err != nil {
@@ -450,18 +451,19 @@ func init() {
 			return nil
 		},
 	}
-	initCmd.Flags().StringVar(&name, "name", "", "project name (default: folder name)")
-	initCmd.Flags().StringVar(&typ, "type", "", "laravel | wordpress | magento | php (default: detected)")
-	initCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.3)")
-	initCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
-	initCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
-	initCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
+	createCmd.Flags().StringVar(&name, "name", "", "project name (default: folder name)")
+	createCmd.Flags().StringVar(&typ, "type", "", "laravel | wordpress | magento | php (default: detected)")
+	createCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.3)")
+	createCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
+	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
+	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 
 	var rebuild bool
 	startCmd := &cobra.Command{
-		Use:   "start",
-		Short: "Start the project (and the shared services if needed)",
-		Args:  cobra.NoArgs,
+		Use:     "start",
+		Aliases: []string{"up"},
+		Short:   "Start the project (and the shared services if needed)",
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			p, err := currentProject()
 			if err != nil {
@@ -504,10 +506,11 @@ func init() {
 	}
 
 	var dropDB, yes bool
-	deleteCmd := &cobra.Command{
-		Use:   "delete",
-		Short: "Remove the project container, hosts entries and certificate",
-		Args:  cobra.NoArgs,
+	removeCmd := &cobra.Command{
+		Use:     "remove",
+		Aliases: []string{"down"},
+		Short:   "Remove the project container, hosts entries and certificate",
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			p, err := currentProject()
 			if err != nil {
@@ -516,13 +519,14 @@ func init() {
 			return withLock(func() error { return deleteProject(p, dropDB, yes) })
 		},
 	}
-	deleteCmd.Flags().BoolVar(&dropDB, "db", false, "also drop the project database")
-	deleteCmd.Flags().BoolVar(&yes, "yes", false, "skip confirmation")
+	removeCmd.Flags().BoolVar(&dropDB, "db", false, "also drop the project database")
+	removeCmd.Flags().BoolVar(&yes, "yes", false, "skip confirmation")
 
 	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List projects",
-		Args:  cobra.NoArgs,
+		Use:     "list",
+		Aliases: []string{"ps"},
+		Short:   "List projects",
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			reg, err := registry.Load()
 			if err != nil {
@@ -546,5 +550,5 @@ func init() {
 		},
 	}
 
-	rootCmd.AddCommand(initCmd, startCmd, stopCmd, restartCmd, deleteCmd, listCmd)
+	rootCmd.AddCommand(createCmd, startCmd, stopCmd, restartCmd, removeCmd, listCmd)
 }

@@ -20,7 +20,7 @@ go build -o lodev . && sudo mv lodev /usr/local/bin/
 ```bash
 lodev services up          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin
 cd ~/Sites/myshop
-lodev init                 # detects Laravel / WordPress / Magento / plain PHP
+lodev create                 # detects Laravel / WordPress / Magento / plain PHP
 lodev start                # → https://myshop.test
 lodev magento setup:upgrade
 ```
@@ -118,7 +118,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils &
 ```
 
 Editing a file rebuilds the project image on the next `lodev start` / `restart`; leaving it
-alone builds nothing. `lodev init` scaffolds `Dockerfile.example`.
+alone builds nothing. `lodev create` scaffolds `Dockerfile.example`.
 
 ## Extra services
 
@@ -137,7 +137,7 @@ services:
 Don't name an extra service `mysql`, `redis`, `opensearch`, `mailpit` or `phpmyadmin`: it would
 collide with the shared ones on the `lodev` network. On the `lodev` network the web container is
 reachable as `lodev-<name>-web` (the bare `web` alias exists on every project's `lodev` network, so
-it is ambiguous); `web` works only on the project's `default` network. `lodev init` scaffolds `example.compose.yml.example`.
+it is ambiguous); `web` works only on the project's `default` network. `lodev create` scaffolds `example.compose.yml.example`.
 
 ## PHP and webserver config
 
@@ -150,7 +150,7 @@ it is ambiguous); `web` works only on the project's `default` network. `lodev in
 Apply with `lodev restart`; none of these builds an image. A generated webserver conf starts with
 `# lodev-generated: delete this line to manage this file yourself`; delete that line to take the
 file over (lodev stops regenerating it and it is no longer ignored). Switching `webserver:` does
-not touch the other webserver's file. `lodev init` scaffolds `*.example` files in each folder.
+not touch the other webserver's file. `lodev create` scaffolds `*.example` files in each folder.
 
 lodev no longer writes your project's root `.gitignore`; old `.lodev/compose.yaml` /
 `.lodev/webserver.conf` lines there can be removed (lodev keeps `.lodev/.gitignore` itself).
@@ -162,13 +162,13 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 
 | Command | What it does |
 |---|---|
-| `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack. `down --volumes` deletes all data (asks first) |
+| `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack (aliases `service`, `svc`). `down --volumes` deletes all data (asks first) |
 | `lodev services enable\|disable <svc>` | Turn a shared service on/off (data is kept) |
-| `lodev init [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml`. On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
-| `lodev start [--rebuild]` | Start the project; `--rebuild` rebuilds the PHP image(s) and the project image |
+| `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
+| `lodev start [--rebuild]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image |
 | `lodev stop` / `lodev restart` | Stop / restart the project container |
-| `lodev delete [--db] [--yes]` | Remove container, hosts entries, cert; `--db` drops the database |
-| `lodev list` | All projects with status and domains |
+| `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
+| `lodev list` | All projects with status and domains (alias `ps`) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
 | `lodev xdebug on\|off\|status` | Toggle Xdebug (port 9003) |
@@ -180,11 +180,11 @@ next `lodev start` / `lodev restart`.
 ## Smoke test
 
 1. `lodev services up`; dashboard, `https://phpmyadmin.test`, `https://mailpit.test` load.
-2. Folder `demo` with `index.php` = `<?php phpinfo();`: `lodev init && lodev start`;
+2. Folder `demo` with `index.php` = `<?php phpinfo();`: `lodev create && lodev start`;
    `curl -sI https://demo.test` → 200.
 3. Second project `demo2` (`--php 7.4 --webserver apache`); `lodev restart` in demo; from
    demo `lodev exec curl -s -o /dev/null -w '%{http_code}' https://demo2.test` → 200, and back.
-4. `lodev init --webserver none` project → `lodev list` shows `CLI`;
+4. `lodev create --webserver none` project → `lodev list` shows `CLI`;
    `lodev exec php -r 'echo gethostbyname("mysql");'` prints a `172.30.` address.
 5. `lodev xdebug on` → `lodev exec php -m | grep -i xdebug`.
 6. `lodev exec php -r 'var_dump(mail("a@b.test","hi","body"));'` → `bool(true)`, mail in Mailpit.
@@ -196,11 +196,11 @@ next `lodev start` / `lodev restart`.
 12. `RUN touch /lodev-ok` in `.lodev/web-images/Dockerfile` + `lodev restart` → `lodev exec ls /lodev-ok` works; a further restart builds nothing.
 13. The `redis-commander` file above as `.lodev/redis-commander.compose.yml` + `lodev start` → the service is up and `lodev exec curl -s redis-commander:8081` answers.
 14. `.lodev/php/my.ini` with `memory_limit=4G` + `lodev restart` → `lodev exec php -i | grep memory_limit` shows `4G`, no image build.
-15. `lodev init` in a folder containing an `artisan` file (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
+15. `lodev create` in a folder containing an `artisan` file (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
 16. `lodev ssh` → prompt shows your user and `<name>-web`; `id -un` is your host username, `sudo -n true` succeeds, `pwd` is `/var/www/html`.
 17. `lodev exec php -r 'file_put_contents("w.txt","x");'`, `touch f` inside `lodev ssh`, and a `write.php` in the project docroot (`<?php touch(__DIR__."/from-web.txt");`) fetched with `curl -sk https://<name>.test/write.php` → on the host `ls -ln w.txt f <docroot>/from-web.txt` all show the UID of `id -u` on the host.
 18. `lodev ssh -s <svc>` and `lodev exec -s <svc> id` (the redis-commander example, see Extra services above) open that image's default user and directory, not yours; `lodev exec id -un -s <svc>` runs in web and fails with `id: invalid option -- 's'` (a flag after the command goes to the command).
 19. `user: "John.Doe"` in `.lodev/config.yaml` + `lodev start` → one warning naming `john_doe` and mentioning `user:`; `lodev ssh` / `exec` print none.
 20. `user: other` + `lodev restart` → `lodev exec id -un` prints `other`, no image build runs.
 21. After upgrading lodev, the first `lodev start` rebuilds `lodev/php`; a second builds nothing.
-22. `lodev delete --db --yes` in each test project.
+22. `lodev remove --db --yes` in each test project.

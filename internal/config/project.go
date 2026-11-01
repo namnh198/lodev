@@ -70,7 +70,7 @@ func FindRoot(start string) (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("not a lodev project (run lodev init)")
+			return "", errors.New("not a lodev project (run lodev create)")
 		}
 		dir = parent
 	}

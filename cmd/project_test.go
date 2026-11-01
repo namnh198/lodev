@@ -328,11 +328,11 @@ func TestScaffold(t *testing.T) {
 	}
 }
 
-func TestInitNoAsk(t *testing.T) {
+func TestCreateNoAsk(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "artisan"), nil, 0o644)
 	t.Chdir(root)
-	rootCmd.SetArgs([]string{"init", "--no-ask", "--docroot", "."})
+	rootCmd.SetArgs([]string{"create", "--no-ask", "--docroot", "."})
 	defer rootCmd.SetArgs(nil)
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatal(err)
