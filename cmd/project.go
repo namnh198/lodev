@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -231,6 +232,36 @@ func writeLodevGitignore(p *config.Project) error {
 	return os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(s), 0o644)
 }
 
+var (
+	containerRunning = docker.Running
+	servicesUpFn     = servicesUp
+)
+
+// ensureServices brings the shared services up unless traefik, every enabled service and every
+// service p needs already run; `lodev services up` is the way to apply config changes to them.
+func ensureServices(p *config.Project) error {
+	g, err := config.LoadGlobal()
+	if err != nil {
+		return err
+	}
+	needed := append(append([]string{"traefik"}, g.EnabledServices()...), p.Services...)
+	if !slices.ContainsFunc(needed, func(svc string) bool { return !containerRunning("lodev-" + svc) }) {
+		return nil
+	}
+	if err := servicesUpFn(); err != nil {
+		return err
+	}
+	for _, svc := range p.Services {
+		if !g.Services[svc] {
+			if err := startService(svc); err != nil {
+				return err
+			}
+			ui.Info("hint: %s is disabled globally; started it for now. Run `lodev services enable %s` to keep it on.", svc, svc)
+		}
+	}
+	return nil
+}
+
 func start(p *config.Project, rebuild bool) error {
 	user, from := p.ContainerUser()
 	if w := userWarning(user, from); w != "" {
@@ -243,20 +274,8 @@ func start(p *config.Project, rebuild bool) error {
 	if err := reg.Conflict(p); err != nil {
 		return err
 	}
-	if err := servicesUp(); err != nil {
+	if err := ensureServices(p); err != nil {
 		return err
-	}
-	g, err := config.LoadGlobal()
-	if err != nil {
-		return err
-	}
-	for _, svc := range p.Services {
-		if !g.Services[svc] {
-			if err := startService(svc); err != nil {
-				return err
-			}
-			ui.Info("hint: %s is disabled globally; started it for now. Run `lodev services enable %s` to keep it on.", svc, svc)
-		}
 	}
 	if err := docker.EnsurePHPImage(p.PHP, rebuild); err != nil {
 		return err

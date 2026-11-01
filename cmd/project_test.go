@@ -529,3 +529,32 @@ func TestDBExec(t *testing.T) {
 		t.Errorf("got %v", got)
 	}
 }
+
+func TestEnsureServices(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	stubDocker(t, "")
+	defer func(o func() error) { servicesUpFn = o }(servicesUpFn)
+	defer func(o func(string) bool) { containerRunning = o }(containerRunning)
+	ups := 0
+	servicesUpFn = func() error { ups++; return nil }
+	running := map[string]bool{}
+	containerRunning = func(c string) bool { return running[c] }
+	g, _ := config.LoadGlobal()
+	running["lodev-traefik"] = true
+	for _, s := range g.EnabledServices() {
+		running["lodev-"+s] = true
+	}
+
+	if err := ensureServices(&config.Project{Services: []string{"mysql", "redis"}}); err != nil || ups != 0 {
+		t.Fatalf("all running: err %v, servicesUp calls %d", err, ups)
+	}
+	running["lodev-redis"] = false
+	if ensureServices(&config.Project{Services: []string{"mysql", "redis"}}); ups != 1 {
+		t.Fatalf("redis down: servicesUp calls %d", ups)
+	}
+	running["lodev-redis"] = true
+	// mariadb is off globally but this project needs it: it must not be skipped.
+	if ensureServices(&config.Project{Services: []string{"mariadb"}}); ups != 2 {
+		t.Fatalf("project needs disabled mariadb: servicesUp calls %d", ups)
+	}
+}
