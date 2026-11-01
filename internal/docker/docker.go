@@ -3,8 +3,11 @@ package docker
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +17,7 @@ import (
 
 	"lodev/assets"
 	"lodev/internal/config"
+	"lodev/internal/templates"
 )
 
 func ComposeArgs(project, file string, sub ...string) []string {
@@ -42,6 +46,11 @@ func PHPBuildArgs(versions []string, uid, gid int, hash string, noCache bool, di
 func LegacyBuildArgs(ver, baseID string, noCache bool, dir string) []string {
 	return buildArgs(noCache, "-t", config.PHPImage(ver), "--label", "lodev.base="+baseID,
 		"--build-arg", "PHP_VERSION="+ver, "-f", filepath.Join(dir, "Dockerfile.legacy"), dir)
+}
+
+// ProjectBuildArgs builds the per-project web image, labelled with its input hash.
+func ProjectBuildArgs(tag, hash, dockerfile, ctx string, noCache bool) []string {
+	return buildArgs(noCache, "-t", tag, "--label", "lodev.hash="+hash, "-f", dockerfile, ctx)
 }
 
 func buildArgs(noCache bool, rest ...string) []string {
@@ -125,6 +134,7 @@ var (
 		return out
 	}
 	build   = BuildImage
+	run     = Run
 	phpHash = func() (string, error) { return assets.Hash("php") }
 )
 
@@ -154,4 +164,100 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 	}
 	fmt.Printf("Building %s...\n", img)
 	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, base, rebuild, dir) })
+}
+
+// WebImageParts reads the top-level Dockerfile* files of .lodev/web-images, sorted, skipping *.example.
+func WebImageParts(root string) ([]templates.UserPart, error) {
+	files, err := filepath.Glob(filepath.Join(root, ".lodev", "web-images", "Dockerfile*"))
+	if err != nil {
+		return nil, err
+	}
+	var parts []templates.UserPart
+	for _, f := range files { // Glob returns sorted names
+		if strings.HasSuffix(f, ".example") {
+			continue
+		}
+		if fi, err := os.Stat(f); err != nil || !fi.Mode().IsRegular() {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, templates.UserPart{Name: ".lodev/web-images/" + filepath.Base(f), Content: b})
+	}
+	return parts, nil
+}
+
+// NeedsProjectImage reports whether the project customizes its web image.
+func NeedsProjectImage(p *config.Project, parts []templates.UserPart) bool {
+	return p.NodeJS != "" || len(p.PHPExtensions) > 0 || len(p.Packages) > 0 || len(parts) > 0
+}
+
+// projectHash covers everything that goes into the project image build.
+func projectHash(dockerfile []byte, baseID, ctxDir string) (string, error) {
+	h := sha256.New()
+	h.Write(dockerfile)
+	h.Write([]byte(baseID))
+	err := fs.WalkDir(os.DirFS(ctxDir), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.Type().IsRegular() {
+			return err
+		}
+		b, err := os.ReadFile(filepath.Join(ctxDir, path))
+		if err != nil {
+			return err
+		}
+		h.Write([]byte(path + "\x00"))
+		h.Write(b)
+		return nil
+	})
+	if errors.Is(err, fs.ErrNotExist) { // no web-images dir
+		err = nil
+	}
+	return hex.EncodeToString(h.Sum(nil)), err
+}
+
+// EnsureProjectImage builds the project's web image when it needs one and
+// returns the image tag compose should run; otherwise it drops any stale
+// image and returns the plain PHP image.
+func EnsureProjectImage(p *config.Project, rebuild bool) (string, error) {
+	tag := config.ProjectImage(p.Name)
+	parts, err := WebImageParts(p.Root)
+	if err != nil {
+		return "", err
+	}
+	if !NeedsProjectImage(p, parts) {
+		if inspect("{{.Id}}", tag) != "" {
+			_ = run("rmi", tag)
+		}
+		return config.PHPImage(p.PHP), nil
+	}
+	df, err := templates.WebBuildDockerfile(p, parts)
+	if err != nil {
+		return "", err
+	}
+	buildDir := filepath.Join(p.Root, ".lodev", "web-build")
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		return "", err
+	}
+	dfPath := filepath.Join(buildDir, "Dockerfile")
+	if err := os.WriteFile(dfPath, df, 0o644); err != nil {
+		return "", err
+	}
+	imgDir := filepath.Join(p.Root, ".lodev", "web-images")
+	ctx := imgDir
+	if fi, err := os.Stat(imgDir); err != nil || !fi.IsDir() {
+		ctx = buildDir
+	}
+	hash, err := projectHash(df, inspect("{{.Id}}", config.PHPImage(p.PHP)), imgDir)
+	if err != nil {
+		return "", err
+	}
+	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, tag) != hash {
+		fmt.Printf("Building %s...\n", tag)
+		if err := run(ProjectBuildArgs(tag, hash, dfPath, ctx, rebuild)...); err != nil {
+			return "", fmt.Errorf("building %s failed; check .lodev/web-images/ and php_extensions/packages: %w", tag, err)
+		}
+	}
+	return tag, nil
 }

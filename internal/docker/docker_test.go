@@ -1,9 +1,14 @@
 package docker
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
+	"lodev/internal/templates"
 )
 
 func check(t *testing.T, got []string, want string) {
@@ -52,8 +57,8 @@ func TestLegacyBuildArgs(t *testing.T) {
 func fakeImages(t *testing.T, labels map[string]string) *[]string {
 	t.Helper()
 	var built []string
-	oi, ob, oh := inspect, build, phpHash
-	t.Cleanup(func() { inspect, build, phpHash = oi, ob, oh })
+	oi, ob, oh, or := inspect, build, phpHash, run
+	t.Cleanup(func() { inspect, build, phpHash, run = oi, ob, oh, or })
 	phpHash = func() (string, error) { return "H", nil }
 	inspect = func(format, tag string) string {
 		if format == "{{.Id}}" {
@@ -93,6 +98,142 @@ func TestEnsurePHPImage(t *testing.T) {
 			}
 			if !slices.Equal(*built, c.want) {
 				t.Fatalf("built %v, want %v", *built, c.want)
+			}
+		})
+	}
+}
+
+func TestProjectBuildArgs(t *testing.T) {
+	check(t, ProjectBuildArgs("lodev/shop-web", "H", "/p/Dockerfile", "/p/ctx", false),
+		"build -t lodev/shop-web --label lodev.hash=H -f /p/Dockerfile /p/ctx")
+	if got := ProjectBuildArgs("t", "H", "f", "c", true); got[1] != "--no-cache" {
+		t.Fatalf("rebuild must not use the cache: %q", got)
+	}
+}
+
+func writeFiles(t *testing.T, root string, files ...string) {
+	t.Helper()
+	for _, f := range files {
+		p := filepath.Join(root, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x "+f), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestWebImageParts(t *testing.T) {
+	root := t.TempDir()
+	writeFiles(t, root, ".lodev/web-images/Dockerfile", ".lodev/web-images/Dockerfile.b",
+		".lodev/web-images/Dockerfile.example", ".lodev/web-images/notes.txt", ".lodev/web-images/sub/Dockerfile")
+	parts, err := WebImageParts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, p := range parts {
+		names = append(names, p.Name)
+	}
+	want := []string{".lodev/web-images/Dockerfile", ".lodev/web-images/Dockerfile.b"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("got %v, want %v", names, want)
+	}
+	if string(parts[0].Content) != "x .lodev/web-images/Dockerfile" {
+		t.Fatalf("content %q", parts[0].Content)
+	}
+}
+
+func TestProjectHashNestedFile(t *testing.T) {
+	ctx := t.TempDir()
+	writeFiles(t, ctx, "conf/my.cnf")
+	h := func(base string) string {
+		s, err := projectHash([]byte("D"), base, ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	h1 := h("B")
+	if h1 != h("B") {
+		t.Fatal("hash is not stable")
+	}
+	if h("B2") == h1 {
+		t.Fatal("base ID must change the hash")
+	}
+	if err := os.WriteFile(filepath.Join(ctx, "conf/my.cnf"), []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if h("B") == h1 {
+		t.Fatal("nested file must change the hash")
+	}
+}
+
+func TestEnsureProjectImage(t *testing.T) {
+	cases := []struct {
+		name     string
+		nodejs   string
+		webImgs  bool
+		rebuild  bool
+		existing bool // lodev/shop-web exists
+		match    bool // its label matches the current hash
+		wantTag  string
+		wantCmds []string
+		wantCtx  string // build context dir under root
+	}{
+		{"not needed, no image", "", false, false, false, false, "lodev/php", nil, ""},
+		{"not needed, stale image", "", false, false, true, false, "lodev/php", []string{"rmi lodev/shop-web"}, ""},
+		{"needed, label matches", "20", false, false, true, true, "lodev/shop-web", nil, ""},
+		{"needed, label differs", "20", true, false, true, false, "lodev/shop-web", []string{"build"}, ".lodev/web-images"},
+		{"needed, no web-images", "20", false, false, false, false, "lodev/shop-web", []string{"build"}, ".lodev/web-build"},
+		{"rebuild", "20", false, true, true, true, "lodev/shop-web", []string{"build --no-cache"}, ".lodev/web-build"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			p := &config.Project{Name: "shop", PHP: "8.3", NodeJS: c.nodejs, Root: root}
+			if c.webImgs {
+				writeFiles(t, root, ".lodev/web-images/conf/a")
+			}
+			labels := map[string]string{"lodev/php#id": "BASE"}
+			fakeImages(t, labels)
+			var cmds []string
+			run = func(args ...string) error { cmds = append(cmds, strings.Join(args, " ")); return nil }
+			if c.existing {
+				labels["lodev/shop-web#id"] = "IMG"
+				labels["lodev/shop-web"] = "stale"
+			}
+			if c.match {
+				parts, _ := WebImageParts(root)
+				df, _ := templates.WebBuildDockerfile(p, parts)
+				h, _ := projectHash(df, "BASE", filepath.Join(root, ".lodev/web-images"))
+				labels["lodev/shop-web"] = h
+			}
+			tag, err := EnsureProjectImage(p, c.rebuild)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tag != c.wantTag {
+				t.Fatalf("tag %q, want %q", tag, c.wantTag)
+			}
+			if len(cmds) != len(c.wantCmds) {
+				t.Fatalf("cmds %q, want %q", cmds, c.wantCmds)
+			}
+			for i, w := range c.wantCmds {
+				if !strings.HasPrefix(cmds[i], w) {
+					t.Fatalf("cmd %q, want prefix %q", cmds[i], w)
+				}
+			}
+			if c.wantCtx != "" {
+				df := filepath.Join(root, ".lodev/web-build/Dockerfile")
+				if !strings.HasSuffix(cmds[0], "-f "+df+" "+filepath.Join(root, c.wantCtx)) {
+					t.Fatalf("cmd %q: wrong -f/ctx", cmds[0])
+				}
+			}
+			_, err = os.Stat(filepath.Join(root, ".lodev/web-build/Dockerfile"))
+			if (err == nil) != (c.wantTag != "lodev/php") {
+				t.Fatalf("web-build/Dockerfile presence wrong (err=%v)", err)
 			}
 		})
 	}
