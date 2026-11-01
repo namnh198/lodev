@@ -100,7 +100,8 @@ workdir `/var/www/html`. nginx / apache / php-fpm workers run as that user too, 
 writes are owned by you on the host. `xdebug` toggling still runs as root.
 
 After upgrading, the first `lodev start` rebuilds `lodev/php` (the base image no longer bakes
-the host UID into `www-data`).
+the host UID into `www-data`). Run `lodev restart` in every project that was running before the
+upgrade, or `ssh`/`exec` won't find your user.
 
 `-s`/`--service` picks another service of the project (default `web`): `lodev ssh -s redis-commander`,
 `lodev exec -s redis-commander ls`. Those use the image's default user and directory, `bash` if the
@@ -197,7 +198,7 @@ next `lodev start` / `lodev restart`.
 14. `.lodev/php/my.ini` with `memory_limit=4G` + `lodev restart` → `lodev exec php -i | grep memory_limit` shows `4G`, no image build.
 15. `lodev init` in a folder containing an `artisan` file (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
 16. `lodev ssh` → prompt shows your user and `<name>-web`; `id -un` is your host username, `sudo -n true` succeeds, `pwd` is `/var/www/html`.
-17. `lodev exec php -r 'file_put_contents("w.txt","x");'`, `touch f` inside `lodev ssh`, and a `write.php` in the project docroot (`<?php touch(__DIR__."/from-web.txt");`) fetched with `curl -sk https://<name>.test/write.php` → on the host `ls -ln w.txt f from-web.txt` all show the UID of `id -u` on the host.
+17. `lodev exec php -r 'file_put_contents("w.txt","x");'`, `touch f` inside `lodev ssh`, and a `write.php` in the project docroot (`<?php touch(__DIR__."/from-web.txt");`) fetched with `curl -sk https://<name>.test/write.php` → on the host `ls -ln w.txt f <docroot>/from-web.txt` all show the UID of `id -u` on the host.
 18. `lodev ssh -s <svc>` and `lodev exec -s <svc> id` (the redis-commander example, see Extra services above) open that image's default user and directory, not yours; `lodev exec id -un -s <svc>` runs in web and fails with `id: invalid option -- 's'` (a flag after the command goes to the command).
 19. `user: "John.Doe"` in `.lodev/config.yaml` + `lodev start` → one warning naming `john_doe` and mentioning `user:`; `lodev ssh` / `exec` print none.
 20. `user: other` + `lodev restart` → `lodev exec id -un` prints `other`, no image build runs.

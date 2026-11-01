@@ -5,7 +5,34 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
+	"lodev/internal/ui"
 )
+
+func TestCheckWebUser(t *testing.T) {
+	old := userReady
+	t.Cleanup(func() { userReady = old })
+	p := &config.Project{Name: "x"}
+
+	userReady = func(*config.Project, string) bool { return false }
+	out, _, restore := ui.Capture(false)
+	err := checkWebUser(p, "alice")
+	restore()
+	if err == nil || !strings.Contains(out.String(), "hint: this container predates the current lodev; run lodev restart") {
+		t.Errorf("missing user: err=%v out=%q", err, out.String())
+	}
+
+	userReady = func(*config.Project, string) bool { t.Error("probed root"); return false }
+	if err := checkWebUser(p, "root"); err != nil {
+		t.Errorf("root: %v", err)
+	}
+
+	userReady = func(*config.Project, string) bool { return true }
+	if err := checkWebUser(p, "alice"); err != nil {
+		t.Errorf("ready user: %v", err)
+	}
+}
 
 func TestShortcutCmd(t *testing.T) {
 	cases := map[string]string{

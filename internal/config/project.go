@@ -185,7 +185,10 @@ func SanitizeUser(s string) string {
 	switch s {
 	case "":
 		return "lodev"
-	case "root", "www-data":
+	// root, www-data and the Debian system users present in the image
+	case "root", "www-data", "daemon", "bin", "sys", "sync", "games", "man", "lp", "mail", "news",
+		"uucp", "proxy", "backup", "list", "irc", "_apt", "nobody", "messagebus",
+		"systemd-network", "systemd-timesync":
 		return s + "_user"
 	}
 	return s

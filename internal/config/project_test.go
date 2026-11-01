@@ -230,6 +230,7 @@ func TestSanitizeUser(t *testing.T) {
 	cases := map[string]string{
 		"kuroko": "kuroko", "John.Doe": "john_doe", "Kuroko": "kuroko", "1abc": "_1abc", "-x": "_-x",
 		"nguyễn": "nguy_n", "": "lodev", "root": "root_user", "www-data": "www-data_user",
+		"daemon": "daemon_user", "nobody": "nobody_user",
 		strings.Repeat("a", 40): strings.Repeat("a", 32),
 	}
 	for in, want := range cases {

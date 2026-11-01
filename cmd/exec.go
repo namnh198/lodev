@@ -2,13 +2,16 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"lodev/internal/config"
 	"lodev/internal/docker"
+	"lodev/internal/ui"
 )
 
 func shortcutCmd(name string) []string {
@@ -59,12 +62,26 @@ func runInService(service, user string, cmd []string) error {
 	} else {
 		user = ""
 	}
+	if service == "web" {
+		if err := checkWebUser(p, user); err != nil {
+			return err
+		}
+	}
 	err = docker.Run(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		os.Exit(exitErr.ExitCode())
 	}
 	return err
+}
+
+// checkWebUser fails early for containers started by an older lodev, which lack the host user.
+func checkWebUser(p *config.Project, user string) error {
+	if user == "" || user == "root" || userReady(p, user) {
+		return nil
+	}
+	ui.Info("hint: this container predates the current lodev; run lodev restart")
+	return fmt.Errorf("user %q does not exist in the web container", user)
 }
 
 const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl restart php-fpm >/dev/null; } && echo "xdebug `
