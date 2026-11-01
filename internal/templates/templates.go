@@ -83,6 +83,34 @@ func WebserverConfig(p *config.Project) ([]byte, error) {
 	return render(name, struct{ Root string }{root})
 }
 
+// UserPart is one file from .lodev/web-images/, appended to the generated Dockerfile.
+type UserPart struct {
+	Name    string // path shown in the "# --- Name ---" header
+	Content []byte
+}
+
+// WebBuildDockerfile renders the per-project web image Dockerfile.
+func WebBuildDockerfile(p *config.Project, parts []UserPart) ([]byte, error) {
+	var pkgs []string
+	for _, e := range p.PHPExtensions {
+		pkgs = append(pkgs, "php"+p.PHP+"-"+e)
+	}
+	pkgs = append(pkgs, p.Packages...)
+	type part struct{ Name, Content string }
+	ps := make([]part, len(parts))
+	for i, u := range parts {
+		c := string(u.Content)
+		if !strings.HasSuffix(c, "\n") {
+			c += "\n"
+		}
+		ps[i] = part{u.Name, c}
+	}
+	return render("web-build.Dockerfile.tmpl", struct {
+		Base, NodeJS, Packages string
+		Parts                  []part
+	}{config.PHPImage(p.PHP), p.NodeJS, strings.Join(pkgs, " "), ps})
+}
+
 func TraefikDynamic(certNames []string) ([]byte, error) {
 	return render("traefik-dynamic.yaml.tmpl", certNames)
 }

@@ -252,3 +252,58 @@ func TestWebserverConfigMarkerAndInclude(t *testing.T) {
 		}
 	}
 }
+
+func TestWebBuildDockerfile(t *testing.T) {
+	parts := []UserPart{
+		{Name: ".lodev/web-images/Dockerfile", Content: []byte("RUN echo base\n")},
+		{Name: ".lodev/web-images/Dockerfile.redis", Content: []byte("RUN echo redis\n")},
+	}
+	for _, c := range []struct {
+		name  string
+		edit  func(*config.Project)
+		parts []UserPart
+	}{
+		{"webbuild-node", func(p *config.Project) { p.NodeJS = "20" }, nil},
+		{"webbuild-ext", func(p *config.Project) { p.PHPExtensions = []string{"imagick"} }, nil},
+		{"webbuild-parts", func(p *config.Project) {}, parts},
+		{"webbuild-all", func(p *config.Project) {
+			p.NodeJS, p.PHPExtensions, p.Packages = "20", []string{"imagick"}, []string{"vim"}
+		}, parts},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p := shop("nginx")
+			c.edit(p)
+			got, err := WebBuildDockerfile(p, c.parts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			golden(t, c.name, got)
+		})
+	}
+}
+
+func TestWebBuildDockerfileLegacyBase(t *testing.T) {
+	p := shop("nginx")
+	p.PHP, p.PHPExtensions = "7.4", []string{"imagick"}
+	got, err := WebBuildDockerfile(p, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"FROM lodev/php:legacy-7.4\n", "php7.4-imagick"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestWebBuildDockerfileNoTrailingNewline(t *testing.T) {
+	got, err := WebBuildDockerfile(shop("nginx"), []UserPart{
+		{Name: "a", Content: []byte("RUN echo hi")}, {Name: "b", Content: []byte("RUN echo b")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "RUN echo hi\n# --- ") {
+		t.Errorf("part not newline-terminated:\n%s", got)
+	}
+}
