@@ -102,8 +102,8 @@ writes are owned by you on the host. `xdebug` toggling still runs as root.
 After upgrading, the first `lodev start` rebuilds `lodev/php` (the base image no longer bakes
 the host UID into `www-data`).
 
-`-s`/`--service` picks another service of the project (default `web`): `lodev ssh -s mysql2`,
-`lodev exec -s worker ls`. Those use the image's default user and directory, `bash` if the
+`-s`/`--service` picks another service of the project (default `web`): `lodev ssh -s redis-commander`,
+`lodev exec -s redis-commander ls`. Those use the image's default user and directory, `bash` if the
 image has it, else `sh`. For `exec` the flag only counts before the command.
 
 ## Customizing the web image
