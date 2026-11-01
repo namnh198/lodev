@@ -86,7 +86,7 @@ func TestWithLockExcludesOthers(t *testing.T) {
 const composeLabel = "label=com.docker.compose.project=lodev-"
 
 // stubDocker records dockerRun calls, answers the running-projects `docker ps` with running,
-// and a per-project `docker ps -q` with the id "id-<name>".
+// a per-project `docker ps -aq` with "id-<name>" and `docker network ls -q` with "net-<name>".
 func stubDocker(t *testing.T, running string) *[]string {
 	t.Helper()
 	oldRun, oldOut := dockerRun, dockerOutput
@@ -94,10 +94,13 @@ func stubDocker(t *testing.T, running string) *[]string {
 	var calls []string
 	dockerRun = func(a ...string) error { calls = append(calls, strings.Join(a, " ")); return nil }
 	dockerOutput = func(a ...string) (string, error) {
-		if slices.Equal(a[:2], []string{"ps", "-q"}) {
-			return "id-" + strings.TrimPrefix(a[3], composeLabel), nil
-		}
-		if a[0] == "ps" {
+		name := strings.TrimPrefix(a[len(a)-1], composeLabel)
+		switch {
+		case slices.Equal(a[:2], []string{"ps", "-aq"}):
+			return "id-" + name, nil
+		case slices.Equal(a[:3], []string{"network", "ls", "-q"}):
+			return "net-" + name, nil
+		case a[0] == "ps":
 			return running, nil
 		}
 		return "", nil
@@ -116,10 +119,12 @@ func TestPoweroff(t *testing.T) {
 	}
 	// By label, not `compose -p … stop`: compose would read a docker-compose.yml in the cwd
 	// and silently skip containers whose service is not in it.
+	// Containers (stopped ones too) and the project network are removed, like compose down:
+	// a stale network or container breaks the next start.
 	want := []string{
-		"stop id-a",
-		"stop id-b",
-		"stop id-x",
+		"stop id-a", "rm id-a", "network rm net-a",
+		"stop id-b", "rm id-b", "network rm net-b",
+		"stop id-x", "rm id-x", "network rm net-x",
 		"compose -p lodev-services -f " + servicesFile() + " down",
 	}
 	if !slices.Equal(*calls, want) {
@@ -134,7 +139,7 @@ func TestPoweroffNoServicesFile(t *testing.T) {
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(*calls, []string{"stop id-b"}) {
+	if !slices.Equal(*calls, []string{"stop id-b", "rm id-b", "network rm net-b"}) {
 		t.Errorf("calls: %v", *calls)
 	}
 }

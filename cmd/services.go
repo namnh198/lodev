@@ -83,6 +83,15 @@ func servicesUp() error {
 	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
 		return err
 	}
+	return nil
+}
+
+// printServiceURLs lists the shared services' URLs; printed once, not per project start.
+func printServiceURLs() error {
+	g, err := config.LoadGlobal()
+	if err != nil {
+		return err
+	}
 	fmt.Println()
 	ui.Success("Traefik dashboard: http://localhost:%d", g.Ports.Dashboard)
 	if g.Services["phpmyadmin"] {
@@ -122,18 +131,29 @@ func poweroff() error {
 		names = append(names, strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web"))
 	}
 	slices.Sort(names)
-	// By label, not `compose -p … stop`: compose reads any docker-compose.yml in the cwd
+	// What `compose down` does, but by label: compose reads any docker-compose.yml in the cwd
 	// and then silently skips the project's containers that file does not name.
 	for _, name := range slices.Compact(names) {
-		ids, err := dockerOutput("ps", "-q", "--filter", "label=com.docker.compose.project=lodev-"+name)
+		label := "label=com.docker.compose.project=lodev-" + name
+		ids, err := dockerOutput("ps", "-aq", "--filter", label)
 		if err != nil {
 			return err
 		}
-		if ids == "" {
-			continue
+		if ids != "" {
+			for _, sub := range []string{"stop", "rm"} {
+				if err := dockerRun(append([]string{sub}, strings.Fields(ids)...)...); err != nil {
+					return err
+				}
+			}
 		}
-		if err := dockerRun(append([]string{"stop"}, strings.Fields(ids)...)...); err != nil {
+		nets, err := dockerOutput("network", "ls", "-q", "--filter", label)
+		if err != nil {
 			return err
+		}
+		if nets != "" {
+			if err := dockerRun(append([]string{"network", "rm"}, strings.Fields(nets)...)...); err != nil {
+				return err
+			}
 		}
 	}
 	if _, err := os.Stat(servicesFile()); err == nil {
@@ -168,7 +188,12 @@ func init() {
 		Use:   "up",
 		Short: "Start Traefik and all enabled shared services",
 		Args:  cobra.NoArgs,
-		RunE:  func(*cobra.Command, []string) error { return withLock(servicesUp) },
+		RunE: func(*cobra.Command, []string) error {
+			if err := withLock(servicesUp); err != nil {
+				return err
+			}
+			return printServiceURLs()
+		},
 	}
 
 	var volumes, yes bool

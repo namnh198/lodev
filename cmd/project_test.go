@@ -465,6 +465,18 @@ func TestForAll(t *testing.T) {
 	}
 }
 
+func TestAnnounceStarted(t *testing.T) {
+	stdout, _, restore := ui.Capture(false)
+	defer restore()
+	announceStarted(&config.Project{Name: "laravel", Webserver: "nginx", Domains: []string{"laravel.test", "api.test"}})
+	announceStarted(&config.Project{Name: "tool", Webserver: "none"})
+	want := "Started project laravel. URL: https://laravel.test, https://api.test\n" +
+		"Started project tool. Shell: lodev ssh\n"
+	if stdout.String() != want {
+		t.Errorf("got %q", stdout.String())
+	}
+}
+
 func TestForAllEmpty(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	called := false
@@ -487,12 +499,20 @@ func TestStartAllOutsideProject(t *testing.T) {
 		rootCmd.SetArgs(nil)
 	}()
 
+	stdout, _, restore := ui.Capture(false)
 	rootCmd.SetArgs([]string{"start", "--all"})
-	if err := rootCmd.Execute(); err != nil || !slices.Equal(started, []string{"a"}) {
+	err := rootCmd.Execute()
+	restore()
+	if err != nil || !slices.Equal(started, []string{"a"}) {
 		t.Fatalf("err %v, started %v", err, started)
 	}
+	// Shared service URLs once, after every project.
+	out := stdout.String()
+	if !strings.HasPrefix(out, "Starting project a\n") || strings.Count(out, "Traefik dashboard:") != 1 {
+		t.Errorf("stdout = %q", out)
+	}
 	rootCmd.SetArgs([]string{"start", "--all", "--rebuild"})
-	err := rootCmd.Execute()
+	err = rootCmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "all") || !strings.Contains(err.Error(), "rebuild") {
 		t.Fatalf("--all --rebuild: %v", err)
 	}

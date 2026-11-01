@@ -7,6 +7,9 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/16
+          gateway: 172.30.0.1
+          # Dynamic IPs stay out of 172.30.0.x, so traefik's fixed 172.30.0.2 is always free.
+          ip_range: 172.30.128.0/17
 
 volumes:
   lodev-mysql:

@@ -353,14 +353,20 @@ func start(p *config.Project, rebuild bool) error {
 	if err := dropStaleProjectImage(p, img); err != nil {
 		ui.Warn("could not remove the old project image: %v", err)
 	}
-	fmt.Println()
-	if p.Webserver == "none" {
-		ui.Success("CLI project ready: lodev ssh")
-	}
-	for _, d := range p.WebDomains() {
-		ui.Success("https://%s", d)
-	}
+	announceStarted(p)
 	return nil
+}
+
+func announceStarted(p *config.Project) {
+	if p.Webserver == "none" {
+		ui.Success("Started project %s. Shell: lodev ssh", p.Name)
+		return
+	}
+	urls := make([]string, len(p.WebDomains()))
+	for i, d := range p.WebDomains() {
+		urls[i] = "https://" + d
+	}
+	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
 }
 
 func deleteProject(p *config.Project, dropDB, yes bool) error {
@@ -414,7 +420,7 @@ func forAll(fn func(*config.Project) error) error {
 	}
 	var failed []string
 	for _, name := range reg.Names() {
-		ui.Info("==> %s", name)
+		ui.Info("Starting project %s", name)
 		p, err := config.LoadProject(reg[name].Path)
 		if errors.Is(err, fs.ErrNotExist) {
 			ui.Warn("%s: %v (skipped)", name, err)
@@ -432,6 +438,15 @@ func forAll(fn func(*config.Project) error) error {
 		return fmt.Errorf("failed: %s", strings.Join(failed, ", "))
 	}
 	return nil
+}
+
+// allThenServiceURLs runs fn on every project, then lists the shared services once.
+func allThenServiceURLs(fn func(*config.Project) error) error {
+	err := forAll(fn)
+	if perr := printServiceURLs(); err == nil {
+		err = perr
+	}
+	return err
 }
 
 func status(name string) string {
@@ -498,7 +513,7 @@ func init() {
 		RunE: func(*cobra.Command, []string) error {
 			if startAll {
 				return withLock(func() error {
-					return forAll(func(p *config.Project) error { return startFn(p, false) })
+					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, false) })
 				})
 			}
 			p, err := currentProject()
@@ -538,7 +553,7 @@ func init() {
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if restartAll {
-				return withLock(func() error { return forAll(restart) })
+				return withLock(func() error { return allThenServiceURLs(restart) })
 			}
 			p, err := currentProject()
 			if err != nil {
