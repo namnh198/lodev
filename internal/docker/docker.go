@@ -11,12 +11,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"lodev/assets"
 	"lodev/internal/config"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
 
 func ComposeArgs(project, file string, sub ...string) []string {
@@ -73,8 +75,21 @@ func buildArgs(noCache bool, rest ...string) []string {
 	return append([]string{"build"}, rest...)
 }
 
+// joinArgs renders args for the debug line, quoting only those containing a space.
+func joinArgs(args []string) string {
+	q := make([]string, len(args))
+	for i, a := range args {
+		q[i] = a
+		if strings.Contains(a, " ") {
+			q[i] = strconv.Quote(a)
+		}
+	}
+	return strings.Join(q, " ")
+}
+
 // Run runs docker with the terminal attached.
 func Run(args ...string) error {
+	ui.Debug("$ docker %s", joinArgs(args))
 	c := exec.Command("docker", args...)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
@@ -82,6 +97,7 @@ func Run(args ...string) error {
 
 // Output runs docker and returns trimmed stdout; stderr is included in the error.
 func Output(args ...string) (string, error) {
+	ui.Debug("$ docker %s", joinArgs(args))
 	var stderr bytes.Buffer
 	c := exec.Command("docker", args...)
 	c.Stderr = &stderr

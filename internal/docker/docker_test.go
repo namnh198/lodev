@@ -9,7 +9,20 @@ import (
 
 	"lodev/internal/config"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
+
+func TestDebugLine(t *testing.T) {
+	_, errb, restore := ui.Capture(true)
+	defer restore()
+	Output("version") // may fail without Docker; only the debug line matters
+	if !strings.Contains(errb.String(), "$ docker version") {
+		t.Fatalf("stderr %q", errb.String())
+	}
+	if got := joinArgs([]string{"run", "a b", "c"}); got != `run "a b" c` {
+		t.Fatalf("joinArgs %q", got)
+	}
+}
 
 func check(t *testing.T, got []string, want string) {
 	t.Helper()
