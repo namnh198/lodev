@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -71,6 +72,9 @@ func servicesUp() error {
 	if err := os.WriteFile(servicesFile(), data, 0o644); err != nil {
 		return err
 	}
+	if err := mergeServicesCompose(); err != nil {
+		return err
+	}
 	if err := certs.Ensure("lodev-services", config.ReservedDomains); err != nil {
 		return err
 	}
@@ -104,6 +108,31 @@ func printServiceURLs() error {
 		ui.Success("RabbitMQ:          https://rabbitmq.test")
 	}
 	return nil
+}
+
+const servicesExample = `# Rename to <name>.compose.yml to merge it into the shared services; run lodev services up after editing.
+# services:
+#   opensearch:
+#     mem_limit: 3g
+#   adminer:
+#     image: adminer
+#     networks: [lodev]
+`
+
+// mergeServicesCompose merges ~/.lodev/services/*.compose.{yml,yaml} over the generated compose.yaml.
+func mergeServicesCompose() error {
+	dir := filepath.Dir(servicesFile())
+	example := filepath.Join(dir, "example.compose.yml.example")
+	if _, err := os.Stat(example); errors.Is(err, fs.ErrNotExist) {
+		if err := os.WriteFile(example, []byte(servicesExample), 0o644); err != nil {
+			return err
+		}
+	}
+	extra, err := extraComposeFiles(dir)
+	if err != nil {
+		return err
+	}
+	return mergeComposeFiles("lodev-services", servicesFile(), servicesFullFile(), extra)
 }
 
 // startService starts one shared service from the existing compose file.

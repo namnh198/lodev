@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,5 +142,68 @@ func TestPoweroffNoServicesFile(t *testing.T) {
 	}
 	if !slices.Equal(*calls, []string{"stop id-b", "rm id-b", "network rm net-b"}) {
 		t.Errorf("calls: %v", *calls)
+	}
+}
+
+func TestMergeServicesCompose(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	dir := filepath.Dir(servicesFile())
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(servicesFile(), []byte("name: lodev-services\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "a.compose.yml"), nil, 0o644)
+	defer func(o func(...string) (string, error)) { composeConfig = o }(composeConfig)
+	var args []string
+	composeConfig = func(a ...string) (string, error) { args = a; return "name: lodev-services", nil }
+
+	if err := mergeServicesCompose(); err != nil {
+		t.Fatal(err)
+	}
+	var files []string
+	for i, a := range args {
+		if a == "-f" {
+			files = append(files, args[i+1])
+		}
+	}
+	if want := []string{servicesFile(), filepath.Join(dir, "a.compose.yml")}; !slices.Equal(files, want) {
+		t.Errorf("files %v, want %v", files, want)
+	}
+	if b, _ := os.ReadFile(servicesFullFile()); string(b) != "name: lodev-services\n" {
+		t.Errorf("full = %q", b)
+	}
+	example := filepath.Join(dir, "example.compose.yml.example")
+	if _, err := os.Stat(example); err != nil {
+		t.Fatal("example not written:", err)
+	}
+
+	os.WriteFile(example, []byte("mine"), 0o644)
+	if err := mergeServicesCompose(); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(example); string(b) != "mine" {
+		t.Errorf("example overwritten: %q", b)
+	}
+
+	composeConfig = func(...string) (string, error) { return "", errors.New("bad file") }
+	if err := mergeServicesCompose(); err == nil {
+		t.Fatal("broken custom file must fail")
+	}
+	if b, _ := os.ReadFile(servicesFullFile()); string(b) != "name: lodev-services\n" {
+		t.Errorf("full replaced after failed merge: %q", b)
+	}
+}
+
+func TestServicesComposeFile(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	calls := stubDocker(t, "")
+	servicesCompose("ps")
+	os.MkdirAll(filepath.Dir(servicesFullFile()), 0o755)
+	os.WriteFile(servicesFullFile(), nil, 0o644)
+	servicesCompose("ps")
+	want := []string{
+		"compose -p lodev-services -f " + servicesFile() + " ps",
+		"compose -p lodev-services -f " + servicesFullFile() + " ps",
+	}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("calls %v", *calls)
 	}
 }

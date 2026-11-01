@@ -14,13 +14,19 @@ import (
 	"lodev/internal/docker"
 )
 
-func servicesFile() string { return filepath.Join(config.Home(), "services", "compose.yaml") }
+func servicesFile() string     { return filepath.Join(config.Home(), "services", "compose.yaml") }
+func servicesFullFile() string { return filepath.Join(config.Home(), "services", "compose-full.yaml") }
 
 // dockerRun is docker.Run, swappable in tests.
 var dockerRun = docker.Run
 
+// servicesCompose runs on the merged file; stacks generated before custom files existed have only the base.
 func servicesCompose(sub ...string) error {
-	return dockerRun(docker.ComposeArgs("lodev-services", servicesFile(), sub...)...)
+	file := servicesFullFile()
+	if _, err := os.Stat(file); err != nil {
+		file = servicesFile()
+	}
+	return dockerRun(docker.ComposeArgs("lodev-services", file, sub...)...)
 }
 
 func readLine(prompt string) string {

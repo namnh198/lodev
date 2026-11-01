@@ -147,6 +147,20 @@ collide with the shared ones on the `lodev` network. On the `lodev` network the 
 reachable as `lodev-<name>-web` (the bare `web` alias exists on every project's `lodev` network, so
 it is ambiguous); `web` works only on the project's `default` network. `lodev create` scaffolds `example.compose.yml.example`.
 
+## Customizing the shared services
+
+Put compose files in `~/.lodev/services/` named `*.compose.yml` (or `.yaml`); `lodev services up`
+merges them, in name order, over the generated `compose.yaml` into `compose-full.yaml`, which
+every `lodev services` command then uses. A file that does not merge makes `services up` fail
+and keeps the last good `compose-full.yaml`. `services up` writes `example.compose.yml.example`
+there (never overwritten). For example, `~/.lodev/services/opensearch.compose.yml`:
+
+```yaml
+services:
+  opensearch:
+    mem_limit: 3g
+```
+
 ## PHP and webserver config
 
 | Path | Effect |
@@ -217,4 +231,5 @@ next `lodev start` / `lodev restart`.
 24. `lodev poweroff` → `docker ps -a --filter name=lodev-` and `docker network ls --filter name=lodev` list nothing; `lodev start --all` then starts every project (traefik keeps `172.30.0.2`); `lodev start` in a project brings it back with its data.
 25. `lodev services enable rabbitmq` → `https://rabbitmq.test` loads (guest/guest) and `lodev exec php -r 'var_dump((bool) fsockopen("rabbitmq", 5672));'` prints `bool(true)`.
 26. `lodev services up`, `lodev poweroff`, `lodev services up` → `docker volume ls | wc -l` is the same after each `up`.
-27. `lodev remove --db --yes` in each test project.
+27. The `opensearch.compose.yml` above + `lodev services up` → `docker inspect -f '{{.HostConfig.Memory}}' lodev-opensearch` prints `3221225472`; a broken YAML file there makes `services up` fail and leaves `compose-full.yaml` as it was.
+28. `lodev remove --db --yes` in each test project.

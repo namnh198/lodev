@@ -23,7 +23,7 @@ func TestExtraComposeFiles(t *testing.T) {
 	for _, n := range []string{"b.compose.yaml", "a.compose.yml", "x.compose.yml.example", "lodev.compose-base.yml"} {
 		os.WriteFile(filepath.Join(dir, n), nil, 0o644)
 	}
-	got, err := extraComposeFiles(&config.Project{Root: root})
+	got, err := extraComposeFiles(filepath.Join(root, ".lodev"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestExtraComposeFilesBracketedPath(t *testing.T) {
 	dir := filepath.Join(root, ".lodev")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "a.compose.yml"), nil, 0o644)
-	got, err := extraComposeFiles(&config.Project{Root: root})
+	got, err := extraComposeFiles(filepath.Join(root, ".lodev"))
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got %v, %v", got, err)
 	}

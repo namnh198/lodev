@@ -70,9 +70,9 @@ func composeProject(p *config.Project) string { return "lodev-" + p.Name }
 
 var composeConfig = func(args ...string) (string, error) { return docker.Output(args...) }
 
-// extraComposeFiles lists the user's .lodev/*.compose.{yml,yaml}, sorted.
-func extraComposeFiles(p *config.Project) ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(p.Root, ".lodev"))
+// extraComposeFiles lists the user's dir/*.compose.{yml,yaml}, sorted.
+func extraComposeFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
@@ -80,23 +80,27 @@ func extraComposeFiles(p *config.Project) ([]string, error) {
 	for _, e := range entries { // ReadDir is sorted by name
 		n := e.Name()
 		if e.Type().IsRegular() && (strings.HasSuffix(n, ".compose.yml") || strings.HasSuffix(n, ".compose.yaml")) {
-			files = append(files, filepath.Join(p.Root, ".lodev", n))
+			files = append(files, filepath.Join(dir, n))
 		}
 	}
 	return files, nil
 }
 
-// mergeCompose writes the full file only if `docker compose config` succeeds.
+// mergeComposeFiles writes full only if `docker compose config` over base+extra succeeds.
+func mergeComposeFiles(project, base, full string, extra []string) error {
+	out, err := composeConfig(docker.ComposeConfigArgs(project, append([]string{base}, extra...))...)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(full, []byte(out+"\n"), 0o644)
+}
+
 func mergeCompose(p *config.Project) error {
-	extra, err := extraComposeFiles(p)
+	extra, err := extraComposeFiles(filepath.Join(p.Root, ".lodev"))
 	if err != nil {
 		return err
 	}
-	out, err := composeConfig(docker.ComposeConfigArgs(composeProject(p), append([]string{composeBase(p)}, extra...))...)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(composeFull(p), []byte(out+"\n"), 0o644)
+	return mergeComposeFiles(composeProject(p), composeBase(p), composeFull(p), extra)
 }
 
 var dockerOutput = docker.Output
