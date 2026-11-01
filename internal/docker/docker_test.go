@@ -31,13 +31,12 @@ func TestExecArgs(t *testing.T) {
 }
 
 func TestPHPBuildArgs(t *testing.T) {
-	got := PHPBuildArgs([]string{"8.2", "8.3"}, 501, 20, "H", false, "/tmp/x")
-	want := []string{"build", "-t", "lodev/php", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3",
-		"--build-arg", "UID=501", "--build-arg", "GID=20", "/tmp/x"}
+	got := PHPBuildArgs([]string{"8.2", "8.3"}, "H", false, "/tmp/x")
+	want := []string{"build", "-t", "lodev/php", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3", "/tmp/x"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got  %q\nwant %q", got, want)
 	}
-	if got := PHPBuildArgs([]string{"8.2"}, 501, 20, "H", true, "/tmp/x"); got[1] != "--no-cache" {
+	if got := PHPBuildArgs([]string{"8.2"}, "H", true, "/tmp/x"); got[1] != "--no-cache" {
 		t.Fatalf("rebuild must not use the cache: %q", got)
 	}
 }

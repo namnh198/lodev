@@ -2,8 +2,6 @@ FROM node:24-slim AS node
 FROM debian:trixie-slim
 
 ARG PHP_VERSIONS
-ARG UID=1000
-ARG GID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
 
@@ -11,7 +9,7 @@ SHELL ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
 RUN test -n "$PHP_VERSIONS" \
     && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
-       ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip \
+       ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
     && dpkg -i /tmp/sury-keyring.deb \
     && . /etc/os-release \
@@ -40,11 +38,6 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 RUN curl -fsSL -o /usr/local/bin/n https://raw.githubusercontent.com/tj/n/v10.1.0/bin/n \
     && chmod +x /usr/local/bin/n
-
-# -o: macOS GID 20 (staff) already exists in Debian as dialout.
-RUN usermod -o -u ${UID} www-data \
-    && groupmod -o -g ${GID} www-data \
-    && chown -R www-data:www-data /var/www
 
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/

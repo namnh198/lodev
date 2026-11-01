@@ -22,6 +22,33 @@ if [ -f /etc/lodev/rootCA.pem ]; then
   update-ca-certificates >/dev/null
 fi
 
+# Run the services as the host user (created here so no image bakes in a UID).
+if [ -n "${LODEV_USER:-}" ]; then
+  group=$(getent group "$LODEV_GID" | cut -d: -f1)
+  if [ -z "$group" ]; then
+    groupadd -g "$LODEV_GID" "$LODEV_USER"
+    group=$LODEV_USER
+  fi
+  by_name=$(getent passwd "$LODEV_USER" | cut -d: -f3)
+  by_uid=$(getent passwd "$LODEV_UID" | cut -d: -f1)
+  if [ -n "$by_name" ] && [ "$by_name" != "$LODEV_UID" ]; then
+    echo "user $LODEV_USER exists with UID $by_name, not $LODEV_UID" >&2
+    exit 1
+  fi
+  if [ -n "$by_uid" ] && [ "$by_uid" != "$LODEV_USER" ]; then
+    echo "UID $LODEV_UID belongs to $by_uid, not $LODEV_USER" >&2
+    exit 1
+  fi
+  if [ -z "$by_name" ]; then
+    useradd -m -d "/home/$LODEV_USER" -s /bin/bash -u "$LODEV_UID" -g "$group" "$LODEV_USER"
+  fi
+  printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$LODEV_USER" > /etc/sudoers.d/lodev
+  chmod 0440 /etc/sudoers.d/lodev
+  sed -i "s/^user .*;/user $LODEV_USER $group;/" /etc/nginx/nginx.conf
+  sed -i -e "s/^user = .*/user = $LODEV_USER/" -e "s/^group = .*/group = $group/" "/etc/php/$LODEV_PHP/fpm/pool.d/www.conf"
+  sed -i -e "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=$LODEV_USER/" -e "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=$group/" /etc/apache2/envvars
+fi
+
 rm -f /etc/supervisor/conf.d/*.conf
 case "${LODEV_WEBSERVER:-nginx}" in
   nginx)

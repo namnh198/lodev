@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -50,11 +49,9 @@ func ExecArgs(project, file, service, user, workdir string, tty bool, cmd []stri
 }
 
 // PHPBuildArgs builds the base image, labelled with the hash of the assets it came from.
-func PHPBuildArgs(versions []string, uid, gid int, hash string, noCache bool, dir string) []string {
+func PHPBuildArgs(versions []string, hash string, noCache bool, dir string) []string {
 	return buildArgs(noCache, "-t", "lodev/php", "--label", "lodev.hash="+hash,
 		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "),
-		"--build-arg", "UID="+strconv.Itoa(uid),
-		"--build-arg", "GID="+strconv.Itoa(gid),
 		dir)
 }
 
@@ -165,7 +162,7 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, "lodev/php") != hash {
 		fmt.Println("Building lodev/php (PHP 8.2-8.5, about a minute the first time)...")
 		if err := build("php", func(dir string) []string {
-			return PHPBuildArgs(config.BundledPHP, os.Getuid(), os.Getgid(), hash, rebuild, dir)
+			return PHPBuildArgs(config.BundledPHP, hash, rebuild, dir)
 		}); err != nil {
 			return err
 		}
