@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -27,7 +28,18 @@ var (
 	nodeRe   = regexp.MustCompile(`^(lts|latest|current|[0-9]+(\.[0-9]+){0,2})$`)
 	extRe    = regexp.MustCompile(`^[a-z0-9_]+$`)
 	pkgRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)
+	userRe   = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+	nonUser  = regexp.MustCompile(`[^a-z0-9_-]`)
 )
+
+// currentUsername is the host user; swapped in tests.
+var currentUsername = func() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return u.Username, nil
+}
 
 type Project struct {
 	Name          string   `yaml:"name"`
@@ -40,6 +52,7 @@ type Project struct {
 	NodeJS        string   `yaml:"nodejs,omitempty"`
 	PHPExtensions []string `yaml:"php_extensions,omitempty"`
 	Packages      []string `yaml:"packages,omitempty"`
+	User          string   `yaml:"user,omitempty"`
 	Root          string   `yaml:"-"`
 }
 
@@ -158,6 +171,37 @@ func (p *Project) Validate() error {
 		}
 	}
 	return nil
+}
+
+// SanitizeUser maps any string to a valid container user name (a valid one is unchanged).
+func SanitizeUser(s string) string {
+	s = nonUser.ReplaceAllString(strings.ToLower(s), "_")
+	if s != "" && (s[0] == '-' || (s[0] >= '0' && s[0] <= '9')) {
+		s = "_" + s
+	}
+	if len(s) > 32 { // all ASCII by now
+		s = s[:32]
+	}
+	switch s {
+	case "":
+		return "lodev"
+	case "root", "www-data":
+		return s + "_user"
+	}
+	return s
+}
+
+// ContainerUser is the in-container user: p.User or the host user, sanitized.
+// from is the original name when sanitizing changed it, else "".
+func (p *Project) ContainerUser() (name, from string) {
+	wanted := p.User
+	if wanted == "" {
+		wanted, _ = currentUsername() // error: "" sanitizes to lodev
+	}
+	if name = SanitizeUser(wanted); name != wanted {
+		from = wanted
+	}
+	return name, from
 }
 
 func (p *Project) DBName() string { return strings.ReplaceAll(p.Name, "-", "_") }

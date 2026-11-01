@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -222,5 +223,55 @@ func TestValidateAcceptsSubdomains(t *testing.T) {
 	p.Domains = []string{"store-en.test", "a.b.test", "x1.test"}
 	if err := p.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSanitizeUser(t *testing.T) {
+	cases := map[string]string{
+		"kuroko": "kuroko", "John.Doe": "john_doe", "Kuroko": "kuroko", "1abc": "_1abc", "-x": "_-x",
+		"nguyễn": "nguy_n", "": "lodev", "root": "root_user", "www-data": "www-data_user",
+		strings.Repeat("a", 40): strings.Repeat("a", 32),
+	}
+	for in, want := range cases {
+		got := SanitizeUser(in)
+		if got != want {
+			t.Errorf("%q→%q want %q", in, got, want)
+		}
+		if !userRe.MatchString(got) || got == "root" || got == "www-data" {
+			t.Errorf("%q→%q is not a valid user name", in, got)
+		}
+	}
+}
+
+func TestContainerUser(t *testing.T) {
+	old := currentUsername
+	t.Cleanup(func() { currentUsername = old })
+	currentUsername = func() (string, error) { return "John.Doe", nil }
+	cases := []struct{ user, name, from string }{
+		{"alice", "alice", ""},
+		{"Bad.Name", "bad_name", "Bad.Name"},
+		{"", "john_doe", "John.Doe"},
+	}
+	for _, c := range cases {
+		name, from := (&Project{User: c.user}).ContainerUser()
+		if name != c.name || from != c.from {
+			t.Errorf("User %q → (%q, %q) want (%q, %q)", c.user, name, from, c.name, c.from)
+		}
+	}
+	currentUsername = func() (string, error) { return "", errors.New("boom") }
+	if name, from := (&Project{}).ContainerUser(); name != "lodev" || from != "" {
+		t.Errorf("error → (%q, %q)", name, from)
+	}
+}
+
+func TestSaveProjectOmitsUser(t *testing.T) {
+	p := valid()
+	p.Root = t.TempDir()
+	if err := SaveProject(p); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(configPath(p.Root))
+	if strings.Contains(string(data), "user:") {
+		t.Fatalf("user: written:\n%s", data)
 	}
 }
