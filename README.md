@@ -67,6 +67,12 @@ memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 ```
 
+Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …), kept across
+`poweroff` and `services down`. Older lodev versions left an anonymous volume behind each time
+Redis was recreated; list them with `docker volume ls -f dangling=true` and, once you have
+checked that nothing else needs them, remove them with `docker volume prune` (it removes every
+unused anonymous volume, not only lodev's).
+
 ## Project config — `.lodev/config.yaml`
 
 ```yaml

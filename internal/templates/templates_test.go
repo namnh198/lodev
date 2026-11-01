@@ -160,6 +160,9 @@ func TestSharedComposeStructure(t *testing.T) {
 	if def["mysql"].Ports != nil {
 		t.Fatal("mysql exposed by default", def["mysql"].Ports)
 	}
+	if v := def["redis"].Volumes; !slices.Contains(v, "lodev-redis:/data") {
+		t.Errorf("redis volumes %v", v)
+	}
 	if def["opensearch"].MemLimit != "2g" || !slices.Contains(def["opensearch"].Environment, "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g") {
 		t.Fatalf("%+v", def["opensearch"])
 	}
