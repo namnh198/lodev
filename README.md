@@ -8,7 +8,8 @@ apache), so ten projects cost about the RAM of ten php-fpm processes, not ten da
 
 ## Install
 
-Requirements: Docker Desktop. [mkcert](https://github.com/FiloSottile/mkcert) is optional
+Requirements: macOS or Linux with Docker (Docker Desktop, OrbStack, …). Windows binaries are built
+but not supported at runtime: lodev edits `/etc/hosts` with sudo and checks ports with `lsof`. [mkcert](https://github.com/FiloSottile/mkcert) is optional
 (`brew install mkcert`); without it lodev runs mkcert in Docker and tells you how to trust its CA.
 
 ```bash
