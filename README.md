@@ -214,6 +214,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
+| `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev version` | lodev, Docker, Docker Compose and Docker Buildx versions, OS and architecture |
 | `lodev --debug <cmd>` | Also print every docker command lodev runs (or set `LODEV_DEBUG=1`); set `NO_COLOR=1` to turn colors off |
 
@@ -255,4 +256,5 @@ next `lodev start` / `lodev restart`.
 28. `versions: {mysql: "8.4"}` + `lodev services up` → a warning `lodev-mysql: mysql:8.0 → mysql:8.4`, then `lodev exec mysql -hmysql -uroot -proot -e 'select version()'` prints `8.4.x`; `versions: {mysql: "8.x"}` makes every command fail naming `versions.mysql`.
 29. `lodev services enable mariadb` → the phpMyAdmin login offers `mysql` and `mariadb`; a project with `services: [mariadb]` + `lodev start` → `lodev exec printenv DB_HOST` prints `mariadb` and its database shows up under `mariadb` in phpMyAdmin; `services: [mysql, mariadb]` is rejected.
 30. With the stack running, `lodev start` in a project prints no Traefik/phpMyAdmin lines and asks for no password for the shared services; `docker stop lodev-redis` then `lodev start` brings it back.
-31. `lodev remove --db --yes` in each test project.
+31. `lodev describe` in a project, and `lodev st <name>` from `~`, show web, its DB with `Database: <name>`, its other services and `Project URLs`; `lodev version` shows the Docker versions; `lodev list | cat` has no color codes and paths start with `~`.
+32. `lodev remove --db --yes` in each test project.
