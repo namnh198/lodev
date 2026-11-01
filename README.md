@@ -94,7 +94,7 @@ any of them use the shared PHP image and build nothing. The image is rebuilt on 
 
 `lodev ssh` and `lodev exec` run in the web container as your user (`user:`, default your host
 username; lowercased, characters outside `a-z 0-9 _ -` become `_`, a leading digit or `-` gets a
-`_` prefix, `root`/`www-data` get `_user`, max 32 chars). `lodev start` prints one warning when
+`_` prefix, `root`/`www-data` get `_user`, max 32 chars). `lodev start` / `restart` print one warning when
 the name had to change. The user has passwordless `sudo`, the hostname is `<name>-web` and the
 workdir `/var/www/html`. nginx / apache / php-fpm workers run as that user too, so files PHP
 writes are owned by you on the host. `xdebug` toggling still runs as root.
@@ -196,7 +196,9 @@ next `lodev start` / `lodev restart`.
 14. `.lodev/php/my.ini` with `memory_limit=4G` + `lodev restart` → `lodev exec php -i | grep memory_limit` shows `4G`, no image build.
 15. `lodev init` in a folder containing an `artisan` file (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
 16. `lodev ssh` → prompt shows your user and `<name>-web`; `id -un` is your host username, `sudo -n true` succeeds, `pwd` is `/var/www/html`.
-17. `lodev exec php -r 'file_put_contents("w.txt","x");'` → on the host `ls -l w.txt` is owned by you; `lodev exec -s <svc> id` (extra service) shows that image's user, not yours.
-18. `user: "Bad Name"` in `.lodev/config.yaml` + `lodev start` → one warning naming `bad_name`; `lodev ssh` / `exec` print none.
-19. After upgrading lodev, the first `lodev start` rebuilds `lodev/php`; a second builds nothing.
-20. `lodev delete --db --yes` in each test project.
+17. `lodev exec php -r 'file_put_contents("w.txt","x");'`, `touch f` inside `lodev ssh`, and a `write.php` (`<?php touch(__DIR__."/from-web.txt");`) fetched with `curl -sk https://<name>.test/write.php` → on the host `ls -ln w.txt f from-web.txt` all show your UID.
+18. `lodev ssh -s <svc>` and `lodev exec -s <svc> id` (the redis-commander example, see Extra services above) open that image's default user and directory, not yours; `lodev exec id -un -s <svc>` runs in web (flag after the command is not a flag).
+19. `user: "John.Doe"` in `.lodev/config.yaml` + `lodev start` → one warning naming `john_doe` and mentioning `user:`; `lodev ssh` / `exec` print none.
+20. `user: other` + `lodev restart` → `lodev exec id -un` prints `other`, no image build runs.
+21. After upgrading lodev, the first `lodev start` rebuilds `lodev/php`; a second builds nothing.
+22. `lodev delete --db --yes` in each test project.
