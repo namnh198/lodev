@@ -226,6 +226,10 @@ func writeLodevGitignore(p *config.Project) error {
 }
 
 func start(p *config.Project, rebuild bool) error {
+	user, from := p.ContainerUser()
+	if w := userWarning(user, from); w != "" {
+		fmt.Fprintln(os.Stderr, "warning: "+w)
+	}
 	reg, err := registry.Load()
 	if err != nil {
 		return err
@@ -317,10 +321,6 @@ func start(p *config.Project, rebuild bool) error {
 	ca, err := certs.CAFile()
 	if err != nil {
 		return err
-	}
-	user, from := p.ContainerUser()
-	if w := userWarning(user, from); w != "" {
-		fmt.Fprintln(os.Stderr, "warning: "+w)
 	}
 	data, err := templates.ProjectCompose(templates.ProjectInput{
 		Project:    p,
