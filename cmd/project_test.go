@@ -31,6 +31,47 @@ func TestExtraComposeFiles(t *testing.T) {
 	}
 }
 
+func TestExtraComposeFilesBracketedPath(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "[x]")
+	dir := filepath.Join(root, ".lodev")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "a.compose.yml"), nil, 0o644)
+	got, err := extraComposeFiles(&config.Project{Root: root})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("got %v, %v", got, err)
+	}
+}
+
+func TestComposeFileFallsBackToLegacy(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
+	p := &config.Project{Name: "x", Root: root}
+	if composeFile(p) != filepath.Join(root, ".lodev", "lodev.compose-full.yml") {
+		t.Fatalf("neither file: %s", composeFile(p))
+	}
+	os.WriteFile(composeLegacy(p), nil, 0o644)
+	if composeFile(p) != composeLegacy(p) {
+		t.Fatalf("legacy only: %s", composeFile(p))
+	}
+	os.WriteFile(filepath.Join(root, ".lodev", "lodev.compose-full.yml"), nil, 0o644)
+	if composeFile(p) == composeLegacy(p) {
+		t.Fatal("full present must win")
+	}
+}
+
+func TestDropStaleProjectImage(t *testing.T) {
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+	var got []string
+	dockerOutput = func(a ...string) (string, error) { got = a; return "", nil }
+	p := &config.Project{Name: "shop", PHP: "8.3"}
+	if err := dropStaleProjectImage(p, "lodev/shop-web"); err != nil || got != nil {
+		t.Fatalf("image in use must be kept: %v %v", got, err)
+	}
+	if err := dropStaleProjectImage(p, config.PHPImage("8.3")); err != nil || strings.Join(got, " ") != "rmi lodev/shop-web" {
+		t.Fatalf("got %v %v", got, err)
+	}
+}
+
 func TestMergeCompose(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)

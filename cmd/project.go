@@ -3,9 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -50,8 +50,15 @@ func composeBase(p *config.Project) string {
 }
 
 // composeFile is the merged file every compose call uses.
+// Projects last started by an older lodev only have the legacy file.
 func composeFile(p *config.Project) string {
-	return filepath.Join(p.Root, ".lodev", "lodev.compose-full.yml")
+	full := filepath.Join(p.Root, ".lodev", "lodev.compose-full.yml")
+	if _, err := os.Stat(full); err != nil {
+		if _, lerr := os.Stat(composeLegacy(p)); lerr == nil {
+			return composeLegacy(p)
+		}
+	}
+	return full
 }
 func composeLegacy(p *config.Project) string  { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
 func composeProject(p *config.Project) string { return "lodev-" + p.Name }
@@ -60,15 +67,17 @@ var composeConfig = func(args ...string) (string, error) { return docker.Output(
 
 // extraComposeFiles lists the user's .lodev/*.compose.{yml,yaml}, sorted.
 func extraComposeFiles(p *config.Project) ([]string, error) {
-	var files []string
-	for _, ext := range []string{"yml", "yaml"} {
-		m, err := filepath.Glob(filepath.Join(p.Root, ".lodev", "*.compose."+ext))
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, m...)
+	entries, err := os.ReadDir(filepath.Join(p.Root, ".lodev"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
 	}
-	slices.Sort(files)
+	var files []string
+	for _, e := range entries { // ReadDir is sorted by name
+		n := e.Name()
+		if e.Type().IsRegular() && (strings.HasSuffix(n, ".compose.yml") || strings.HasSuffix(n, ".compose.yaml")) {
+			files = append(files, filepath.Join(p.Root, ".lodev", n))
+		}
+	}
 	return files, nil
 }
 
@@ -93,6 +102,15 @@ func removeProjectImage(name string) error {
 		return err
 	}
 	return nil
+}
+
+// dropStaleProjectImage removes a no-longer-needed project image once compose
+// runs the container on img; it is a no-op while img is still the project image.
+func dropStaleProjectImage(p *config.Project, img string) error {
+	if img == config.ProjectImage(p.Name) {
+		return nil
+	}
+	return removeProjectImage(p.Name)
 }
 
 func projectCompose(p *config.Project, sub ...string) error {
@@ -289,7 +307,10 @@ func start(p *config.Project, rebuild bool) error {
 	if err := os.Remove(composeLegacy(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err := projectCompose(p, "up", "-d"); err != nil {
+	if err := projectCompose(p, "up", "-d", "--remove-orphans"); err != nil {
+		return err
+	}
+	if err := dropStaleProjectImage(p, img); err != nil {
 		return err
 	}
 	fmt.Println()
@@ -312,12 +333,9 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 		return fmt.Errorf("refusing to delete: %w", err)
 	}
 	// A project never started with the new lodev only has the legacy file.
-	for _, f := range []string{composeFile(p), composeLegacy(p)} {
-		if _, err := os.Stat(f); err == nil {
-			if err := docker.Run(docker.ComposeArgs(composeProject(p), f, "down")...); err != nil {
-				return err
-			}
-			break
+	if _, err := os.Stat(composeFile(p)); err == nil {
+		if err := projectCompose(p, "down"); err != nil {
+			return err
 		}
 	}
 	if err := removeProjectImage(p.Name); err != nil {
@@ -412,7 +430,7 @@ func init() {
 			return withLock(func() error { return start(p, rebuild) })
 		},
 	}
-	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the PHP image")
+	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the PHP image and the project image")
 
 	stopCmd := &cobra.Command{
 		Use:   "stop",

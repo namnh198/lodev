@@ -78,7 +78,7 @@ func scaffold(root, webserver string) error {
 	files := map[string]string{
 		"web-images/Dockerfile.example": "# Rename to Dockerfile to extend the web image.\nRUN apt-get update && apt-get install -y --no-install-recommends imagemagick\n",
 		"php/example.ini.example":       "; Rename to <name>.ini to apply PHP settings.\n; memory_limit = 4G\n",
-		"example.compose.yml.example":   "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   web:\n#     networks: [lodev, default]\n",
+		"example.compose.yml.example":   "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
 	}
 	if webserver == "nginx" || webserver == "apache" {
 		files[webserver+"/example.conf.example"] = "# Rename to <name>.conf to extend the " + webserver + " config.\n# location /api { ... }\n"

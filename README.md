@@ -117,7 +117,9 @@ services:
 ```
 
 Don't name an extra service `mysql`, `redis`, `opensearch`, `mailpit` or `phpmyadmin`: it would
-collide with the shared ones on the `lodev` network. `lodev init` scaffolds `example.compose.yml.example`.
+collide with the shared ones on the `lodev` network. On the `lodev` network the web container is
+reachable as `lodev-<name>-web` (the bare `web` alias exists on every project's `lodev` network, so
+it is ambiguous); `web` works only on the project's `default` network. `lodev init` scaffolds `example.compose.yml.example`.
 
 ## PHP and webserver config
 
@@ -175,5 +177,5 @@ next `lodev start` / `lodev restart`.
 12. `RUN touch /lodev-ok` in `.lodev/web-images/Dockerfile` + `lodev restart` → `lodev exec ls /lodev-ok` works; a further restart builds nothing.
 13. The `redis-commander` file above as `.lodev/redis-commander.compose.yml` + `lodev start` → the service is up and `lodev exec curl -s redis-commander:8081` answers.
 14. `.lodev/php/my.ini` with `memory_limit=4G` + `lodev restart` → `lodev exec php -i | grep memory_limit` shows `4G`, no image build.
-15. `lodev init` in an empty Laravel folder (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
+15. `lodev init` in a folder containing an `artisan` file (real terminal) asks name/type/PHP/docroot/webserver with `laravel` and `public` preselected.
 16. `lodev delete --db --yes` in each test project.

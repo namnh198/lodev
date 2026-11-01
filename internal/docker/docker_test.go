@@ -145,6 +145,18 @@ func TestWebImageParts(t *testing.T) {
 	}
 }
 
+func TestWebImagePartsBracketedRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "[x]")
+	writeFiles(t, root, ".lodev/web-images/Dockerfile")
+	parts, err := WebImageParts(root)
+	if err != nil || len(parts) != 1 {
+		t.Fatalf("got %v, %v", parts, err)
+	}
+	if parts, err = WebImageParts(t.TempDir()); err != nil || len(parts) != 0 {
+		t.Fatalf("missing dir: %v, %v", parts, err)
+	}
+}
+
 func TestProjectHashNestedFile(t *testing.T) {
 	ctx := t.TempDir()
 	writeFiles(t, ctx, "conf/my.cnf")
@@ -183,7 +195,7 @@ func TestEnsureProjectImage(t *testing.T) {
 		wantCtx  string // build context dir under root
 	}{
 		{"not needed, no image", "", false, false, false, false, "lodev/php", nil, ""},
-		{"not needed, stale image", "", false, false, true, false, "lodev/php", []string{"rmi lodev/shop-web"}, ""},
+		{"not needed, stale image", "", false, false, true, false, "lodev/php", nil, ""},
 		{"needed, label matches", "20", false, false, true, true, "lodev/shop-web", nil, ""},
 		{"needed, label differs", "20", true, false, true, false, "lodev/shop-web", []string{"build"}, ".lodev/web-images"},
 		{"needed, no web-images", "20", false, false, false, false, "lodev/shop-web", []string{"build"}, ".lodev/web-build"},

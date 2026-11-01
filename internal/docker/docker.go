@@ -177,18 +177,18 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 
 // WebImageParts reads the top-level Dockerfile* files of .lodev/web-images, sorted, skipping *.example.
 func WebImageParts(root string) ([]templates.UserPart, error) {
-	files, err := filepath.Glob(filepath.Join(root, ".lodev", "web-images", "Dockerfile*"))
-	if err != nil {
+	dir := filepath.Join(root, ".lodev", "web-images")
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 	var parts []templates.UserPart
-	for _, f := range files { // Glob returns sorted names
-		if strings.HasSuffix(f, ".example") {
+	for _, e := range entries { // ReadDir is sorted by name
+		n := e.Name()
+		if !strings.HasPrefix(n, "Dockerfile") || strings.HasSuffix(n, ".example") || !e.Type().IsRegular() {
 			continue
 		}
-		if fi, err := os.Stat(f); err != nil || !fi.Mode().IsRegular() {
-			continue
-		}
+		f := filepath.Join(dir, n)
 		b, err := os.ReadFile(f)
 		if err != nil {
 			return nil, err
@@ -227,8 +227,8 @@ func projectHash(dockerfile []byte, baseID, ctxDir string) (string, error) {
 }
 
 // EnsureProjectImage builds the project's web image when it needs one and
-// returns the image tag compose should run; otherwise it drops any stale
-// image and returns the plain PHP image.
+// returns the image tag compose should run; otherwise the plain PHP image
+// (a stale project image is removed by the caller once compose has moved off it).
 func EnsureProjectImage(p *config.Project, rebuild bool) (string, error) {
 	tag := config.ProjectImage(p.Name)
 	parts, err := WebImageParts(p.Root)
@@ -236,9 +236,6 @@ func EnsureProjectImage(p *config.Project, rebuild bool) (string, error) {
 		return "", err
 	}
 	if !NeedsProjectImage(p, parts) {
-		if inspect("{{.Id}}", tag) != "" {
-			_ = run("rmi", tag)
-		}
 		return config.PHPImage(p.PHP), nil
 	}
 	df, err := templates.WebBuildDockerfile(p, parts)
