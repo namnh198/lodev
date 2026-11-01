@@ -13,6 +13,7 @@ import (
 	"lodev/internal/hosts"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
 
 func TestExtraComposeFiles(t *testing.T) {
@@ -411,5 +412,84 @@ func TestWaitForUser(t *testing.T) {
 	err := waitForUser(p, "kuroko", 20*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "docker logs lodev-shop-web") {
 		t.Fatal(err)
+	}
+}
+
+// saveProjects writes a real project per name and registers it; extra holds raw registry entries.
+func saveProjects(t *testing.T, names []string, extra registry.Registry) {
+	t.Helper()
+	reg := registry.Registry{}
+	for _, n := range names {
+		p, err := newProjectConfig(t.TempDir(), n, "php", "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := config.SaveProject(p); err != nil {
+			t.Fatal(err)
+		}
+		reg[n] = registry.Entry{Path: p.Root}
+	}
+	for n, e := range extra {
+		reg[n] = e
+	}
+	if err := reg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestForAll(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	saveProjects(t, []string{"a", "b"}, registry.Registry{"c": {Path: t.TempDir()}})
+	_, stderr, restore := ui.Capture(false)
+	defer restore()
+	var seen []string
+	err := forAll(func(p *config.Project) error {
+		seen = append(seen, p.Name)
+		if p.Name == "a" {
+			return errors.New("boom")
+		}
+		return nil
+	})
+	if !slices.Equal(seen, []string{"a", "b"}) {
+		t.Errorf("seen %v", seen)
+	}
+	if err == nil || err.Error() != "failed: a" {
+		t.Errorf("err = %v", err)
+	}
+	if s := stderr.String(); !strings.Contains(s, "c:") || !strings.Contains(s, "skipped") {
+		t.Errorf("stderr = %q", s)
+	}
+}
+
+func TestForAllEmpty(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	called := false
+	if err := forAll(func(*config.Project) error { called = true; return nil }); err != nil || called {
+		t.Fatalf("err %v, called %v", err, called)
+	}
+}
+
+func TestStartAllOutsideProject(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	saveProjects(t, []string{"a"}, nil)
+	defer func(o func(*config.Project, bool) error) { startFn = o }(startFn)
+	var started []string
+	startFn = func(p *config.Project, _ bool) error { started = append(started, p.Name); return nil }
+	start, _, _ := rootCmd.Find([]string{"start"})
+	defer func() {
+		start.Flags().Set("all", "false")
+		start.Flags().Set("rebuild", "false")
+		rootCmd.SetArgs(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"start", "--all"})
+	if err := rootCmd.Execute(); err != nil || !slices.Equal(started, []string{"a"}) {
+		t.Fatalf("err %v, started %v", err, started)
+	}
+	rootCmd.SetArgs([]string{"start", "--all", "--rebuild"})
+	err := rootCmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "all") || !strings.Contains(err.Error(), "rebuild") {
+		t.Fatalf("--all --rebuild: %v", err)
 	}
 }

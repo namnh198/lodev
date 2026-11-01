@@ -403,6 +403,34 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 	return nil
 }
 
+// startFn is start, swappable in tests of the --all paths.
+var startFn = start
+
+// forAll runs fn on every registry project; one failure does not stop the rest.
+func forAll(fn func(*config.Project) error) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	var failed []string
+	for _, name := range reg.Names() {
+		ui.Info("==> %s", name)
+		p, err := config.LoadProject(reg[name].Path)
+		if err != nil {
+			ui.Warn("%s: %v (skipped)", name, err)
+			continue
+		}
+		if err := fn(p); err != nil {
+			ui.Error("%s: %v", name, err)
+			failed = append(failed, name)
+		}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("failed: %s", strings.Join(failed, ", "))
+	}
+	return nil
+}
+
 func status(name string) string {
 	out, _ := docker.Output("ps", "-a", "--filter", "name=^lodev-"+name+"-web$", "--format", "{{.State}}")
 	if out == "" {
@@ -458,13 +486,18 @@ func init() {
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 
-	var rebuild bool
+	var rebuild, startAll bool
 	startCmd := &cobra.Command{
 		Use:     "start",
 		Aliases: []string{"up"},
-		Short:   "Start the project (and the shared services if needed)",
+		Short:   "Start the project, or every project with --all (and the shared services if needed)",
 		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
+			if startAll {
+				return withLock(func() error {
+					return forAll(func(p *config.Project) error { return startFn(p, false) })
+				})
+			}
 			p, err := currentProject()
 			if err != nil {
 				return err
@@ -473,6 +506,8 @@ func init() {
 		},
 	}
 	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the PHP image and the project image")
+	startCmd.Flags().BoolVar(&startAll, "all", false, "start every project lodev knows")
+	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild")
 
 	stopCmd := &cobra.Command{
 		Use:   "stop",
@@ -487,23 +522,29 @@ func init() {
 		},
 	}
 
+	var restartAll bool
+	restart := func(p *config.Project) error {
+		if err := projectCompose(p, "stop"); err != nil {
+			return err
+		}
+		return startFn(p, false)
+	}
 	restartCmd := &cobra.Command{
 		Use:   "restart",
-		Short: "Stop and start the project",
+		Short: "Stop and start the project, or every project with --all",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
+			if restartAll {
+				return withLock(func() error { return forAll(restart) })
+			}
 			p, err := currentProject()
 			if err != nil {
 				return err
 			}
-			return withLock(func() error {
-				if err := projectCompose(p, "stop"); err != nil {
-					return err
-				}
-				return start(p, false)
-			})
+			return withLock(func() error { return restart(p) })
 		},
 	}
+	restartCmd.Flags().BoolVar(&restartAll, "all", false, "restart every project lodev knows")
 
 	var dropDB, yes bool
 	removeCmd := &cobra.Command{

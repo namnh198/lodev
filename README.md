@@ -165,8 +165,8 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack (aliases `service`, `svc`). `down --volumes` deletes all data (asks first) |
 | `lodev services enable\|disable <svc>` | Turn a shared service on/off (data is kept) |
 | `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
-| `lodev start [--rebuild]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image |
-| `lodev stop` / `lodev restart` | Stop / restart the project container |
+| `lodev start [--rebuild \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image; `--all` starts every known project from any folder |
+| `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
 | `lodev list` | All projects with status and domains (alias `ps`) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
@@ -203,4 +203,5 @@ next `lodev start` / `lodev restart`.
 19. `user: "John.Doe"` in `.lodev/config.yaml` + `lodev start` → one warning naming `john_doe` and mentioning `user:`; `lodev ssh` / `exec` print none.
 20. `user: other` + `lodev restart` → `lodev exec id -un` prints `other`, no image build runs.
 21. After upgrading lodev, the first `lodev start` rebuilds `lodev/php`; a second builds nothing.
-22. `lodev remove --db --yes` in each test project.
+22. `lodev start --all` from `~` → every project in `lodev list` is running; break one project's `.lodev/config.yaml` and `lodev restart --all` → that project's error is printed, the others restart, the exit code is non-zero.
+23. `lodev remove --db --yes` in each test project.
