@@ -110,7 +110,7 @@ All projects share one image, `lodev/php`, with PHP 8.2–8.5; it is built on th
 `lodev start` (about a minute). PHP 7.4, 8.0 and 8.1 add a small image
 (`lodev/php:legacy-<ver>`) on top of it the first time a project uses them.
 
-- Change a project's PHP version: edit `php:` in `.lodev/config.yaml`, then `lodev restart`.
+- Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, `lodev start` rebuilds the images by itself when their files
   changed. `lodev start --rebuild` forces a clean rebuild (fresh PHP packages).
 - Coming from an older lodev that built one image per version? Free the space with
@@ -119,7 +119,8 @@ All projects share one image, `lodev/php`, with PHP 8.2–8.5; it is built on th
 
 ## Global config — `~/.lodev/config.yaml`
 
-All keys optional; defaults shown. Run `lodev services up` after editing: `lodev start` leaves
+All keys optional; defaults shown. Change them with `lodev config-global` (e.g. `--mysql-version=8.4`,
+`--enable-services=rabbitmq`) or edit the file. Run `lodev services up` after editing: `lodev start` leaves
 the shared services alone while everything it needs is running, so it does not apply these changes.
 
 ```yaml
@@ -158,6 +159,10 @@ checked that nothing else needs them, remove them with `docker volume prune` (it
 unused anonymous volume, not only lodev's).
 
 ## Project config — `.lodev/config.yaml`
+
+Change any key but `name` with `lodev config` (e.g. `--php-version=8.4 --nodejs-version=24`,
+`--add-services=redis`, `--nodejs-version=""` to remove a key); it keeps your comments and
+saves nothing when the result is invalid. `lodev config` alone prints the current values.
 
 ```yaml
 name: myshop                 # a-z 0-9 -; database name uses _ instead of -
@@ -269,6 +274,8 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack (aliases `service`, `svc`). `down --volumes` deletes all data (asks first) |
 | `lodev services enable\|disable <svc>` | Turn a shared service on/off (data is kept) |
 | `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
+| `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; apply with `lodev restart` |
+| `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`); apply with `lodev services up` |
 | `lodev start [--rebuild \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image; `--all` starts every known project from any folder |
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
@@ -320,4 +327,7 @@ next `lodev start` / `lodev restart`.
 29. `lodev services enable mariadb` → the phpMyAdmin login offers `mysql` and `mariadb`; a project with `services: [mariadb]` + `lodev start` → `lodev exec printenv DB_HOST` prints `mariadb` and its database shows up under `mariadb` in phpMyAdmin; `services: [mysql, mariadb]` is rejected.
 30. With the stack running, `lodev start` in a project prints no Traefik/phpMyAdmin lines and asks for no password for the shared services; `docker stop lodev-redis` then `lodev start` brings it back.
 31. `lodev describe` in a project, and `lodev st <name>` from `~`, show web, its DB with `Database: <name>`, its other services and `Project URLs`; `lodev version` shows the Docker versions; `lodev list | cat` has no color codes and paths start with `~`.
-32. `lodev remove --db --yes` in each test project.
+32. `lodev config --php-version=8.4 --nodejs-version=24` + `lodev restart` → `lodev exec php -v` shows 8.4, `lodev node -v` shows v24; comments in `.lodev/config.yaml` are kept.
+33. `lodev config --php-version=9.1` fails with `not saved:` and the file is unchanged; in a folder without `.lodev/` `lodev config` says to run `lodev create`.
+34. `lodev config-global --mysql-version=8.4` + `lodev services up` → the image-change warning appears; `lodev config-global` lists `versions.mysql 8.4`.
+35. `lodev remove --db --yes` in each test project.
