@@ -1,0 +1,13 @@
+# project
+php: "8.4" # pinned
+services: [redis]
+domains:
+  - shop.test
+  - b.test
+nodejs: "24"
+versions:
+  mysql: "8.0"
+ports:
+  http: 8081
+services2:
+  x: true
