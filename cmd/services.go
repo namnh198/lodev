@@ -318,7 +318,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if err := setService(svc, false); err != nil {
+			if err := withLock(func() error { return setService(svc, false) }); err != nil {
 				return err
 			}
 			if err := servicesCompose("rm", "-sf", svc); err != nil {

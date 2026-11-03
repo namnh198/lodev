@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,8 +39,8 @@ func OpenDoc(path string) (*Doc, error) {
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if doc.Kind == 0 { // empty file; keep a comment-only file's comment
-		doc = yaml.Node{Kind: yaml.DocumentNode, HeadComment: doc.HeadComment}
+	if doc.Kind == 0 { // empty or comment-only file: yaml.v3 drops the comments, keep them by hand
+		doc = yaml.Node{Kind: yaml.DocumentNode, HeadComment: strings.TrimSpace(string(data))}
 	}
 	if len(doc.Content) == 0 {
 		doc.Content = []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}
@@ -149,22 +150,36 @@ func (d *Doc) Bytes() ([]byte, error) {
 }
 
 // Write replaces the file with data atomically, keeping its mode (0644 for a new file).
+// A symlinked file is written through the link, so the link survives.
 func (d *Doc) Write(data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(d.path), 0o755); err != nil {
+	target := d.path
+	if t, err := filepath.EvalSymlinks(d.path); err == nil {
+		target = t
+	}
+	dir := filepath.Dir(target)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp := d.path + ".tmp"
-	if err := os.WriteFile(tmp, data, d.mode); err != nil {
+	f, err := os.CreateTemp(dir, filepath.Base(target)+".*.tmp") // unique: concurrent writers never share it
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, d.mode)
+	}
+	if err == nil {
+		err = os.Rename(tmp, target)
+	}
+	if err != nil {
 		os.Remove(tmp)
-		return err
 	}
-	if err := os.Chmod(tmp, d.mode); err != nil { // WriteFile keeps an existing tmp's mode
-		os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, d.path); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+	return err
 }
