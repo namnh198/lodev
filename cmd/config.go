@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -290,6 +291,192 @@ func newConfigCmd() *cobra.Command {
 	return c
 }
 
+// globalValues is the effective global config as {key, value} rows.
+func globalValues(g *config.Global) [][2]string {
+	rows := [][2]string{
+		{"ports.http", strconv.Itoa(g.Ports.HTTP)}, {"ports.https", strconv.Itoa(g.Ports.HTTPS)},
+		{"ports.dashboard", strconv.Itoa(g.Ports.Dashboard)}, {"ports.mysql", g.Ports.MySQL},
+		{"ports.mariadb", g.Ports.MariaDB},
+	}
+	for _, s := range config.SharedServices {
+		rows = append(rows, [2]string{"services." + s, strconv.FormatBool(g.Services[s])})
+	}
+	for _, s := range config.VersionedServices {
+		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
+	}
+	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch})
+}
+
+// loadGlobalForEdit reads the global config; one that only fails validation is returned as is.
+func loadGlobalForEdit() (*config.Global, error) {
+	data, err := os.ReadFile(config.GlobalPath())
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	g, err := config.ParseGlobal(data)
+	if ve := (*config.ValidationError)(nil); err != nil && !errors.As(err, &ve) {
+		return nil, fmt.Errorf("%s: %w", config.GlobalPath(), err)
+	}
+	return g, nil
+}
+
+// applyGlobalConfig writes changes to the global config when the result is valid and differs.
+func applyGlobalConfig(old *config.Global, changes []change) (diff []string, g *config.Global, err error) {
+	d, err := config.OpenDoc(config.GlobalPath())
+	if err != nil {
+		return nil, nil, err
+	}
+	applyChanges(d, changes)
+	data, err := d.Bytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	if g, err = config.ParseGlobal(data); err != nil {
+		return nil, nil, fmt.Errorf("not saved: %w", err)
+	}
+	if diff = diffLines(globalValues(old), globalValues(g)); len(diff) == 0 {
+		return nil, g, nil
+	}
+	return diff, g, d.Write(data)
+}
+
+// warnProjectsUsing warns about every registered project that uses svc.
+func warnProjectsUsing(svc string) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	for _, name := range reg.Names() {
+		if p, err := config.LoadProject(reg[name].Path); err == nil && p.Uses(svc) {
+			ui.Warn("project %s uses %s", name, svc)
+		}
+	}
+	return nil
+}
+
+func checkServices(names []string) error {
+	for _, s := range names {
+		if !slices.Contains(config.SharedServices, s) {
+			return fmt.Errorf("unknown service %q (allowed: %s)", s, strings.Join(config.SharedServices, ", "))
+		}
+	}
+	return nil
+}
+
+// globalChanges turns the changed flags into changes.
+func globalChanges(c *cobra.Command) ([]change, error) {
+	fl := c.Flags()
+	var out []change
+	set := func(key []string, flag string, v any) {
+		if s, _ := fl.GetString(flag); s == "" {
+			out = append(out, change{key: key, del: true})
+		} else {
+			out = append(out, change{key: key, value: v})
+		}
+	}
+	for _, p := range []string{"http", "https", "dashboard"} {
+		flag := p + "-port"
+		if !fl.Changed(flag) {
+			continue
+		}
+		v, _ := fl.GetString(flag)
+		n, err := strconv.Atoi(v)
+		if v != "" && err != nil {
+			return nil, fmt.Errorf("--%s %q is not a number", flag, v)
+		}
+		set([]string{"ports", p}, flag, n)
+	}
+	for _, p := range []string{"mysql", "mariadb"} {
+		if flag := p + "-port"; fl.Changed(flag) {
+			v, _ := fl.GetString(flag)
+			set([]string{"ports", p}, flag, v)
+		}
+	}
+	for _, s := range config.VersionedServices {
+		if flag := s + "-version"; fl.Changed(flag) {
+			v, _ := fl.GetString(flag)
+			set([]string{"versions", s}, flag, v)
+		}
+	}
+	if fl.Changed("opensearch-memory") {
+		v, _ := fl.GetString("opensearch-memory")
+		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
+	}
+	on, _ := fl.GetStringSlice("enable-services")
+	off, _ := fl.GetStringSlice("disable-services")
+	if err := checkServices(append(slices.Clone(on), off...)); err != nil {
+		return nil, err
+	}
+	for _, s := range on {
+		if slices.Contains(off, s) {
+			return nil, fmt.Errorf("--enable-services and --disable-services both name %s", s)
+		}
+		out = append(out, change{key: []string{"services", s}, value: true})
+	}
+	for _, s := range off {
+		out = append(out, change{key: []string{"services", s}, value: false})
+	}
+	return out, nil
+}
+
+func newConfigGlobalCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:           "config-global",
+		Short:         "Show or change the global ~/.lodev/config.yaml",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(c *cobra.Command, _ []string) error {
+			if !anyFlagChanged(c) {
+				g, err := loadGlobalForEdit()
+				if err != nil {
+					return err
+				}
+				printTable(c.OutOrStdout(), []string{"KEY", "VALUE"}, valueRows(globalValues(g)))
+				return nil
+			}
+			changes, err := globalChanges(c)
+			if err != nil {
+				return err
+			}
+			return withLock(func() error {
+				old, err := loadGlobalForEdit()
+				if err != nil {
+					return err
+				}
+				diff, _, err := applyGlobalConfig(old, changes)
+				if err != nil {
+					return err
+				}
+				printDiff(c.OutOrStdout(), diff, "Run: lodev services up to apply")
+				if len(diff) == 0 {
+					return nil
+				}
+				off, _ := c.Flags().GetStringSlice("disable-services")
+				for _, s := range off {
+					if err := warnProjectsUsing(s); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+	}
+	f := c.Flags()
+	f.String("http-port", "", `host HTTP port ("" = 80)`)
+	f.String("https-port", "", `host HTTPS port ("" = 443)`)
+	f.String("dashboard-port", "", `Traefik dashboard port ("" = 8080)`)
+	f.String("mysql-port", "", `publish MySQL on this host port ("" = not published)`)
+	f.String("mariadb-port", "", `publish MariaDB on this host port ("" = not published)`)
+	for _, s := range config.VersionedServices {
+		f.String(s+"-version", "", fmt.Sprintf(`%s version, e.g. %s ("" = default)`, s, config.DefaultVersions[s]))
+	}
+	f.String("opensearch-memory", "", `OpenSearch memory limit: 1g | 2g | 3g | 4g ("" = 2g)`)
+	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
+	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
+	return c
+}
+
 func init() {
-	rootCmd.AddCommand(newConfigCmd())
+	rootCmd.AddCommand(newConfigCmd(), newConfigGlobalCmd())
 }

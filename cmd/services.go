@@ -226,12 +226,12 @@ func sharedServiceArg(args []string) (string, error) {
 }
 
 func setService(svc string, on bool) error {
-	g, err := config.LoadGlobal()
+	old, err := loadGlobalForEdit()
 	if err != nil {
 		return err
 	}
-	g.Services[svc] = on
-	return config.SaveGlobal(g)
+	_, _, err = applyGlobalConfig(old, []change{{key: []string{"services", svc}, value: on}})
+	return err
 }
 
 func init() {
@@ -330,16 +330,7 @@ func init() {
 					return err
 				}
 			}
-			reg, err := registry.Load()
-			if err != nil {
-				return err
-			}
-			for _, name := range reg.Names() {
-				if p, err := config.LoadProject(reg[name].Path); err == nil && p.Uses(svc) {
-					ui.Warn("project %s uses %s", name, svc)
-				}
-			}
-			return nil
+			return warnProjectsUsing(svc)
 		},
 	}
 

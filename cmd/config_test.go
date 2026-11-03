@@ -250,3 +250,131 @@ func TestConfigWarnings(t *testing.T) {
 	mustContain(t, errOut, "docroot web does not exist yet", `user "John.Doe" will be john_doe in the container`)
 	mustContain(t, readShop(t, root), "docroot: web", "user: John.Doe")
 }
+
+func newGlobalHome(t *testing.T, body string) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	stubDocker(t, "")
+	if body != "" {
+		os.WriteFile(config.GlobalPath(), []byte(body), 0o644)
+	}
+	return home
+}
+
+func readGlobal(t *testing.T) string {
+	t.Helper()
+	b, _ := os.ReadFile(config.GlobalPath())
+	return string(b)
+}
+
+func TestConfigGlobalCreatesFile(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-version=8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "versions:\n  mysql: \"8.4\"\n" {
+		t.Fatalf("%q", got)
+	}
+	mustContain(t, out, "versions.mysql: 8.0 → 8.4", "Run: lodev services up to apply")
+}
+
+func TestConfigGlobalCreatesHome(t *testing.T) {
+	t.Setenv("LODEV_HOME", filepath.Join(t.TempDir(), "nested", "home"))
+	stubDocker(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--http-port=8081"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "ports:\n  http: 8081\n" {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestConfigGlobalEnableDisable(t *testing.T) {
+	newGlobalHome(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--enable-services=rabbitmq,mariadb", "--disable-services=opensearch"); err != nil {
+		t.Fatal(err)
+	}
+	g, err := config.LoadGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !g.Services["rabbitmq"] || !g.Services["mariadb"] || g.Services["opensearch"] {
+		t.Fatalf("%v", g.Services)
+	}
+}
+
+func TestConfigGlobalFlagErrors(t *testing.T) {
+	newGlobalHome(t, "")
+	cases := [][2]string{
+		{"--enable-services=redis --disable-services=redis", "--enable-services and --disable-services both name redis"},
+		{"--enable-services=nope", `unknown service "nope" (allowed: mysql, redis,`},
+		{"--http-port=abc", `--http-port "abc" is not a number`},
+	}
+	for _, c := range cases {
+		_, _, err := runConfig(t, newConfigGlobalCmd, strings.Fields(c[0])...)
+		if err == nil || !strings.HasPrefix(err.Error(), c[1]) {
+			t.Errorf("%s: %v", c[0], err)
+		}
+	}
+	if _, err := os.Stat(config.GlobalPath()); !os.IsNotExist(err) {
+		t.Fatal("file created")
+	}
+}
+
+func TestConfigGlobalInvalidKeepsFile(t *testing.T) {
+	body := "# keep\nports:\n  dashboard: 8080\n"
+	newGlobalHome(t, body)
+	_, _, err := runConfig(t, newConfigGlobalCmd, "--https-port=8080")
+	if err == nil || err.Error() != "not saved: ports.https and ports.dashboard are both 8080" {
+		t.Fatal(err)
+	}
+	if readGlobal(t) != body {
+		t.Fatal("file changed")
+	}
+}
+
+func TestConfigGlobalDeleteKey(t *testing.T) {
+	newGlobalHome(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-port=3306"); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-port=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readGlobal(t), "mysql:") {
+		t.Fatalf("kept:\n%s", readGlobal(t))
+	}
+	mustContain(t, out, "ports.mysql: 3306 → (unset)")
+}
+
+func TestConfigGlobalDisableWarns(t *testing.T) {
+	newGlobalHome(t, "")
+	dir := t.TempDir()
+	p, err := newProjectConfig(dir, "a", "laravel", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SaveProject(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := (registry.Registry{"a": {Path: dir}}).Save(); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--disable-services=redis")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, errOut, "project a uses redis")
+}
+
+func TestConfigGlobalShowTable(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "ports.http", "80", "versions.mysql", "8.0")
+}

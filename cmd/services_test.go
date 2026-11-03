@@ -244,3 +244,17 @@ func TestVolumesWarningNamesAllData(t *testing.T) {
 		}
 	}
 }
+
+func TestSetServiceKeepsComments(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	path := filepath.Join(home, "config.yaml")
+	os.WriteFile(path, []byte("# mine\nservices:\n  redis: true\n"), 0o644)
+	if err := setService("rabbitmq", true); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	if s := string(b); !strings.Contains(s, "# mine") || !strings.Contains(s, "rabbitmq: true") || strings.Contains(s, "ports:") {
+		t.Fatalf("%s", s)
+	}
+}
