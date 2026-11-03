@@ -58,7 +58,14 @@ type Project struct {
 	Root          string   `yaml:"-"`
 }
 
-func configPath(root string) string { return filepath.Join(root, ".lodev", "config.yaml") }
+// ProjectPath is the project's config file.
+func ProjectPath(root string) string { return filepath.Join(root, ".lodev", "config.yaml") }
+
+// ValidationError is a config that parsed but failed Validate.
+type ValidationError struct{ Err error }
+
+func (e *ValidationError) Error() string { return e.Err.Error() }
+func (e *ValidationError) Unwrap() error { return e.Err }
 
 // FindRoot walks up from start to the directory holding .lodev/config.yaml.
 func FindRoot(start string) (string, error) {
@@ -67,7 +74,7 @@ func FindRoot(start string) (string, error) {
 		return "", err
 	}
 	for {
-		if _, err := os.Stat(configPath(dir)); err == nil {
+		if _, err := os.Stat(ProjectPath(dir)); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -79,18 +86,28 @@ func FindRoot(start string) (string, error) {
 }
 
 func LoadProject(root string) (*Project, error) {
-	data, err := os.ReadFile(configPath(root))
+	data, err := os.ReadFile(ProjectPath(root))
 	if err != nil {
 		return nil, err
 	}
+	p, err := ParseProject(root, data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ProjectPath(root), err)
+	}
+	return p, nil
+}
+
+// ParseProject decodes a project config, applies defaults and validates it.
+// A *ValidationError comes with the decoded project; a YAML error with nil.
+func ParseProject(root string, data []byte) (*Project, error) {
 	p := &Project{}
 	if err := yaml.Unmarshal(data, p); err != nil {
-		return nil, fmt.Errorf("%s: %w", configPath(root), err)
+		return nil, err
 	}
 	p.Root = root
 	p.ApplyDefaults()
 	if err := p.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", configPath(root), err)
+		return p, &ValidationError{err}
 	}
 	return p, nil
 }
@@ -100,10 +117,10 @@ func SaveProject(p *Project) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(configPath(p.Root)), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(ProjectPath(p.Root)), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(configPath(p.Root), data, 0o644)
+	return os.WriteFile(ProjectPath(p.Root), data, 0o644)
 }
 
 func (p *Project) ApplyDefaults() {
@@ -145,6 +162,11 @@ func (p *Project) Validate() error {
 	}
 	if err := oneOf("webserver", p.Webserver, Webservers); err != nil {
 		return err
+	}
+	if d := p.Docroot; d != "" {
+		if c := filepath.Clean(d); filepath.IsAbs(d) || c == ".." || strings.HasPrefix(c, "../") {
+			return fmt.Errorf("docroot %q must be a folder inside the project", d)
+		}
 	}
 	for _, d := range p.Domains {
 		if !domainRe.MatchString(d) {

@@ -49,7 +49,8 @@ func (g *Global) Image(svc string) string {
 	return svc + ":" + v
 }
 
-func globalPath() string { return filepath.Join(Home(), "config.yaml") }
+// GlobalPath is the global config file.
+func GlobalPath() string { return filepath.Join(Home(), "config.yaml") }
 
 func defaultGlobal() *Global {
 	g := &Global{Services: map[string]bool{}, Versions: maps.Clone(DefaultVersions)}
@@ -63,17 +64,24 @@ func defaultGlobal() *Global {
 
 // LoadGlobal reads ~/.lodev/config.yaml over the defaults; a missing file means defaults.
 func LoadGlobal() (*Global, error) {
-	g := defaultGlobal()
-	data, err := os.ReadFile(globalPath())
-	if errors.Is(err, os.ErrNotExist) {
-		return g, nil
-	}
-	if err != nil {
+	data, err := os.ReadFile(GlobalPath())
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	g, err := ParseGlobal(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", GlobalPath(), err)
+	}
+	return g, nil
+}
+
+// ParseGlobal decodes a global config over the defaults and validates it.
+// A *ValidationError comes with the decoded config; a YAML error with nil.
+func ParseGlobal(data []byte) (*Global, error) {
+	g := defaultGlobal()
 	// yaml.v3 merges into the pre-filled struct and map, so absent keys keep defaults.
 	if err := yaml.Unmarshal(data, g); err != nil {
-		return nil, fmt.Errorf("%s: %w", globalPath(), err)
+		return nil, err
 	}
 	// An empty `versions:` or `services:` block decodes as null and drops the whole default map.
 	d := defaultGlobal()
@@ -84,7 +92,7 @@ func LoadGlobal() (*Global, error) {
 		g.Services = d.Services
 	}
 	if err := g.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", globalPath(), err)
+		return g, &ValidationError{err}
 	}
 	return g, nil
 }
@@ -97,7 +105,7 @@ func SaveGlobal(g *Global) error {
 	if err := os.MkdirAll(Home(), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(globalPath(), data, 0o644)
+	return os.WriteFile(GlobalPath(), data, 0o644)
 }
 
 func (g *Global) Validate() error {
@@ -111,6 +119,25 @@ func (g *Global) Validate() error {
 	}
 	if g.Ports.MariaDB != "" && g.Ports.MariaDB == g.Ports.MySQL {
 		return errors.New("ports.mariadb must differ from ports.mysql")
+	}
+	ports := []struct{ key, val string }{
+		{"http", strconv.Itoa(g.Ports.HTTP)}, {"https", strconv.Itoa(g.Ports.HTTPS)},
+		{"dashboard", strconv.Itoa(g.Ports.Dashboard)}, {"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB},
+	}
+	for _, p := range []struct {
+		key string
+		n   int
+	}{{"http", g.Ports.HTTP}, {"https", g.Ports.HTTPS}, {"dashboard", g.Ports.Dashboard}} {
+		if p.n < 1 || p.n > 65535 {
+			return fmt.Errorf("ports.%s %d is not a valid port", p.key, p.n)
+		}
+	}
+	for i, a := range ports {
+		for _, b := range ports[i+1:] {
+			if a.val != "" && a.val == b.val && a.key != "mysql" { // mysql/mariadb is reported above
+				return fmt.Errorf("ports.%s and ports.%s are both %s", a.key, b.key, a.val)
+			}
+		}
 	}
 	for s := range g.Services {
 		if err := oneOf("services", s, SharedServices); err != nil {

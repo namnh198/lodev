@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -271,7 +272,7 @@ func TestSaveProjectOmitsUser(t *testing.T) {
 	if err := SaveProject(p); err != nil {
 		t.Fatal(err)
 	}
-	data, _ := os.ReadFile(configPath(p.Root))
+	data, _ := os.ReadFile(ProjectPath(p.Root))
 	if strings.Contains(string(data), "user:") {
 		t.Fatalf("user: written:\n%s", data)
 	}
@@ -288,5 +289,34 @@ func TestProjectDB(t *testing.T) {
 	p.ApplyDefaults()
 	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "use either mysql or mariadb, not both") {
 		t.Fatal(err)
+	}
+}
+
+func TestParseProjectValidationError(t *testing.T) {
+	p, err := ParseProject("/r", []byte("name: x\ntype: php\nphp: \"9.9\"\n"))
+	var ve *ValidationError
+	if !errors.As(err, &ve) || p == nil || p.PHP != "9.9" || p.Root != "/r" || p.Webserver != "nginx" {
+		t.Fatalf("got %+v, %v", p, err)
+	}
+	if p, err := ParseProject("/r", []byte("name: [")); err == nil || p != nil || errors.As(err, &ve) {
+		t.Fatalf("yaml error: %+v, %v", p, err)
+	}
+}
+
+func TestDocrootMustStayInProject(t *testing.T) {
+	base := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"x.test"}}
+	for _, d := range []string{"/abs", "..", "../x", "a/../../x"} {
+		p := base
+		p.Docroot = d
+		if err := p.Validate(); err == nil || err.Error() != fmt.Sprintf("docroot %q must be a folder inside the project", d) {
+			t.Errorf("%q: %v", d, err)
+		}
+	}
+	for _, d := range []string{"public", "web/sub", ""} {
+		p := base
+		p.Docroot = d
+		if err := p.Validate(); err != nil {
+			t.Errorf("%q: %v", d, err)
+		}
 	}
 }

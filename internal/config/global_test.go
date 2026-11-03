@@ -193,3 +193,33 @@ func TestGlobalEmptyBlocksKeepDefaults(t *testing.T) {
 		t.Fatalf("versions %v, services %v", g.Versions, g.Services)
 	}
 }
+
+func TestGlobalPortRules(t *testing.T) {
+	cases := []struct {
+		set  func(g *Global)
+		want string
+	}{
+		{func(g *Global) { g.Ports.HTTP = 0 }, "ports.http 0 is not a valid port"},
+		{func(g *Global) { g.Ports.Dashboard = 70000 }, "ports.dashboard 70000 is not a valid port"},
+		{func(g *Global) { g.Ports.HTTPS = 8080 }, "ports.https and ports.dashboard are both 8080"},
+		{func(g *Global) { g.Ports.MySQL = "443" }, "ports.https and ports.mysql are both 443"},
+		{func(g *Global) { g.Ports.MySQL, g.Ports.MariaDB = "3306", "3306" }, "ports.mariadb must differ from ports.mysql"},
+	}
+	for _, c := range cases {
+		g := defaultGlobal()
+		c.set(g)
+		if err := g.Validate(); err == nil || err.Error() != c.want {
+			t.Errorf("want %q, got %v", c.want, err)
+		}
+	}
+	if err := defaultGlobal().Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParseGlobalEmpty(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || g.Ports.HTTP != 80 || g.Versions["mysql"] != "8.0" {
+		t.Fatalf("%+v %v", g, err)
+	}
+}
