@@ -65,8 +65,13 @@ fi
 
 $sudo mkdir -p "$PREFIX/bin" "$PREFIX/share/bash-completion/completions" \
 	"$PREFIX/share/zsh/site-functions" "$PREFIX/share/fish/vendor_completions.d"
-$sudo cp "$src/lodev" "$PREFIX/bin/lodev"
-$sudo chmod 0755 "$PREFIX/bin/lodev"
+# A new file renamed into place, not cp into the old one: that would keep the old file's
+# com.apple.quarantine (e.g. from a browser download) and can kill a running signed binary on macOS.
+$sudo install -m 0755 "$src/lodev" "$PREFIX/bin/.lodev-install-new"
+$sudo mv -f "$PREFIX/bin/.lodev-install-new" "$PREFIX/bin/lodev"
+if [ "$os" = darwin ]; then
+	$sudo xattr -d com.apple.quarantine "$PREFIX/bin/lodev" 2>/dev/null || true
+fi
 $sudo cp "$src/completions/lodev.bash" "$PREFIX/share/bash-completion/completions/lodev"
 $sudo cp "$src/completions/_lodev" "$PREFIX/share/zsh/site-functions/_lodev"
 $sudo cp "$src/completions/lodev.fish" "$PREFIX/share/fish/vendor_completions.d/lodev.fish"

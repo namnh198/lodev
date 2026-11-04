@@ -25,6 +25,11 @@ It picks the archive for your OS and CPU (x86_64 / arm64), verifies its sha256 a
 release's `checksums.txt`, and installs `lodev` plus completions under `/usr/local` (sudo only
 if needed). Options: `VERSION=v1.2.3` (default: latest), `PREFIX=$HOME/.local`.
 
+On macOS it also clears `com.apple.quarantine`, so Gatekeeper does not block lodev. `curl`,
+Homebrew and `lodev self-upgrade` never set it; only a browser download does. If you
+unpacked an archive downloaded with a browser yourself, run
+`xattr -d com.apple.quarantine /path/to/lodev` once.
+
 ### Homebrew (macOS, Linux)
 
 ```bash
