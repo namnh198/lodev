@@ -269,3 +269,14 @@ func TestGlobalMongoDBPort(t *testing.T) {
 		}
 	}
 }
+
+func TestGlobalDockerToolKeys(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || g.UseDockerComposeSystem || g.UseDockerBuildxSystem {
+		t.Errorf("defaults: %v %v %v", g.UseDockerComposeSystem, g.UseDockerBuildxSystem, err)
+	}
+	g, _ = ParseGlobal([]byte("use_docker_compose_system: true\n"))
+	if !g.UseDockerComposeSystem || g.UseDockerBuildxSystem {
+		t.Errorf("compose key: %v %v", g.UseDockerComposeSystem, g.UseDockerBuildxSystem)
+	}
+}

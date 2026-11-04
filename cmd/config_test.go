@@ -418,3 +418,20 @@ func TestConfigGlobalMongoDB(t *testing.T) {
 	}
 	mustContain(t, out, "versions.mongodb: 8 → 7")
 }
+
+func TestConfigGlobalDockerTools(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--use-docker-compose-system=true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "use_docker_compose_system: true\n" {
+		t.Errorf("file: %q", got)
+	}
+	mustContain(t, out, "use_docker_compose_system: false → true")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--use-docker-buildx-system=maybe"); err == nil || !strings.Contains(err.Error(), `--use-docker-buildx-system "maybe" is not true or false`) {
+		t.Errorf("err = %v", err)
+	}
+	out, _, _ = runConfig(t, newConfigGlobalCmd)
+	mustContain(t, out, "use_docker_compose_system", "use_docker_buildx_system")
+}

@@ -304,7 +304,9 @@ func globalValues(g *config.Global) [][2]string {
 	for _, s := range config.VersionedServices {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
-	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)})
+	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
+		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
+		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
 }
 
 // loadGlobalForEdit reads the global config; one that only fails validation is returned as is.
@@ -402,13 +404,17 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
 	}
-	if fl.Changed("update-check") {
-		v, _ := fl.GetString("update-check")
+	for _, k := range []string{"update_check", "use_docker_compose_system", "use_docker_buildx_system"} {
+		flag := strings.ReplaceAll(k, "_", "-")
+		if !fl.Changed(flag) {
+			continue
+		}
+		v, _ := fl.GetString(flag)
 		b, err := strconv.ParseBool(v)
 		if v != "" && err != nil {
-			return nil, fmt.Errorf("--update-check %q is not true or false", v)
+			return nil, fmt.Errorf("--%s %q is not true or false", flag, v)
 		}
-		set([]string{"update_check"}, "update-check", b)
+		set([]string{k}, flag, b)
 	}
 	on, _ := fl.GetStringSlice("enable-services")
 	off, _ := fl.GetStringSlice("disable-services")
@@ -482,6 +488,8 @@ func newConfigGlobalCmd() *cobra.Command {
 	}
 	f.String("opensearch-memory", "", `OpenSearch memory limit: 1g | 2g | 3g | 4g ("" = 2g)`)
 	f.String("update-check", "", `check for new lodev versions: true | false ("" = true)`)
+	f.String("use-docker-compose-system", "", `run the system docker compose instead of lodev's pinned one: true | false ("" = false)`)
+	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
 	return c

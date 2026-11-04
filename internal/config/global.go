@@ -29,6 +29,9 @@ type Global struct {
 		OpenSearch string `yaml:"opensearch"`
 	} `yaml:"memory"`
 	UpdateCheck bool `yaml:"update_check"`
+	// Run the system docker compose / docker build instead of lodev's pinned binaries.
+	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
+	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
 }
 
 var (
