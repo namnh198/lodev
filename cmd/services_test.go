@@ -134,9 +134,14 @@ func TestPoweroff(t *testing.T) {
 	os.MkdirAll(filepath.Dir(servicesFile()), 0o755)
 	os.WriteFile(servicesFile(), nil, 0o644)
 	calls := stubDocker(t, "lodev-b-web\nlodev-x-web")
+	out, _, restore := ui.Capture(false)
+	defer restore()
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
+	// Stopping prints nothing else, so say what is happening.
+	mustContain(t, out.String(), "Powering off lodev: stopping all projects and shared services",
+		"Stopping project a", "Stopping project b", "Stopping project x", "lodev is powered off")
 	// By label, not `compose -p … stop`: compose would read a docker-compose.yml in the cwd
 	// and silently skip containers whose service is not in it.
 	// Containers (stopped ones too) and the project network are removed, like compose down:

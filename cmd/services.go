@@ -182,6 +182,8 @@ func runningProjects() ([]string, error) {
 
 // poweroff stops every project (known or still running) and takes the shared services down.
 func poweroff() error {
+	// The stops below print nothing, so say up front what is happening.
+	ui.Info("Powering off lodev: stopping all projects and shared services")
 	reg, err := registry.Load()
 	if err != nil {
 		return err
@@ -204,6 +206,7 @@ func poweroff() error {
 			return err
 		}
 		if ids != "" {
+			ui.Info("Stopping project %s", name)
 			for _, sub := range []string{"stop", "rm"} {
 				// Output, not Run: docker prints every ID it stops or removes.
 				if _, err := dockerOutput(append([]string{sub}, strings.Fields(ids)...)...); err != nil {
