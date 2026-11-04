@@ -107,8 +107,8 @@ func newSelfUpgradeCmd() *cobra.Command {
 			var targets []upgradeTarget
 			prefix := filepath.Dir(filepath.Dir(exe))
 			for _, name := range []string{"lodev.bash", "_lodev", "lodev.fish"} {
-				dst := filepath.Join(prefix, completionPaths[name])
-				if _, err := os.Stat(dst); err == nil {
+				// Resolved like exe, so a symlinked completion (e.g. GNU stow) stays a symlink.
+				if dst, err := filepath.EvalSymlinks(filepath.Join(prefix, completionPaths[name])); err == nil {
 					targets = append(targets, upgradeTarget{src: filepath.Join("completions", name), dst: dst, mode: 0o644})
 				}
 			}

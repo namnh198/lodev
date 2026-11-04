@@ -323,3 +323,23 @@ func TestSelfUpgradeLatestHasDeadline(t *testing.T) {
 		t.Error("the latest-version lookup has no deadline")
 	}
 }
+
+func TestSelfUpgradeKeepsSymlinkedCompletion(t *testing.T) {
+	f := upgradeFixture(t)
+	link := filepath.Join(f.prefix, "share/zsh/site-functions/_lodev")
+	real := filepath.Join(t.TempDir(), "dotfiles", "_lodev") // e.g. managed with GNU stow
+	writeFile(t, real, "c-old")
+	os.Remove(link)
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runUpgrade(t); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("completion symlink replaced by a regular file: %v %v", fi, err)
+	}
+	if got := readFile(t, real); got != "c-new" {
+		t.Errorf("symlink target = %q", got)
+	}
+}
