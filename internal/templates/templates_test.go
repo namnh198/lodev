@@ -382,7 +382,8 @@ func TestSharedComposeMongoDB(t *testing.T) {
 			t.Errorf("mongodb env lacks %s: %v", e, m.Environment)
 		}
 	}
-	if !slices.Contains(m.Healthcheck.Test, "mongosh") {
+	// mongosh ships with mongo 5+, the legacy mongo shell with 4.4 and older (versions.mongodb may pin either).
+	if h := m.Healthcheck.Test; len(h) != 2 || h[0] != "CMD-SHELL" || !strings.Contains(h[1], "mongosh --quiet") || !strings.Contains(h[1], "|| mongo --quiet") {
 		t.Errorf("mongodb healthcheck %v", m.Healthcheck.Test)
 	}
 	me := def["mongo-express"]

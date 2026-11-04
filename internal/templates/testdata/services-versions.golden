@@ -159,7 +159,8 @@ services:
       - lodev-mongodb:/data/db
       - lodev-mongodb-config:/data/configdb
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      # mongosh ships with mongo 5+, the legacy mongo shell with 4.4 and older.
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping')\" || mongo --quiet --eval \"db.adminCommand('ping')\""]
       interval: 5s
       retries: 20
     networks: [lodev]
