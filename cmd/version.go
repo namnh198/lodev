@@ -6,6 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"lodev/internal/config"
+	"lodev/internal/dockertools"
 )
 
 // Version is set at build time: go build -ldflags "-X lodev/cmd.Version=v1.2.0".
@@ -54,16 +57,37 @@ func dockerValue(args ...string) string {
 	return out
 }
 
+// installedTool is the version of lodev's managed binary; swapped in tests.
+var installedTool = dockertools.Installed
+
+// toolVersion is the compose or buildx version lodev runs, without downloading anything.
+func toolVersion(t dockertools.Tool, system bool, query ...string) string {
+	if !system {
+		if installedTool(t) == t.Version() {
+			return t.Version() + " (lodev)"
+		}
+		return t.Version() + " (lodev, not downloaded yet)"
+	}
+	v := dockerValue(query...)
+	if f := strings.Fields(v); t == dockertools.Buildx && len(f) > 1 {
+		v = f[1] // "github.com/docker/buildx v0.37.2 <commit>"
+	}
+	if v == "unavailable" {
+		return v
+	}
+	return "v" + strings.TrimPrefix(v, "v") + " (system)"
+}
+
 func versionRows() [][]string {
-	buildx := dockerValue("buildx", "version") // "github.com/docker/buildx v0.37.2 <commit>"
-	if f := strings.Fields(buildx); len(f) > 1 {
-		buildx = f[1]
+	g, err := config.LoadGlobal()
+	if err != nil {
+		g = &config.Global{} // the managed default, as docker.command does
 	}
 	return [][]string{
 		{"lodev", lodevVersion()},
 		{"Docker", dockerValue("version", "--format", "{{.Server.Version}}")},
-		{"Docker Compose", dockerValue("compose", "version", "--short")},
-		{"Docker Buildx", buildx},
+		{"Docker Compose", toolVersion(dockertools.Compose, g.UseDockerComposeSystem, "compose", "version", "--short")},
+		{"Docker Buildx", toolVersion(dockertools.Buildx, g.UseDockerBuildxSystem, "buildx", "version")},
 		{"OS", runtime.GOOS},
 		{"Architecture", runtime.GOARCH},
 	}

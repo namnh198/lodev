@@ -181,7 +181,19 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   mongodb: "8"      # mongo:<v>
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
+use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
+use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
 ```
+
+### Docker Compose and Buildx
+
+lodev runs its own pinned Docker Compose (v5.7.0) and Buildx (v0.38.2), so every machine behaves
+the same whatever Docker plugins it has, or lacks. The first command that needs one downloads it
+to `~/.lodev/bin/` (sha256-checked, with a progress bar); upgrading lodev replaces it when the pin
+changes. If the download fails, lodev warns and uses the system plugin. Set
+`use_docker_compose_system: true` / `use_docker_buildx_system: true` (or
+`lodev config-global --use-docker-compose-system=true`) to always use the system ones.
+`lodev version` shows which one runs.
 
 Changing a MySQL/MariaDB version recreates its container on the existing data volume;
 `lodev services up` warns when the image changes. Dump your databases first: a major
