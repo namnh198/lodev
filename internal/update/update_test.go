@@ -109,3 +109,31 @@ func TestCacheRoundTrip(t *testing.T) {
 		t.Errorf("missing file: %+v", got)
 	}
 }
+
+func TestDetectManager(t *testing.T) {
+	defer func(d, p string) { DpkgInfoDir, PacmanLocalDir = d, p }(DpkgInfoDir, PacmanLocalDir)
+	DpkgInfoDir, PacmanLocalDir = t.TempDir(), t.TempDir()
+	check := func(exe, name, cmd string) {
+		t.Helper()
+		m := DetectManager(exe)
+		if m.Name != name || (cmd != "" && m.Command != cmd) {
+			t.Errorf("DetectManager(%q) = %+v, want %s %q", exe, m, name, cmd)
+		}
+	}
+	check("/opt/homebrew/Cellar/lodev/1.2.0/bin/lodev", "Homebrew", "brew upgrade lodev")
+	check("/nix/store/abc-lodev-1.2.0/bin/lodev", "Nix", "update lodev with nix (e.g. nix profile upgrade lodev)")
+	check("/usr/local/bin/lodev", "", "lodev self-upgrade")
+	check("/usr/bin/lodev", "", "lodev self-upgrade")
+
+	if err := os.WriteFile(filepath.Join(DpkgInfoDir, "lodev.list"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	check("/usr/bin/lodev", "apt", "download the .deb from https://github.com/namnh198/lodev/releases/latest and run: sudo apt install ./lodev_*.deb")
+	check("/usr/local/bin/lodev", "", "lodev self-upgrade") // a manual install next to a .deb stays upgradable
+
+	DpkgInfoDir = t.TempDir()
+	if err := os.Mkdir(filepath.Join(PacmanLocalDir, "lodev-bin-1.2.0-1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	check("/usr/bin/lodev", "AUR", "update lodev-bin from the AUR (e.g. yay -Syu lodev-bin)")
+}

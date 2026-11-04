@@ -63,6 +63,35 @@ func Latest(ctx context.Context) (string, error) {
 	return tag, nil
 }
 
+// Package databases that mark /usr/bin/lodev as owned by a package.
+var (
+	DpkgInfoDir    = "/var/lib/dpkg/info"
+	PacmanLocalDir = "/var/lib/pacman/local"
+)
+
+// Manager is the package manager that installed lodev; Name "" means a manual install.
+type Manager struct{ Name, Command string }
+
+// DetectManager says how the lodev at exe (symlinks already resolved) was installed.
+func DetectManager(exe string) Manager {
+	switch {
+	case strings.Contains(exe, "/Cellar/"):
+		return Manager{"Homebrew", "brew upgrade lodev"}
+	case strings.HasPrefix(exe, "/nix/store/"):
+		return Manager{"Nix", "update lodev with nix (e.g. nix profile upgrade lodev)"}
+	}
+	// The .deb and AUR packages install /usr/bin/lodev; a manual install elsewhere stays upgradable.
+	if exe == "/usr/bin/lodev" {
+		if _, err := os.Stat(filepath.Join(DpkgInfoDir, "lodev.list")); err == nil {
+			return Manager{"apt", "download the .deb from https://github.com/namnh198/lodev/releases/latest and run: sudo apt install ./lodev_*.deb"}
+		}
+		if m, _ := filepath.Glob(filepath.Join(PacmanLocalDir, "lodev-bin-*")); len(m) > 0 {
+			return Manager{"AUR", "update lodev-bin from the AUR (e.g. yay -Syu lodev-bin)"}
+		}
+	}
+	return Manager{Command: "lodev self-upgrade"}
+}
+
 // CacheTTL is how long a check result is reused before GitHub is asked again.
 const CacheTTL = 4 * time.Hour
 
