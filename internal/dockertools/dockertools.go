@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,7 +20,6 @@ import (
 	"golang.org/x/term"
 
 	"lodev/internal/config"
-	"lodev/internal/update"
 )
 
 type Tool int
@@ -40,6 +40,20 @@ var (
 	ComposeBase = "https://github.com/docker/compose/releases/download"
 	BuildxBase  = "https://github.com/docker/buildx/releases/download"
 )
+
+// client fails fast on a network that silently drops GitHub traffic; the overall timeout bounds the body.
+var client = &http.Client{
+	Timeout: 10 * time.Minute,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+	},
+}
+
+// retryAfter is how long a failed download is not retried, so a blocked network costs one wait.
+const retryAfter = time.Hour
 
 // Where the download line and progress bar go; swapped in tests.
 var (
@@ -109,10 +123,25 @@ func Path(t Tool) (string, error) {
 	if Installed(t) == t.Version() {
 		return File(t), nil
 	}
+	stamp := failedStamp(t)
+	if fi, err := os.Stat(stamp); err == nil && time.Since(fi.ModTime()) < retryAfter {
+		reason, _ := os.ReadFile(stamp)
+		return "", fmt.Errorf("download failed recently (%s); retrying after %s", strings.TrimSpace(string(reason)), fi.ModTime().Add(retryAfter).Format("15:04"))
+	}
 	if err := download(t); err != nil {
+		// Best effort: without the stamp the next command just retries.
+		if os.MkdirAll(filepath.Dir(stamp), 0o755) == nil {
+			os.WriteFile(stamp, []byte(err.Error()), 0o644)
+		}
 		return "", err
 	}
+	os.Remove(stamp)
 	return File(t), nil
+}
+
+// failedStamp records the last failed download of t (its time and reason).
+func failedStamp(t Tool) string {
+	return filepath.Join(filepath.Dir(File(t)), "."+t.Name()+".failed")
 }
 
 func download(t Tool) error {
@@ -180,7 +209,7 @@ func checksum(t Tool, asset string) (string, error) {
 
 func get(t Tool, file string) (*http.Response, error) {
 	u := t.base() + "/" + t.Version() + "/" + file
-	resp, err := update.DownloadClient.Get(u)
+	resp, err := client.Get(u)
 	if err != nil {
 		return nil, err
 	}

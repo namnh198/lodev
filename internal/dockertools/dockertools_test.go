@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -130,9 +131,8 @@ func TestPathChecksumMismatch(t *testing.T) {
 	if _, err := Path(Compose); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("err = %v", err)
 	}
-	entries, _ := os.ReadDir(filepath.Dir(File(Compose)))
-	if len(entries) != 0 {
-		t.Errorf("left behind: %v", entries)
+	if left := tempFiles(t); len(left) > 0 || fileExists(File(Compose)) {
+		t.Errorf("left behind: %v", left)
 	}
 }
 
@@ -147,9 +147,8 @@ func TestPathFailureKeepsOldFile(t *testing.T) {
 	if b, _ := os.ReadFile(File(Compose)); string(b) != old {
 		t.Errorf("old file changed: %q", b)
 	}
-	entries, _ := os.ReadDir(filepath.Dir(File(Compose)))
-	if len(entries) != 1 {
-		t.Errorf("bin folder: %v", entries)
+	if left := tempFiles(t); len(left) > 0 {
+		t.Errorf("temp files left: %v", left)
 	}
 }
 
@@ -170,5 +169,58 @@ func TestPathBuildxSignedChecksums(t *testing.T) {
 	}
 	if got := Installed(Buildx); got != "v0.38.2" {
 		t.Errorf("Installed = %q", got)
+	}
+}
+
+// A network that drops GitHub traffic must not make every lodev command wait again.
+func TestPathFailureBacksOff(t *testing.T) {
+	r := fakeRelease(t, Compose, composeScript)
+	r.missing = true
+	if _, err := Path(Compose); err == nil {
+		t.Fatal("want an error")
+	}
+	n := r.requests
+	_, err := Path(Compose)
+	if err == nil || !strings.Contains(err.Error(), "download failed recently") || !strings.Contains(err.Error(), "HTTP 404") || r.requests != n {
+		t.Fatalf("second Path: %v, %d new requests", err, r.requests-n)
+	}
+	// After the back-off it tries again, and a success clears the stamp.
+	old := time.Now().Add(-2 * time.Hour)
+	os.Chtimes(failedStamp(Compose), old, old)
+	r.missing = false
+	if _, err := Path(Compose); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(failedStamp(Compose)); !os.IsNotExist(err) {
+		t.Error("stamp kept after a successful download")
+	}
+}
+
+func TestClientFailsFast(t *testing.T) {
+	tr, ok := client.Transport.(*http.Transport)
+	if !ok || tr.ResponseHeaderTimeout == 0 || tr.ResponseHeaderTimeout > 15*time.Second || tr.TLSHandshakeTimeout == 0 || tr.Proxy == nil {
+		t.Errorf("transport %+v", client.Transport)
+	}
+	if client.Timeout == 0 {
+		t.Error("no overall timeout")
+	}
+}
+
+// tempFiles are partial downloads (.docker-compose-*), not the .failed stamp.
+func tempFiles(t *testing.T) []string {
+	t.Helper()
+	all, _ := filepath.Glob(filepath.Join(filepath.Dir(File(Compose)), ".docker-compose-*"))
+	return all
+}
+
+func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// The checksum fetch can fail before bin/ exists; the stamp must still be written.
+func TestPathFailureBeforeBinDir(t *testing.T) {
+	r := fakeRelease(t, Compose, composeScript)
+	r.sums = "" // asset not listed: fails before any file is written
+	Path(Compose)
+	if !fileExists(failedStamp(Compose)) {
+		t.Error("no stamp after an early failure")
 	}
 }
