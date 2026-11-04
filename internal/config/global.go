@@ -27,6 +27,7 @@ type Global struct {
 	Memory   struct {
 		OpenSearch string `yaml:"opensearch"`
 	} `yaml:"memory"`
+	UpdateCheck bool `yaml:"update_check"`
 }
 
 var (
@@ -56,6 +57,7 @@ func defaultGlobal() *Global {
 	g := &Global{Services: map[string]bool{}, Versions: maps.Clone(DefaultVersions)}
 	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 8080
 	g.Memory.OpenSearch = "2g"
+	g.UpdateCheck = true
 	for _, s := range SharedServices {
 		g.Services[s] = !slices.Contains(DefaultOff, s)
 	}

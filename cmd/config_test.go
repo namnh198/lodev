@@ -378,3 +378,26 @@ func TestConfigGlobalShowTable(t *testing.T) {
 	}
 	mustContain(t, out, "ports.http", "80", "versions.mysql", "8.0")
 }
+
+func TestConfigGlobalUpdateCheck(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--update-check=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "update_check: false\n" {
+		t.Errorf("file: %q", got)
+	}
+	mustContain(t, out, "update_check: true → false")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--update-check="); err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); strings.Contains(got, "update_check") {
+		t.Errorf("--update-check= should delete the key: %q", got)
+	}
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--update-check=maybe"); err == nil || !strings.Contains(err.Error(), `--update-check "maybe" is not true or false`) {
+		t.Errorf("err = %v", err)
+	}
+	out, _, _ = runConfig(t, newConfigGlobalCmd)
+	mustContain(t, out, "update_check", "true")
+}

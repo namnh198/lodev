@@ -223,3 +223,14 @@ func TestParseGlobalEmpty(t *testing.T) {
 		t.Fatalf("%+v %v", g, err)
 	}
 }
+
+func TestGlobalUpdateCheckDefault(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || !g.UpdateCheck {
+		t.Errorf("default: %v, %v", g.UpdateCheck, err)
+	}
+	g, err = ParseGlobal([]byte("update_check: false\n"))
+	if err != nil || g.UpdateCheck {
+		t.Errorf("update_check: false → %v, %v", g.UpdateCheck, err)
+	}
+}

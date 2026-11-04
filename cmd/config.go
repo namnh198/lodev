@@ -304,7 +304,7 @@ func globalValues(g *config.Global) [][2]string {
 	for _, s := range config.VersionedServices {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
-	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch})
+	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)})
 }
 
 // loadGlobalForEdit reads the global config; one that only fails validation is returned as is.
@@ -402,6 +402,14 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
 	}
+	if fl.Changed("update-check") {
+		v, _ := fl.GetString("update-check")
+		b, err := strconv.ParseBool(v)
+		if v != "" && err != nil {
+			return nil, fmt.Errorf("--update-check %q is not true or false", v)
+		}
+		set([]string{"update_check"}, "update-check", b)
+	}
 	on, _ := fl.GetStringSlice("enable-services")
 	off, _ := fl.GetStringSlice("disable-services")
 	if err := checkServices(append(slices.Clone(on), off...)); err != nil {
@@ -472,6 +480,7 @@ func newConfigGlobalCmd() *cobra.Command {
 		f.String(s+"-version", "", fmt.Sprintf(`%s version, e.g. %s ("" = default)`, s, config.DefaultVersions[s]))
 	}
 	f.String("opensearch-memory", "", `OpenSearch memory limit: 1g | 2g | 3g | 4g ("" = 2g)`)
+	f.String("update-check", "", `check for new lodev versions: true | false ("" = true)`)
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
 	return c
