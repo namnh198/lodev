@@ -79,28 +79,23 @@ func writeGlobalFile(t *testing.T, body string) {
 
 // lodev version must never start a download of the managed tools.
 func TestVersionRowsManaged(t *testing.T) {
-	t.Setenv("LODEV_HOME", t.TempDir())
-	defer func(o func(...string) (string, error), i func(dockertools.Tool) string) {
-		dockerOutput, installedTool = o, i
-	}(dockerOutput, installedTool)
+	t.Setenv("LODEV_HOME", t.TempDir()) // nothing downloaded here
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
 	var calls []string
 	dockerOutput = func(a ...string) (string, error) { calls = append(calls, a[0]); return "29.8.2", nil }
-	installedTool = func(tool dockertools.Tool) string {
-		if tool == dockertools.Compose {
-			return "v5.7.0"
-		}
-		return ""
-	}
 	got := map[string]string{}
 	for _, r := range versionRows() {
 		got[r[0]] = r[1]
 	}
-	if got["Docker Compose"] != "v5.7.0 (lodev)" || got["Docker Buildx"] != "v0.38.2 (lodev, not downloaded yet)" {
+	if got["Docker Compose"] != "v5.7.0 (lodev)" || got["Docker Buildx"] != "v0.38.2 (lodev)" {
 		t.Errorf("rows %v", got)
 	}
 	for _, c := range calls {
 		if c == "compose" || c == "buildx" {
 			t.Errorf("docker %s called", c)
 		}
+	}
+	if _, err := os.Stat(dockertools.File(dockertools.Compose)); !os.IsNotExist(err) {
+		t.Errorf("version downloaded docker-compose: %v", err)
 	}
 }

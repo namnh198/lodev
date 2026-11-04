@@ -57,16 +57,10 @@ func dockerValue(args ...string) string {
 	return out
 }
 
-// installedTool is the version of lodev's managed binary; swapped in tests.
-var installedTool = dockertools.Installed
-
 // toolVersion is the compose or buildx version lodev runs, without downloading anything.
 func toolVersion(t dockertools.Tool, system bool, query ...string) string {
 	if !system {
-		if installedTool(t) == t.Version() {
-			return t.Version() + " (lodev)"
-		}
-		return t.Version() + " (lodev, not downloaded yet)"
+		return t.Version() + " (lodev)"
 	}
 	v := dockerValue(query...)
 	if f := strings.Fields(v); t == dockertools.Buildx && len(f) > 1 {
