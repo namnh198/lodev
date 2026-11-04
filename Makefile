@@ -1,13 +1,14 @@
 # Build, package and install lodev. Run `make help`.
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty 2>/dev/null || echo dev)
 VER      = $(VERSION:v%=%)
+CHANNEL ?=
 REPO    ?= namnh198/lodev
 PREFIX  ?= /usr/local
 TARGETS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
 HOST    := $(shell go env GOOS)_$(shell go env GOARCH)
 HOSTBIN  = dist/bin/$(HOST)/lodev
-LDFLAGS  = -s -w -X lodev/cmd.Version=$(VERSION)
+LDFLAGS  = -s -w -X lodev/cmd.Version=$(VERSION) -X lodev/cmd.Channel=$(CHANNEL)
 LINUX_ARCHES = $(patsubst linux/%,%,$(filter linux/%,$(TARGETS)))
 
 .PHONY: build completions dist deb packaging packages install uninstall test clean help

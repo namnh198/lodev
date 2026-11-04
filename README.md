@@ -30,6 +30,19 @@ Homebrew and `lodev self-upgrade` never set it; only a browser download does. If
 unpacked an archive downloaded with a browser yourself, run
 `xattr -d com.apple.quarantine /path/to/lodev` once.
 
+### Pre-release (edge)
+
+Every push to `main` rebuilds the `edge` pre-release. To try it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | VERSION=edge sh
+```
+
+or `lodev self-upgrade --version edge`. An edge build reports its `git describe` version
+(e.g. `v0.1.1-3-g238f647`), shows no new-version notice, and `lodev self-upgrade` keeps it on edge.
+Go back to stable with `lodev self-upgrade --version v1.2.3`. Edge has archives only (no `.deb`,
+Homebrew or AUR).
+
 ### Homebrew (macOS, Linux)
 
 ```bash
@@ -88,6 +101,9 @@ archives, `.deb` files, `checksums.txt`, `lodev.rb`, `PKGBUILD` and `.SRCINFO` (
 like `v1.3.0-rc1`, is marked pre-release). Publishing is then manual: copy `lodev.rb` to
 `Formula/` in the `namnh198/homebrew-tap` repo, and `PKGBUILD` + `.SRCINFO` to the `lodev-bin`
 AUR repo; bump `version` in `flake.nix`.
+
+`.github/workflows/edge.yml` replaces the `edge` pre-release on every push to `main`
+(`make dist VER=edge CHANNEL=edge`); it is never marked latest, so stable users are not affected.
 
 ## Quick start
 

@@ -36,6 +36,9 @@ var (
 	}
 )
 
+// edgeTag is the rolling pre-release rebuilt on every push to main.
+const edgeTag = "edge"
+
 var tagRe = regexp.MustCompile(`^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 
 // completionPaths maps a downloaded completion to where install.sh / make install put it.
@@ -68,7 +71,21 @@ func newSelfUpgradeCmd() *cobra.Command {
 				return fmt.Errorf("lodev was installed by %s: %s", m.Name, m.Command)
 			}
 			tag, _ := c.Flags().GetString("version")
-			if tag != "" {
+			if tag == "" && Channel == edgeTag {
+				tag = edgeTag
+			}
+			switch tag {
+			case edgeTag:
+				// edge is a moving tag: there is no version to compare, so always fetch it.
+			case "":
+				if tag, err = latestVersion(c.Context()); err != nil {
+					return err
+				}
+				if update.Stable(Version) && !update.Newer(Version, tag) {
+					fmt.Fprintf(c.OutOrStdout(), "lodev %s is already the latest version\n", Version)
+					return nil
+				}
+			default:
 				if !strings.HasPrefix(tag, "v") {
 					tag = "v" + tag
 				}
@@ -77,14 +94,6 @@ func newSelfUpgradeCmd() *cobra.Command {
 				}
 				if tag == Version {
 					fmt.Fprintf(c.OutOrStdout(), "lodev %s is already installed\n", tag)
-					return nil
-				}
-			} else {
-				if tag, err = latestVersion(c.Context()); err != nil {
-					return err
-				}
-				if update.Stable(Version) && !update.Newer(Version, tag) {
-					fmt.Fprintf(c.OutOrStdout(), "lodev %s is already the latest version\n", Version)
 					return nil
 				}
 			}
@@ -120,7 +129,7 @@ func newSelfUpgradeCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().String("version", "", "install this version instead of the latest, e.g. v1.2.0")
+	c.Flags().String("version", "", "install this version instead of the latest, e.g. v1.2.0, or edge (built from main)")
 	return c
 }
 

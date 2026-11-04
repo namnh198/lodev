@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install lodev and its bash/zsh/fish completions from a GitHub release.
 #   curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | sh
-# Environment: VERSION (default: latest), PREFIX (default: /usr/local), REPO, BASE_URL.
+# Environment: VERSION (default: latest; edge = pre-release built from main), PREFIX (default: /usr/local), REPO, BASE_URL.
 set -eu
 
 REPO=${REPO:-namnh198/lodev}
@@ -32,7 +32,7 @@ if [ -z "${VERSION:-}" ]; then
 		fail "cannot find the latest release of $REPO"
 	VERSION=${VERSION##*/}
 fi
-case $VERSION in v*) ;; *) VERSION=v$VERSION ;; esac
+case $VERSION in v* | edge) ;; *) VERSION=v$VERSION ;; esac
 ver=${VERSION#v}
 name=lodev_${ver}_${os}_${arch}
 

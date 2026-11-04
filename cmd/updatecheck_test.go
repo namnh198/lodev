@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"lodev/internal/config"
-	"lodev/internal/update"
 	"lodev/internal/ui"
+	"lodev/internal/update"
 )
 
 var checkNow = time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)

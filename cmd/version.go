@@ -11,6 +11,9 @@ import (
 // Version is set at build time: go build -ldflags "-X lodev/cmd.Version=v1.2.0".
 var Version = "dev"
 
+// Channel is "edge" for the pre-release built from main (-X lodev/cmd.Channel=edge), else "".
+var Channel = ""
+
 // lodevVersion is Version, or "dev (<commit>[-dirty])" from the build info Go embeds.
 func lodevVersion() string {
 	if Version != "dev" {
