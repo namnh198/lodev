@@ -21,6 +21,7 @@ type Global struct {
 		Dashboard int    `yaml:"dashboard"`
 		MySQL     string `yaml:"mysql"`
 		MariaDB   string `yaml:"mariadb"`
+		MongoDB   string `yaml:"mongodb"`
 	} `yaml:"ports"`
 	Services map[string]bool   `yaml:"services"`
 	Versions map[string]string `yaml:"versions"`
@@ -31,8 +32,8 @@ type Global struct {
 }
 
 var (
-	VersionedServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq"}
-	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4"}
+	VersionedServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
+	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
 	versionRe         = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 )
 
@@ -46,6 +47,8 @@ func (g *Global) Image(svc string) string {
 		return "opensearchproject/opensearch:" + v
 	case "rabbitmq":
 		return "rabbitmq:" + v + "-management"
+	case "mongodb":
+		return "mongo:" + v
 	}
 	return svc + ":" + v
 }
@@ -111,7 +114,7 @@ func SaveGlobal(g *Global) error {
 }
 
 func (g *Global) Validate() error {
-	for _, p := range []struct{ key, val string }{{"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB}} {
+	for _, p := range []struct{ key, val string }{{"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB}, {"mongodb", g.Ports.MongoDB}} {
 		if p.val == "" {
 			continue
 		}
@@ -125,6 +128,7 @@ func (g *Global) Validate() error {
 	ports := []struct{ key, val string }{
 		{"http", strconv.Itoa(g.Ports.HTTP)}, {"https", strconv.Itoa(g.Ports.HTTPS)},
 		{"dashboard", strconv.Itoa(g.Ports.Dashboard)}, {"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB},
+		{"mongodb", g.Ports.MongoDB},
 	}
 	for _, p := range []struct {
 		key string
@@ -136,7 +140,7 @@ func (g *Global) Validate() error {
 	}
 	for i, a := range ports {
 		for _, b := range ports[i+1:] {
-			if a.val != "" && a.val == b.val && a.key != "mysql" { // mysql/mariadb is reported above
+			if a.val != "" && a.val == b.val && !(a.key == "mysql" && b.key == "mariadb") { // reported above
 				return fmt.Errorf("ports.%s and ports.%s are both %s", a.key, b.key, a.val)
 			}
 		}

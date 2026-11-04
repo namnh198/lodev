@@ -320,3 +320,10 @@ func TestDocrootMustStayInProject(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateReservedDomains(t *testing.T) {
+	p := &Project{Name: "demo", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"mongo.test"}}
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), `domain "mongo.test" is reserved by lodev`) {
+		t.Errorf("err = %v", err)
+	}
+}

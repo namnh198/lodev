@@ -18,10 +18,10 @@ var (
 	BundledPHP      = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
 	Types           = []string{"laravel", "wordpress", "magento", "php"}
 	Webservers      = []string{"nginx", "apache", "none"}
-	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb"}
-	ReservedDomains = []string{"mailpit.test", "phpmyadmin.test", "rabbitmq.test"}
+	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb", "mongodb", "mongo-express"}
+	ReservedDomains = []string{"mailpit.test", "phpmyadmin.test", "rabbitmq.test", "mongo.test"}
 	// DefaultOff lists shared services that stay off until enabled (or a project needs them).
-	DefaultOff = []string{"rabbitmq", "mariadb"}
+	DefaultOff = []string{"rabbitmq", "mariadb", "mongodb", "mongo-express"}
 )
 
 var (

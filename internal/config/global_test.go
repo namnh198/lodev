@@ -234,3 +234,38 @@ func TestGlobalUpdateCheckDefault(t *testing.T) {
 		t.Errorf("update_check: false → %v, %v", g.UpdateCheck, err)
 	}
 }
+
+func TestGlobalMongoDBDefaults(t *testing.T) {
+	g, err := ParseGlobal([]byte("ports:\n  http: 80\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Services["mongodb"] || g.Services["mongo-express"] {
+		t.Errorf("mongodb/mongo-express must default off: %v", g.Services)
+	}
+	if g.Versions["mongodb"] != "8" || g.Image("mongodb") != "mongo:8" || g.Ports.MongoDB != "" {
+		t.Errorf("version %q image %q port %q", g.Versions["mongodb"], g.Image("mongodb"), g.Ports.MongoDB)
+	}
+	if !slices.Contains(ReservedDomains, "mongo.test") {
+		t.Error("mongo.test is not reserved")
+	}
+	g, _ = ParseGlobal([]byte("versions:\n  mongodb: \"7\"\n"))
+	if g.Image("mongodb") != "mongo:7" {
+		t.Errorf("image %q", g.Image("mongodb"))
+	}
+}
+
+func TestGlobalMongoDBPort(t *testing.T) {
+	if _, err := ParseGlobal([]byte("ports:\n  mongodb: \"27017\"\n")); err != nil {
+		t.Errorf("27017: %v", err)
+	}
+	for body, want := range map[string]string{
+		"ports:\n  mongodb: abc\n":                         `ports.mongodb "abc" is not a valid port`,
+		"ports:\n  mysql: \"3306\"\n  mongodb: \"3306\"\n": "ports.mysql and ports.mongodb are both 3306",
+		"ports:\n  mysql: \"3306\"\n  mariadb: \"3306\"\n": "ports.mariadb must differ from ports.mysql",
+	} {
+		if _, err := ParseGlobal([]byte(body)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: got %v, want %q", body, err, want)
+		}
+	}
+}
