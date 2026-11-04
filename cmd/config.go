@@ -296,7 +296,7 @@ func globalValues(g *config.Global) [][2]string {
 	rows := [][2]string{
 		{"ports.http", strconv.Itoa(g.Ports.HTTP)}, {"ports.https", strconv.Itoa(g.Ports.HTTPS)},
 		{"ports.dashboard", strconv.Itoa(g.Ports.Dashboard)}, {"ports.mysql", g.Ports.MySQL},
-		{"ports.mariadb", g.Ports.MariaDB},
+		{"ports.mariadb", g.Ports.MariaDB}, {"ports.mongodb", g.Ports.MongoDB},
 	}
 	for _, s := range config.SharedServices {
 		rows = append(rows, [2]string{"services." + s, strconv.FormatBool(g.Services[s])})
@@ -386,7 +386,7 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		}
 		set([]string{"ports", p}, flag, n)
 	}
-	for _, p := range []string{"mysql", "mariadb"} {
+	for _, p := range []string{"mysql", "mariadb", "mongodb"} {
 		if flag := p + "-port"; fl.Changed(flag) {
 			v, _ := fl.GetString(flag)
 			set([]string{"ports", p}, flag, v)
@@ -476,6 +476,7 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("dashboard-port", "", `Traefik dashboard port ("" = 8080)`)
 	f.String("mysql-port", "", `publish MySQL on this host port ("" = not published)`)
 	f.String("mariadb-port", "", `publish MariaDB on this host port ("" = not published)`)
+	f.String("mongodb-port", "", `publish MongoDB on this host port ("" = not published)`)
 	for _, s := range config.VersionedServices {
 		f.String(s+"-version", "", fmt.Sprintf(`%s version, e.g. %s ("" = default)`, s, config.DefaultVersions[s]))
 	}

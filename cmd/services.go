@@ -25,7 +25,7 @@ import (
 )
 
 // PortsToCheck lists host ports to preflight; ports our own running containers hold are skipped.
-func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning, mariadbRunning bool) []int {
+func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning, mariadbRunning, mongodbRunning bool) []int {
 	if traefikRunning {
 		return nil
 	}
@@ -33,7 +33,7 @@ func PortsToCheck(g *config.Global, traefikRunning, mysqlRunning, mariadbRunning
 	for _, db := range []struct {
 		port    string
 		running bool
-	}{{g.Ports.MySQL, mysqlRunning}, {g.Ports.MariaDB, mariadbRunning}} {
+	}{{g.Ports.MySQL, mysqlRunning}, {g.Ports.MariaDB, mariadbRunning}, {g.Ports.MongoDB, mongodbRunning}} {
 		if db.port != "" && !db.running {
 			n, _ := strconv.Atoi(db.port)
 			ports = append(ports, n)
@@ -62,7 +62,7 @@ func servicesUp() error {
 	if err != nil {
 		return err
 	}
-	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql"), docker.Running("lodev-mariadb")) {
+	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql"), docker.Running("lodev-mariadb"), docker.Running("lodev-mongodb")) {
 		if err := checkPort(p); err != nil {
 			return err
 		}
@@ -113,6 +113,9 @@ func printServiceURLs() error {
 	if g.Services["rabbitmq"] {
 		ui.Success("RabbitMQ:          https://rabbitmq.test")
 	}
+	if g.Services["mongo-express"] {
+		ui.Success("Mongo Express:     https://mongo.test")
+	}
 	return nil
 }
 
@@ -143,7 +146,7 @@ func mergeServicesCompose() error {
 
 // warnImageChange warns before a database container is recreated on another image (e.g. a version change).
 func warnImageChange(g *config.Global) {
-	for _, svc := range []string{"mysql", "mariadb"} {
+	for _, svc := range []string{"mysql", "mariadb", "mongodb"} {
 		cur, err := dockerOutput("inspect", "-f", "{{.Config.Image}}", "lodev-"+svc)
 		if err != nil { // no container yet
 			continue
@@ -154,7 +157,7 @@ func warnImageChange(g *config.Global) {
 	}
 }
 
-const volumesWarning = "This deletes all shared service data: MySQL, MariaDB, Redis, OpenSearch and RabbitMQ."
+const volumesWarning = "This deletes all shared service data: MySQL, MariaDB, Redis, OpenSearch, RabbitMQ and MongoDB."
 
 // startService starts one shared service from the existing compose file.
 func startService(svc string) error {
@@ -272,7 +275,7 @@ func init() {
 			return servicesCompose(sub...)
 		},
 	}
-	down.Flags().BoolVar(&volumes, "volumes", false, "also delete all shared service data (MySQL, MariaDB, Redis, OpenSearch, RabbitMQ)")
+	down.Flags().BoolVar(&volumes, "volumes", false, "also delete all shared service data (MySQL, MariaDB, Redis, OpenSearch, RabbitMQ, MongoDB)")
 	down.Flags().BoolVar(&yes, "yes", false, "skip confirmation")
 
 	status := &cobra.Command{

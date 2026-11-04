@@ -91,3 +91,39 @@ func TestDescribeTarget(t *testing.T) {
 		t.Fatalf("unknown: %v", err)
 	}
 }
+
+func TestDescribeMongoDB(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	g, _ := config.LoadGlobal()
+	g.Ports.MongoDB = "27017"
+	running := func(string) string { return "running" }
+	p := describeProject("nginx", "mongodb")
+	if rowsHave(describeRows(p, g, running, nil), "Mongo Express") {
+		t.Error("Mongo Express row while it is disabled")
+	}
+	g.Services["mongo-express"] = true
+	rows := describeRows(p, g, running, nil)
+	m := rowNamed(t, rows, "mongodb")
+	for _, s := range []string{"InDocker: mongodb:27017", "Host: 127.0.0.1:27017"} {
+		if !strings.Contains(m[2], s) {
+			t.Errorf("mongodb port %q lacks %q", m[2], s)
+		}
+	}
+	for _, s := range []string{"mongo:8", "User/Pass: 'root/root'"} {
+		if !strings.Contains(m[3], s) {
+			t.Errorf("mongodb info %q lacks %q", m[3], s)
+		}
+	}
+	if me := rowNamed(t, rows, "Mongo Express"); me[2] != "https://mongo.test" {
+		t.Errorf("Mongo Express %q", me)
+	}
+}
+
+func rowsHave(rows [][]string, name string) bool {
+	for _, r := range rows {
+		if r[0] == name {
+			return true
+		}
+	}
+	return false
+}

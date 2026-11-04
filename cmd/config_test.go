@@ -401,3 +401,20 @@ func TestConfigGlobalUpdateCheck(t *testing.T) {
 	out, _, _ = runConfig(t, newConfigGlobalCmd)
 	mustContain(t, out, "update_check", "true")
 }
+
+func TestConfigGlobalMongoDB(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--mongodb-port=27017")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "ports:\n  mongodb: \"27017\"\n" {
+		t.Errorf("file: %q", got)
+	}
+	mustContain(t, out, "ports.mongodb: (unset) → 27017")
+	out, _, err = runConfig(t, newConfigGlobalCmd, "--mongodb-version=7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "versions.mongodb: 8 → 7")
+}

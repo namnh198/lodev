@@ -15,7 +15,7 @@ import (
 type serviceInfo struct{ Name, State, Ports, Image string }
 
 // sharedPorts are the in-network ports of the shared services describe lists for a project.
-var sharedPorts = map[string]string{"mysql": "3306", "mariadb": "3306", "redis": "6379", "opensearch": "9200", "rabbitmq": "5672"}
+var sharedPorts = map[string]string{"mysql": "3306", "mariadb": "3306", "redis": "6379", "opensearch": "9200", "rabbitmq": "5672", "mongodb": "27017"}
 
 func stat(state string) string {
 	switch state {
@@ -58,6 +58,13 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 		rows = append(rows, []string{db, stat(state("lodev-" + db)), port,
 			g.Image(db) + "\nUser/Pass: 'root/root'\nDatabase: " + p.DBName()})
 	}
+	if p.Uses("mongodb") {
+		port := "InDocker: mongodb:" + sharedPorts["mongodb"]
+		if g.Ports.MongoDB != "" {
+			port += "\nHost: 127.0.0.1:" + g.Ports.MongoDB
+		}
+		rows = append(rows, []string{"mongodb", stat(state("lodev-mongodb")), port, g.Image("mongodb") + "\nUser/Pass: 'root/root'"})
+	}
 	for _, svc := range []string{"redis", "opensearch", "rabbitmq"} {
 		if !p.Uses(svc) {
 			continue
@@ -78,6 +85,9 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 
 	if g.Services["phpmyadmin"] {
 		rows = append(rows, []string{"phpMyAdmin", "", "https://phpmyadmin.test", ""})
+	}
+	if g.Services["mongo-express"] {
+		rows = append(rows, []string{"Mongo Express", "", "https://mongo.test", ""})
 	}
 	if g.Services["mailpit"] {
 		rows = append(rows, []string{"Mailpit", "", "https://mailpit.test\nSMTP: mailpit:1025", ""})
