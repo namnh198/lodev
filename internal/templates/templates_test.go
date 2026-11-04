@@ -137,6 +137,12 @@ type service struct {
 	Volumes     []string `yaml:"volumes"`
 	ExtraHosts  []string `yaml:"extra_hosts"`
 	Networks    any      `yaml:"networks"`
+	DependsOn   map[string]struct {
+		Condition string `yaml:"condition"`
+	} `yaml:"depends_on"`
+	Healthcheck struct {
+		Test []string `yaml:"test"`
+	} `yaml:"healthcheck"`
 }
 
 func parse(t *testing.T, b []byte) map[string]service {
@@ -152,8 +158,8 @@ func parse(t *testing.T, b []byte) map[string]service {
 
 func TestSharedComposeStructure(t *testing.T) {
 	def := parse(t, must(t)(SharedCompose(defaultGlobal(t), home)))
-	if len(def) != 8 {
-		t.Fatalf("want 8 services, got %d", len(def))
+	if len(def) != 10 {
+		t.Fatalf("want 10 services, got %d", len(def))
 	}
 	if m := def["mariadb"]; m.Image != "mariadb:11.4" || !slices.Contains(m.Volumes, "lodev-mariadb:/var/lib/mysql") || m.Ports != nil {
 		t.Errorf("mariadb %+v", m)
@@ -356,6 +362,52 @@ func TestProjectComposeMariaDB(t *testing.T) {
 	in.Project.Services = []string{"mariadb", "redis"}
 	web := parse(t, must(t)(ProjectCompose(in)))["web"]
 	if !slices.Contains(web.Environment, "DB_HOST=mariadb") {
+		t.Errorf("env %v", web.Environment)
+	}
+}
+
+func TestSharedComposeMongoDB(t *testing.T) {
+	g := defaultGlobal(t)
+	g.Ports.MongoDB = "27017"
+	b := must(t)(SharedCompose(g, home))
+	golden(t, "services-mongodb", b)
+	def := parse(t, b)
+	m := def["mongodb"]
+	if m.Image != "mongo:8" || !slices.Equal(m.Ports, []string{"127.0.0.1:27017:27017"}) ||
+		!slices.Equal(m.Volumes, []string{"lodev-mongodb:/data/db", "lodev-mongodb-config:/data/configdb"}) {
+		t.Errorf("mongodb image %q ports %v volumes %v", m.Image, m.Ports, m.Volumes)
+	}
+	for _, e := range []string{"MONGO_INITDB_ROOT_USERNAME=root", "MONGO_INITDB_ROOT_PASSWORD=root"} {
+		if !slices.Contains(m.Environment, e) {
+			t.Errorf("mongodb env lacks %s: %v", e, m.Environment)
+		}
+	}
+	if !slices.Contains(m.Healthcheck.Test, "mongosh") {
+		t.Errorf("mongodb healthcheck %v", m.Healthcheck.Test)
+	}
+	me := def["mongo-express"]
+	for _, e := range []string{"ME_CONFIG_MONGODB_URL=mongodb://root:root@mongodb:27017/", "ME_CONFIG_MONGODB_ENABLE_ADMIN=true",
+		"ME_CONFIG_BASICAUTH_ENABLED=false", "ME_CONFIG_BASICAUTH=false"} {
+		if !slices.Contains(me.Environment, e) {
+			t.Errorf("mongo-express env lacks %s: %v", e, me.Environment)
+		}
+	}
+	if me.DependsOn["mongodb"].Condition != "service_healthy" {
+		t.Errorf("mongo-express depends_on %v", me.DependsOn)
+	}
+	for _, l := range []string{"traefik.http.routers.mongo-express.rule=Host(`mongo.test`)", "traefik.http.services.mongo-express.loadbalancer.server.port=8081"} {
+		if !slices.Contains(me.Labels, l) {
+			t.Errorf("mongo-express labels lack %s: %v", l, me.Labels)
+		}
+	}
+	if def := parse(t, must(t)(SharedCompose(defaultGlobal(t), home))); def["mongodb"].Ports != nil || def["mongodb"].Image == "" {
+		t.Errorf("default mongodb: image %q ports %v", def["mongodb"].Image, def["mongodb"].Ports)
+	}
+}
+
+func TestProjectComposeMongoDBURI(t *testing.T) {
+	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
+	if !slices.Contains(web.Environment, "MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin") {
 		t.Errorf("env %v", web.Environment)
 	}
 }

@@ -25,6 +25,7 @@ services:
       - DB_PASSWORD=root
       - REDIS_HOST=redis
       - OPENSEARCH_HOST=opensearch
+      - MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
     networks: [lodev, default]

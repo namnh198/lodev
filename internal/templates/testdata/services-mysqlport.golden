@@ -22,6 +22,11 @@ volumes:
     name: lodev-rabbitmq
   lodev-mariadb:
     name: lodev-mariadb
+  lodev-mongodb:
+    name: lodev-mongodb
+  # mongo also declares /data/configdb a volume; unnamed it would leave a new volume on every re-create.
+  lodev-mongodb-config:
+    name: lodev-mongodb-config
 
 services:
   traefik:
@@ -143,4 +148,40 @@ services:
       - traefik.http.routers.rabbitmq.entrypoints=websecure
       - traefik.http.routers.rabbitmq.tls=true
       - traefik.http.services.rabbitmq.loadbalancer.server.port=15672
+    networks: [lodev]
+
+  mongodb:
+    image: mongo:8
+    container_name: lodev-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+    volumes:
+      - lodev-mongodb:/data/db
+      - lodev-mongodb-config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 20
+    networks: [lodev]
+
+  mongo-express:
+    image: mongo-express
+    container_name: lodev-mongo-express
+    restart: unless-stopped
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://root:root@mongodb:27017/
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
+      - ME_CONFIG_BASICAUTH_ENABLED=false
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.mongo-express.rule=Host(`mongo.test`)
+      - traefik.http.routers.mongo-express.entrypoints=websecure
+      - traefik.http.routers.mongo-express.tls=true
+      - traefik.http.services.mongo-express.loadbalancer.server.port=8081
     networks: [lodev]
