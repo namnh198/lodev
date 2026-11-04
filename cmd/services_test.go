@@ -113,9 +113,12 @@ func stubDocker(t *testing.T, running string) *[]string {
 	dockerOutput = func(a ...string) (string, error) {
 		name := strings.TrimPrefix(a[len(a)-1], composeLabel)
 		switch {
+		case a[0] == "stop" || a[0] == "rm" || slices.Equal(a[:2], []string{"network", "rm"}):
+			// Quiet calls: docker prints each removed ID, which must not reach the terminal.
+			calls = append(calls, "quiet: "+strings.Join(a, " "))
 		case slices.Equal(a[:2], []string{"ps", "-aq"}):
 			return "id-" + name, nil
-		case slices.Equal(a[:3], []string{"network", "ls", "-q"}):
+		case len(a) > 2 && slices.Equal(a[:3], []string{"network", "ls", "-q"}):
 			return "net-" + name, nil
 		case a[0] == "ps":
 			return running, nil
@@ -139,9 +142,9 @@ func TestPoweroff(t *testing.T) {
 	// Containers (stopped ones too) and the project network are removed, like compose down:
 	// a stale network or container breaks the next start.
 	want := []string{
-		"stop id-a", "rm id-a", "network rm net-a",
-		"stop id-b", "rm id-b", "network rm net-b",
-		"stop id-x", "rm id-x", "network rm net-x",
+		"quiet: stop id-a", "quiet: rm id-a", "quiet: network rm net-a",
+		"quiet: stop id-b", "quiet: rm id-b", "quiet: network rm net-b",
+		"quiet: stop id-x", "quiet: rm id-x", "quiet: network rm net-x",
 		"compose -p lodev-services -f " + servicesFile() + " down",
 	}
 	if !slices.Equal(*calls, want) {
@@ -156,7 +159,7 @@ func TestPoweroffNoServicesFile(t *testing.T) {
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(*calls, []string{"stop id-b", "rm id-b", "network rm net-b"}) {
+	if !slices.Equal(*calls, []string{"quiet: stop id-b", "quiet: rm id-b", "quiet: network rm net-b"}) {
 		t.Errorf("calls: %v", *calls)
 	}
 }

@@ -205,7 +205,8 @@ func poweroff() error {
 		}
 		if ids != "" {
 			for _, sub := range []string{"stop", "rm"} {
-				if err := dockerRun(append([]string{sub}, strings.Fields(ids)...)...); err != nil {
+				// Output, not Run: docker prints every ID it stops or removes.
+				if _, err := dockerOutput(append([]string{sub}, strings.Fields(ids)...)...); err != nil {
 					return err
 				}
 			}
@@ -215,7 +216,7 @@ func poweroff() error {
 			return err
 		}
 		if nets != "" {
-			if err := dockerRun(append([]string{"network", "rm"}, strings.Fields(nets)...)...); err != nil {
+			if _, err := dockerOutput(append([]string{"network", "rm"}, strings.Fields(nets)...)...); err != nil {
 				return err
 			}
 		}
