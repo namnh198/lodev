@@ -53,19 +53,24 @@ func latestCached() string {
 	if cache.Fresh(now()) {
 		return cache.Latest
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), updateTimeout)
-	defer cancel()
-	if tag, err := latestVersion(ctx); err != nil {
-		ui.Debug("update check: %v", err)
-	} else {
-		cache.Latest = tag
-	}
-	// Saved on failure too, so an offline machine does not retry on every command.
+	// Saved before asking: a request that hangs past the process exit (or fails) must not
+	// make every following command ask again.
 	cache.CheckedAt = now()
 	if err := update.SaveCache(p, cache); err != nil {
 		ui.Debug("update check: %v", err)
 	}
-	return cache.Latest
+	ctx, cancel := context.WithTimeout(context.Background(), updateTimeout)
+	defer cancel()
+	tag, err := latestVersion(ctx)
+	if err != nil {
+		ui.Debug("update check: %v", err)
+		return cache.Latest
+	}
+	cache.Latest = tag
+	if err := update.SaveCache(p, cache); err != nil {
+		ui.Debug("update check: %v", err)
+	}
+	return tag
 }
 
 // finishUpdateCheck waits up to wait for the check and tells the user about a newer release.

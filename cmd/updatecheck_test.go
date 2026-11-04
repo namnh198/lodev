@@ -166,3 +166,26 @@ func TestUpdateCheckSlow(t *testing.T) {
 	}
 	<-ch // let the abandoned check finish before LODEV_HOME and ui are restored
 }
+
+func TestUpdateCheckSlowStillCached(t *testing.T) {
+	calls := checkFixture(t, "", nil)
+	writeCache(t, 5*time.Hour, "v1.3.0")
+	release := make(chan struct{})
+	latestVersion = func(ctx context.Context) (string, error) {
+		*calls++
+		<-release
+		return "", errors.New("hung")
+	}
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	startUpdateCheck(&cobra.Command{Use: "list"})
+	ch := updateResult
+	finishUpdateCheck(50 * time.Millisecond)
+	// The process would exit here; checked_at must already have moved.
+	c := update.LoadCache(cachePath())
+	close(release)
+	<-ch
+	if !c.CheckedAt.Equal(checkNow) || c.Latest != "v1.3.0" {
+		t.Errorf("cache before the hung check ended: %+v", c)
+	}
+}
