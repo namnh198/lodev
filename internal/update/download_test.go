@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testArchive = "lodev_1.3.0_linux_amd64.tar.gz"
@@ -128,5 +129,29 @@ func TestDownload404(t *testing.T) {
 	serveRelease(t, nil, "x")
 	if dir, err := download(t); err == nil || dir != "" {
 		t.Errorf("got %q, %v", dir, err)
+	}
+}
+
+func TestDownloadTimesOut(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer func() { close(release); srv.Close() }()
+	defer func(b string, c *http.Client) { DownloadBase, DownloadClient = b, c }(DownloadBase, DownloadClient)
+	DownloadBase, DownloadClient = srv.URL, &http.Client{Timeout: 100 * time.Millisecond}
+	done := make(chan error, 1)
+	go func() { _, err := Download(context.Background(), "v1.3.0", "linux", "amd64"); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("want a timeout error")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Download still hangs on a stalled server")
+	}
+}
+
+func TestDownloadClientHasTimeout(t *testing.T) {
+	if DownloadClient.Timeout == 0 {
+		t.Error("DownloadClient must time out so a stalled network cannot hang self-upgrade")
 	}
 }

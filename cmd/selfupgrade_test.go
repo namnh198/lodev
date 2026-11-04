@@ -308,3 +308,18 @@ func TestSelfUpgradeVersionEdge(t *testing.T) {
 		t.Errorf("binary = %q", got)
 	}
 }
+
+func TestSelfUpgradeLatestHasDeadline(t *testing.T) {
+	upgradeFixture(t)
+	var hasDeadline bool
+	latestVersion = func(ctx context.Context) (string, error) {
+		_, hasDeadline = ctx.Deadline()
+		return "v1.2.0", nil
+	}
+	if _, err := runUpgrade(t); err != nil {
+		t.Fatal(err)
+	}
+	if !hasDeadline {
+		t.Error("the latest-version lookup has no deadline")
+	}
+}

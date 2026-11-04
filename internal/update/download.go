@@ -14,12 +14,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // DownloadBase is where release files live: <DownloadBase>/<tag>/<file>.
 var DownloadBase = "https://github.com/namnh198/lodev/releases/download"
 
 const maxFile = 100 << 20
+
+// DownloadClient fetches release files; the timeout keeps a stalled network from hanging forever.
+var DownloadClient = &http.Client{Timeout: 10 * time.Minute}
 
 // archiveFiles maps the files read from a release archive to where Download puts them.
 var archiveFiles = map[string]string{
@@ -60,7 +64,7 @@ func fetch(ctx context.Context, tag, file string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := DownloadClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

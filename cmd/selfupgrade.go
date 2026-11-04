@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -78,7 +80,10 @@ func newSelfUpgradeCmd() *cobra.Command {
 			case edgeTag:
 				// edge is a moving tag: there is no version to compare, so always fetch it.
 			case "":
-				if tag, err = latestVersion(c.Context()); err != nil {
+				ctx, cancel := context.WithTimeout(c.Context(), 10*time.Second)
+				tag, err = latestVersion(ctx)
+				cancel()
+				if err != nil {
 					return err
 				}
 				if update.Stable(Version) && !update.Newer(Version, tag) {
