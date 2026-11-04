@@ -77,4 +77,29 @@ $sudo cp "$src/completions/_lodev" "$PREFIX/share/zsh/site-functions/_lodev"
 $sudo cp "$src/completions/lodev.fish" "$PREFIX/share/fish/vendor_completions.d/lodev.fish"
 
 echo "Installed lodev $VERSION to $PREFIX/bin/lodev (with bash, zsh and fish completions)"
-case ":$PATH:" in *":$PREFIX/bin:"*) ;; *) echo "Add $PREFIX/bin to your PATH." ;; esac
+
+case ":$PATH:" in
+*":$PREFIX/bin:"*) ;;
+*)
+	cat <<EOF
+
+$PREFIX/bin is not on your PATH. Add it:
+  bash (~/.bashrc), zsh (~/.zshrc):  export PATH="$PREFIX/bin:\$PATH"
+  fish:                              fish_add_path "$PREFIX/bin"
+EOF
+	;;
+esac
+
+# Shells only look for completions under the standard prefixes.
+case $PREFIX in
+/usr/local | /usr) ;;
+*)
+	cat <<EOF
+
+Completions are in $PREFIX/share, which your shell does not read by default. Load them:
+  bash (~/.bashrc):                  source "$PREFIX/share/bash-completion/completions/lodev"
+  zsh  (~/.zshrc, before compinit):  fpath=("$PREFIX/share/zsh/site-functions" \$fpath)
+  fish (~/.config/fish/config.fish): set -p fish_complete_path "$PREFIX/share/fish/vendor_completions.d"
+EOF
+	;;
+esac
