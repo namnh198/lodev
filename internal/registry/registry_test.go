@@ -89,3 +89,28 @@ func TestPutDropsOldNameForSamePath(t *testing.T) {
 		t.Fatalf("%v", r)
 	}
 }
+
+// Save must never leave a half-written projects.json: it writes a new file and renames it into place.
+func TestSaveReplacesAtomically(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	if err := (Registry{"a": {Path: "/a"}}).Save(); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.Stat(file())
+	if err := (Registry{"b": {Path: "/b"}}).Save(); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.Stat(file())
+	if os.SameFile(before, after) {
+		t.Error("Save wrote into the existing file instead of renaming a new one over it")
+	}
+	if r, err := Load(); err != nil || r["b"].Path != "/b" || len(r) != 1 {
+		t.Errorf("Load after Save: %v, %v", r, err)
+	}
+	if after.Mode().Perm() != 0o644 {
+		t.Errorf("mode %v", after.Mode())
+	}
+	if left, _ := filepath.Glob(filepath.Join(config.Home(), "*.tmp")); len(left) > 0 {
+		t.Errorf("temp files left: %v", left)
+	}
+}

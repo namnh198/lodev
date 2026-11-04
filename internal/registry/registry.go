@@ -42,7 +42,23 @@ func (r Registry) Save() error {
 	if err := os.MkdirAll(config.Home(), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(file(), data, 0o644)
+	// A new file renamed into place: a crash or full disk never leaves broken JSON behind.
+	f, err := os.CreateTemp(config.Home(), "projects.json.*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(f.Name(), 0o644)
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), file())
 }
 
 // stale entries point at a folder that is no longer a lodev project (moved or deleted).
