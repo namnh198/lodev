@@ -2,7 +2,7 @@
 
 A lightweight, DDEV-like CLI for local PHP development on macOS with Docker.
 
-Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin (and opt-in MariaDB, RabbitMQ) — run **once,
+Unlike DDEV, the heavy services — MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin (and opt-in MariaDB, RabbitMQ, MongoDB + Mongo Express) — run **once,
 shared by all projects**. Each project only runs one small PHP container (php-fpm + nginx or
 apache), so ten projects cost about the RAM of ten php-fpm processes, not ten databases.
 
@@ -125,7 +125,8 @@ lodev magento setup:upgrade
 `start` asks for your password once to add `.test` names to `/etc/hosts`.
 
 Shared tools: Traefik dashboard <http://localhost:8080>, <https://phpmyadmin.test>,
-<https://mailpit.test>, and <https://rabbitmq.test> (guest/guest) once RabbitMQ is enabled.
+<https://mailpit.test>, <https://rabbitmq.test> (guest/guest) once RabbitMQ is enabled, and
+<https://mongo.test> once Mongo Express is enabled (MongoDB is `root/root`; web containers get `MONGODB_URI`).
 All ports listen on `127.0.0.1` only.
 
 Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses MariaDB), `DB_PORT=3306`, `DB_DATABASE=<name>`,
@@ -158,6 +159,7 @@ ports:
   dashboard: 8080   # Traefik dashboard
   mysql: ""         # e.g. 3306 to reach MySQL from TablePlus etc.
   mariadb: ""       # e.g. 3307; must differ from mysql
+  mongodb: ""       # e.g. 27017 to reach MongoDB from MongoDB Compass etc.
 services:           # traefik is always on
   mysql: true
   redis: true
@@ -166,6 +168,8 @@ services:           # traefik is always on
   phpmyadmin: true
   mariadb: false     # opt-in: `lodev services enable mariadb`, or `services: [mariadb]` in a project
   rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
+  mongodb: false     # opt-in: `lodev services enable mongodb`, or `services: [mongodb]` in a project
+  mongo-express: false # opt-in web UI at https://mongo.test; also starts mongodb
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 versions:           # 8 | 8.0 | 8.0.36; only these keys
@@ -174,6 +178,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   redis: "7"        # redis:<v>-alpine
   opensearch: "2"
   rabbitmq: "4"     # rabbitmq:<v>-management
+  mongodb: "8"      # mongo:<v>
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
 ```
