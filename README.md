@@ -321,3 +321,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 
 **Known limit:** a running project learns about domains of projects started after it on its
 next `lodev start` / `lodev restart`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

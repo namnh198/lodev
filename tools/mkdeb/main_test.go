@@ -77,10 +77,8 @@ func untar(t *testing.T, gz []byte) map[string]*tar.Header {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if h.Name == "./control" {
-			b, _ := io.ReadAll(tr)
-			h.PAXRecords = map[string]string{"body": string(b)}
-		}
+		b, _ := io.ReadAll(tr)
+		h.PAXRecords = map[string]string{"body": string(b)}
 		hs[h.Name] = h
 	}
 }
@@ -94,8 +92,10 @@ func TestBuildDeb(t *testing.T) {
 	for _, f := range []string{"lodev.bash", "_lodev", "lodev.fish"} {
 		os.WriteFile(filepath.Join(comp, f), []byte(f), 0o644)
 	}
+	license := filepath.Join(dir, "LICENSE")
+	os.WriteFile(license, []byte("MIT License\n"), 0o644)
 	var buf bytes.Buffer
-	if err := buildDeb("1.2.3", "arm64", bin, comp, &buf); err != nil {
+	if err := buildDeb("1.2.3", "arm64", bin, comp, license, &buf); err != nil {
 		t.Fatal(err)
 	}
 	m := readAr(t, buf.Bytes())
@@ -117,6 +117,7 @@ func TestBuildDeb(t *testing.T) {
 		"./usr/share/bash-completion/completions/lodev":    0o644,
 		"./usr/share/zsh/vendor-completions/_lodev":        0o644,
 		"./usr/share/fish/vendor_completions.d/lodev.fish": 0o644,
+		"./usr/share/doc/lodev/copyright":                  0o644,
 	}
 	for name, mode := range want {
 		h, ok := data[name]
@@ -127,6 +128,9 @@ func TestBuildDeb(t *testing.T) {
 		if h.Mode != mode || h.Uid != 0 || h.Gid != 0 {
 			t.Errorf("%s mode %o uid %d gid %d", name, h.Mode, h.Uid, h.Gid)
 		}
+	}
+	if got := data["./usr/share/doc/lodev/copyright"].PAXRecords["body"]; got != "MIT License\n" {
+		t.Errorf("copyright = %q", got)
 	}
 	if h, ok := data["./usr/bin/"]; !ok || h.Typeflag != tar.TypeDir {
 		t.Errorf("parent dir ./usr/bin/ missing")

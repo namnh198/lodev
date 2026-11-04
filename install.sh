@@ -75,6 +75,10 @@ fi
 $sudo cp "$src/completions/lodev.bash" "$PREFIX/share/bash-completion/completions/lodev"
 $sudo cp "$src/completions/_lodev" "$PREFIX/share/zsh/site-functions/_lodev"
 $sudo cp "$src/completions/lodev.fish" "$PREFIX/share/fish/vendor_completions.d/lodev.fish"
+if [ -f "$src/LICENSE" ]; then # releases before the MIT license have none
+	$sudo mkdir -p "$PREFIX/share/doc/lodev"
+	$sudo cp "$src/LICENSE" "$PREFIX/share/doc/lodev/LICENSE"
+fi
 
 echo "Installed lodev $VERSION to $PREFIX/bin/lodev (with bash, zsh and fish completions)"
 

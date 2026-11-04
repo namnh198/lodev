@@ -87,13 +87,18 @@ func tarGz(entries []entry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// buildDeb writes a .deb with the binary and the bash/zsh/fish completions from completions/.
-func buildDeb(version, arch, bin, completions string, w io.Writer) error {
+// buildDeb writes a .deb with the binary, the bash/zsh/fish completions from completions/
+// and the license as usr/share/doc/lodev/copyright.
+func buildDeb(version, arch, bin, completions, license string, w io.Writer) error {
 	b, err := os.ReadFile(bin)
 	if err != nil {
 		return err
 	}
-	data := []entry{{"usr/bin/lodev", 0o755, b}}
+	lic, err := os.ReadFile(license)
+	if err != nil {
+		return err
+	}
+	data := []entry{{"usr/bin/lodev", 0o755, b}, {"usr/share/doc/lodev/copyright", 0o644, lic}}
 	for src, dst := range map[string]string{
 		"lodev.bash": "usr/share/bash-completion/completions/lodev",
 		"_lodev":     "usr/share/zsh/vendor-completions/_lodev",
@@ -139,14 +144,15 @@ func main() {
 	arch := flag.String("arch", "", "Debian architecture: amd64 or arm64")
 	bin := flag.String("bin", "", "path to the linux lodev binary")
 	completions := flag.String("completions", "", "directory with lodev.bash, _lodev, lodev.fish")
+	license := flag.String("license", "", "path to the LICENSE file")
 	out := flag.String("out", "", "output .deb path")
 	flag.Parse()
-	if *version == "" || *arch == "" || *bin == "" || *completions == "" || *out == "" {
+	if *version == "" || *arch == "" || *bin == "" || *completions == "" || *license == "" || *out == "" {
 		flag.Usage()
 		os.Exit(2)
 	}
 	var buf bytes.Buffer
-	if err := buildDeb(*version, *arch, *bin, *completions, &buf); err != nil {
+	if err := buildDeb(*version, *arch, *bin, *completions, *license, &buf); err != nil {
 		fmt.Fprintln(os.Stderr, "mkdeb:", err)
 		os.Exit(1)
 	}

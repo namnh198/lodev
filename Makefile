@@ -35,7 +35,7 @@ dist: completions
 	@for t in $(TARGETS); do \
 		os=$${t%/*}; arch=$${t#*/}; name=lodev_$(VER)_$${os}_$$arch; dir=dist/stage/$$name; \
 		mkdir -p $$dir/completions && cp dist/bin/$${os}_$$arch/* $$dir/ && \
-		cp dist/completions/* $$dir/completions/ && cp README.md $$dir/ || exit 1; \
+		cp dist/completions/* $$dir/completions/ && cp README.md LICENSE $$dir/ || exit 1; \
 		if [ $$os = windows ]; then (cd dist/stage && zip -qr ../$$name.zip $$name); \
 		else COPYFILE_DISABLE=1 tar --no-xattrs -czf dist/$$name.tar.gz -C dist/stage $$name; fi || exit 1; \
 		echo "dist  $$name"; \
@@ -47,7 +47,7 @@ dist: completions
 deb: completions
 	@for arch in $(LINUX_ARCHES); do \
 		go run ./tools/mkdeb -version $(VER) -arch $$arch -bin dist/bin/linux_$$arch/lodev \
-			-completions dist/completions -out dist/lodev_$(VER)_$$arch.deb || exit 1; \
+			-completions dist/completions -license LICENSE -out dist/lodev_$(VER)_$$arch.deb || exit 1; \
 		echo "deb   dist/lodev_$(VER)_$$arch.deb"; \
 	done
 
@@ -64,18 +64,21 @@ install:
 	@test -x $(HOSTBIN) && test -f dist/completions/lodev.bash || \
 		{ echo "nothing to install: run \`make\` first (then \`sudo make install\`)"; exit 1; }
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
-		$(DESTDIR)$(PREFIX)/share/zsh/site-functions $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d
+		$(DESTDIR)$(PREFIX)/share/zsh/site-functions $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d \
+		$(DESTDIR)$(PREFIX)/share/doc/lodev
 	install -m 0755 $(HOSTBIN) $(DESTDIR)$(PREFIX)/bin/lodev
 	install -m 0644 dist/completions/lodev.bash $(DESTDIR)$(PREFIX)/share/bash-completion/completions/lodev
 	install -m 0644 dist/completions/_lodev $(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev
 	install -m 0644 dist/completions/lodev.fish $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish
+	install -m 0644 LICENSE $(DESTDIR)$(PREFIX)/share/doc/lodev/LICENSE
 
 ## uninstall: remove what install put under PREFIX
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/lodev \
 		$(DESTDIR)$(PREFIX)/share/bash-completion/completions/lodev \
 		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev \
-		$(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish
+		$(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish \
+		$(DESTDIR)$(PREFIX)/share/doc/lodev/LICENSE
 
 ## test: go vet + go test
 test:

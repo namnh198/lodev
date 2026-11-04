@@ -31,6 +31,7 @@
           meta = {
             description = "DDEV-like local PHP development with shared Docker services";
             homepage = "https://github.com/namnh198/lodev";
+            license = pkgs.lib.licenses.mit;
             mainProgram = "lodev";
             platforms = systems;
           };
