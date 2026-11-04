@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 
 	"lodev/internal/ui"
@@ -16,6 +18,7 @@ var rootCmd = &cobra.Command{
 		if debug, _ := cmd.Flags().GetBool("debug"); debug {
 			ui.SetDebug(true)
 		}
+		startUpdateCheck(cmd)
 	},
 }
 
@@ -34,5 +37,7 @@ func StripDebugArg(args []string) ([]string, bool) {
 
 // Execute runs the CLI.
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	finishUpdateCheck(time.Second)
+	return err
 }
