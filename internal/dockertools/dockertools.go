@@ -190,9 +190,3 @@ func get(t Tool, file string) (*http.Response, error) {
 	}
 	return resp, nil
 }
-
-// wrapProgress prints the download line; Task 2 adds the bar.
-func wrapProgress(t Tool, _ int64, r io.Reader) io.Reader {
-	fmt.Fprintf(progressOut, "Downloading %s %s (%s/%s)\n", t.Name(), t.Version(), runtime.GOOS, runtime.GOARCH)
-	return r
-}
