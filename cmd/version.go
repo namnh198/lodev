@@ -67,6 +67,7 @@ func versionRows() [][]string {
 }
 
 func init() {
+	rootCmd.Version = lodevVersion() // cobra adds -v/--version: "lodev version <v>"
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Show lodev, Docker and platform versions",

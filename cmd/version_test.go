@@ -49,3 +49,16 @@ func TestVersionRows(t *testing.T) {
 		}
 	}
 }
+
+func TestVersionFlag(t *testing.T) {
+	var out strings.Builder
+	rootCmd.SetOut(&out)
+	rootCmd.SetArgs([]string{"-v"})
+	defer func() { rootCmd.SetOut(nil); rootCmd.SetArgs(nil) }()
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if want := "lodev version " + lodevVersion() + "\n"; out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
+	}
+}
