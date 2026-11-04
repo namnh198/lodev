@@ -266,3 +266,23 @@ func TestSetServiceKeepsComments(t *testing.T) {
 		t.Fatalf("%s", s)
 	}
 }
+
+// Compose starts mongodb again for an enabled mongo-express (depends_on), so the disable would not stick.
+func TestCheckDisable(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	g, _ := config.LoadGlobal()
+	g.Services["mongo-express"] = true
+	err := checkDisable("mongodb", g)
+	if err == nil || err.Error() != "mongo-express needs mongodb: run `lodev services disable mongo-express` first" {
+		t.Errorf("err = %v", err)
+	}
+	for _, svc := range []string{"mongo-express", "redis"} {
+		if err := checkDisable(svc, g); err != nil {
+			t.Errorf("%s: %v", svc, err)
+		}
+	}
+	g.Services["mongo-express"] = false
+	if err := checkDisable("mongodb", g); err != nil {
+		t.Errorf("mongodb with mongo-express off: %v", err)
+	}
+}

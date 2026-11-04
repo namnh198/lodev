@@ -157,6 +157,14 @@ func warnImageChange(g *config.Global) {
 	}
 }
 
+// checkDisable refuses to disable mongodb while mongo-express is on: compose would start it again (depends_on).
+func checkDisable(svc string, g *config.Global) error {
+	if svc == "mongodb" && g.Services["mongo-express"] {
+		return errors.New("mongo-express needs mongodb: run `lodev services disable mongo-express` first")
+	}
+	return nil
+}
+
 const volumesWarning = "This deletes all shared service data: MySQL, MariaDB, Redis, OpenSearch, RabbitMQ and MongoDB."
 
 // startService starts one shared service from the existing compose file.
@@ -319,6 +327,13 @@ func init() {
 		RunE: func(_ *cobra.Command, args []string) error {
 			svc, err := sharedServiceArg(args)
 			if err != nil {
+				return err
+			}
+			g, err := config.LoadGlobal()
+			if err != nil {
+				return err
+			}
+			if err := checkDisable(svc, g); err != nil {
 				return err
 			}
 			if err := withLock(func() error { return setService(svc, false) }); err != nil {
