@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -89,21 +88,28 @@ func joinArgs(args []string) string {
 
 // Run runs docker with the terminal attached.
 func Run(args ...string) error {
-	ui.Debug("$ docker %s", joinArgs(args))
-	c := exec.Command("docker", args...)
+	c, err := command(args)
+	if err != nil {
+		return err
+	}
+	ui.Debug("$ %s %s", filepath.Base(c.Path), joinArgs(c.Args[1:]))
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
 }
 
 // Output runs docker and returns trimmed stdout; stderr is included in the error.
 func Output(args ...string) (string, error) {
-	ui.Debug("$ docker %s", joinArgs(args))
+	c, err := command(args)
+	if err != nil {
+		return "", err
+	}
+	prog := filepath.Base(c.Path)
+	ui.Debug("$ %s %s", prog, joinArgs(c.Args[1:]))
 	var stderr bytes.Buffer
-	c := exec.Command("docker", args...)
 	c.Stderr = &stderr
 	out, err := c.Output()
 	if err != nil {
-		return "", fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf("%s %s: %w: %s", prog, strings.Join(c.Args[1:], " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
