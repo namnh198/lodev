@@ -79,6 +79,7 @@ uninstall:
 		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev \
 		$(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish \
 		$(DESTDIR)$(PREFIX)/share/doc/lodev/LICENSE
+	-rmdir $(DESTDIR)$(PREFIX)/share/doc/lodev 2>/dev/null
 
 ## test: go vet + go test
 test:
