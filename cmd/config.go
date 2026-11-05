@@ -496,6 +496,13 @@ func newConfigGlobalCmd() *cobra.Command {
 				if g != nil && g.DataPath() != old.DataPath() {
 					ui.Warn("data_dir changed: existing data stays in %s", old.DataPath())
 				}
+				// The new folder is empty, so services up would copy the stale Docker volume into it.
+				for _, svc := range config.DataServices {
+					if g != nil && old.MountVolume && g.MountVolume && old.MountPath(svc) != g.MountPath(svc) {
+						ui.Warn("%s data folder changed: move %s to %s before `lodev services up`, or %s starts from its old Docker volume",
+							svc, old.MountPath(svc), g.MountPath(svc), svc)
+					}
+				}
 				printDiff(c.OutOrStdout(), diff, "Run: lodev services up to apply")
 				if len(diff) == 0 {
 					return nil

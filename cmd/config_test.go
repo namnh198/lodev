@@ -480,3 +480,18 @@ func TestConfigGlobalDataDir(t *testing.T) {
 		t.Errorf("mount path kept:\n%s", readGlobal(t))
 	}
 }
+
+func TestConfigGlobalMountPathMoveWarns(t *testing.T) {
+	newGlobalHome(t, "mount_volume: true\n")
+	old := filepath.Join(config.Home(), "data", "mysql")
+	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--mysql-mount-path=/srv/m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, errOut, "mysql data folder changed: move "+old+" to /srv/m before `lodev services up`, or mysql starts from its old Docker volume")
+	// Turning mount_volume on for the first time is the wanted copy, not a move.
+	newGlobalHome(t, "")
+	if _, errOut, _ = runConfig(t, newConfigGlobalCmd, "--mount-volume=true"); strings.Contains(errOut, "data folder changed") {
+		t.Errorf("warned on first enable: %s", errOut)
+	}
+}
