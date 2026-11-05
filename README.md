@@ -222,7 +222,7 @@ domains:                     # default <name>.test; all must end in .test
   - store-en.test
 services: [mysql, redis, opensearch]   # mariadb instead of mysql for MariaDB (not both)
 nodejs: "20"                 # optional: lts | latest | current | 20 | 20.11 | 20.11.1 (installed with n)
-php_extensions: [imagick]    # optional: a-z 0-9 _ ; installed for the project's PHP version
+php_extensions: [ldap]       # optional: a-z 0-9 _ ; installed for the project's PHP version
 packages: [ffmpeg]           # optional: extra apt packages
 user: kuroko                 # optional: shell user in the web container; default = your host username
 ```

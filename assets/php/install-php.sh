@@ -10,7 +10,7 @@ fi
 
 pkgs=()
 for v in "$@"; do
-  for ext in fpm cli bcmath curl gd intl mbstring mysql redis soap xml zip xdebug; do
+  for ext in fpm cli bcmath curl gd intl mbstring mysql redis soap xml zip imagick xdebug; do
     pkgs+=("php$v-$ext")
   done
   # OPcache is built into PHP from 8.5; sury ships no php8.5-opcache.
