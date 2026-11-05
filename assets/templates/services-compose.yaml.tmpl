@@ -62,7 +62,7 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
-      - lodev-mysql:/var/lib/mysql
+      - {{with .G.MountPath "mysql"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mysql:/var/lib/mysql{{end}}
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
       interval: 5s
@@ -80,7 +80,7 @@ services:
     environment:
       - MARIADB_ROOT_PASSWORD=root
     volumes:
-      - lodev-mariadb:/var/lib/mysql
+      - {{with .G.MountPath "mariadb"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mariadb:/var/lib/mysql{{end}}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
@@ -97,7 +97,7 @@ services:
     restart: unless-stopped
     # The image declares VOLUME /data; without a named volume each recreate leaves an anonymous one.
     volumes:
-      - lodev-redis:/data
+      - {{with .G.MountPath "redis"}}{{q (print . ":/data")}}{{else}}lodev-redis:/data{{end}}
     networks: [lodev]
 
   opensearch:
@@ -111,7 +111,7 @@ services:
       - OPENSEARCH_JAVA_OPTS=-Xms{{.Heap}} -Xmx{{.Heap}}
     mem_limit: {{.G.Memory.OpenSearch}}
     volumes:
-      - lodev-opensearch:/usr/share/opensearch/data
+      - {{with .G.MountPath "opensearch"}}{{q (print . ":/usr/share/opensearch/data")}}{{else}}lodev-opensearch:/usr/share/opensearch/data{{end}}
     networks: [lodev]
 
   mailpit:
@@ -147,7 +147,7 @@ services:
     container_name: lodev-rabbitmq
     restart: unless-stopped
     volumes:
-      - lodev-rabbitmq:/var/lib/rabbitmq
+      - {{with .G.MountPath "rabbitmq"}}{{q (print . ":/var/lib/rabbitmq")}}{{else}}lodev-rabbitmq:/var/lib/rabbitmq{{end}}
     labels:
       - traefik.enable=true
       - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.test`)
@@ -164,7 +164,7 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=root
     volumes:
-      - lodev-mongodb:/data/db
+      - {{with .G.MountPath "mongodb"}}{{q (print . ":/data/db")}}{{else}}lodev-mongodb:/data/db{{end}}
       - lodev-mongodb-config:/data/configdb
     healthcheck:
       # mongosh ships with mongo 5+, the legacy mongo shell with 4.4 and older.
