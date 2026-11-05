@@ -152,3 +152,32 @@ func TestPrepareServiceDataCopyFails(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// On Linux a database chowns its folder to its own UID (often 0700/0750): lodev cannot read it then.
+func TestPrepareServiceDataUnreadableFolder(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads anything")
+	}
+	f := stubServiceData(t)
+	f.volumes["lodev-mysql"], f.volumes["lodev-opensearch"] = true, true
+	g := mountGlobal(t)
+	for _, svc := range []string{"mysql", "opensearch"} {
+		writeFile(t, filepath.Join(g.MountPath(svc), "data"), "x")
+		os.Chmod(g.MountPath(svc), 0o300) // not listable, like a folder owned by another UID
+		defer os.Chmod(g.MountPath(svc), 0o755)
+	}
+	if err := prepareServiceData(g, []string{"mysql"}); err != nil {
+		t.Fatalf("unreadable folder: %v", err)
+	}
+	if got := runs(f.calls); len(got) > 0 {
+		t.Errorf("copied into an unreadable folder: %v", got)
+	}
+	// An existing opensearch folder is opensearch's own: no chmod (it fails on another UID's folder).
+	os.Chmod(g.MountPath("opensearch"), 0o700)
+	if err := prepareServiceData(g, []string{"opensearch"}); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(g.MountPath("opensearch")); fi.Mode().Perm() != 0o700 {
+		t.Errorf("existing opensearch folder re-chmodded: %v", fi.Mode())
+	}
+}

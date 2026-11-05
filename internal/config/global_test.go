@@ -328,3 +328,22 @@ func TestValidateDataPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSharedMountPaths(t *testing.T) {
+	for name, paths := range map[string]map[string]string{
+		"same":                   {"mysql": "/d/db", "mariadb": "/d/db"},
+		"nested":                 {"mysql": "/d/db", "mariadb": "/d/db/maria"},
+		"under data_dir default": {"mysql": "/srv/data/redis"},
+	} {
+		g := defaultGlobal()
+		g.DataDir, g.MountPaths = "/srv/data", paths
+		if err := g.Validate(); err == nil || !strings.Contains(err.Error(), "share") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	g := defaultGlobal()
+	g.MountPaths = map[string]string{"mysql": "/d/mysql", "mariadb": "/d/mariadb"}
+	if err := g.Validate(); err != nil {
+		t.Errorf("distinct paths: %v", err)
+	}
+}

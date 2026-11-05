@@ -215,8 +215,24 @@ func (g *Global) Validate() error {
 			return err
 		}
 	}
+	// Two servers on one data folder corrupt it (e.g. mysql and mariadb on one InnoDB datadir).
+	on := *g
+	on.MountVolume = true
+	for i, a := range DataServices {
+		for _, b := range DataServices[i+1:] {
+			if pa, pb := on.MountPath(a), on.MountPath(b); within(pa, pb) || within(pb, pa) {
+				return fmt.Errorf("mount_paths: %s and %s would share data (%s, %s)", a, b, pa, pb)
+			}
+		}
+	}
 	_, err := HeapSize(g.Memory.OpenSearch)
 	return err
+}
+
+// within reports whether path is dir or inside it.
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
 // PMAHosts is phpMyAdmin's server list: the enabled databases, or mysql when none is.
