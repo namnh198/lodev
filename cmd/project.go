@@ -215,6 +215,28 @@ func writeWebserverConf(p *config.Project) error {
 	return os.WriteFile(path, conf, 0o644)
 }
 
+func varnishVCLFile(p *config.Project) string { return filepath.Join(p.Root, ".lodev", "varnish.vcl") }
+
+// writeVarnishVCL writes the default VCL while Varnish is on and lodev still owns the file.
+func writeVarnishVCL(p *config.Project) error {
+	if !p.Varnish {
+		return nil
+	}
+	path := varnishVCLFile(p)
+	if !generated(path) {
+		ui.Info(".lodev/varnish.vcl is user-managed; not regenerating")
+		return nil
+	}
+	vcl, err := templates.VarnishVCL()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, vcl, 0o644)
+}
+
 // writeLodevGitignore ignores generated files; a webserver conf is listed only while lodev owns it.
 func writeLodevGitignore(p *config.Project) error {
 	dir := filepath.Join(p.Root, ".lodev")
@@ -224,6 +246,9 @@ func writeLodevGitignore(p *config.Project) error {
 		if generated(filepath.Join(dir, ws+"-webserver.conf")) {
 			s += "/" + ws + "-webserver.conf\n"
 		}
+	}
+	if generated(varnishVCLFile(p)) {
+		s += "/varnish.vcl\n"
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -299,6 +324,9 @@ func start(p *config.Project, rebuild bool) error {
 			return err
 		}
 		if err := writeWebserverConf(p); err != nil {
+			return err
+		}
+		if err := writeVarnishVCL(p); err != nil {
 			return err
 		}
 		legacy := filepath.Join(p.Root, ".lodev", "webserver.conf")
