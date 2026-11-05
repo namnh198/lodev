@@ -55,7 +55,21 @@ type Project struct {
 	PHPExtensions []string `yaml:"php_extensions,omitempty"`
 	Packages      []string `yaml:"packages,omitempty"`
 	User          string   `yaml:"user,omitempty"`
-	Root          string   `yaml:"-"`
+	// Varnish puts a varnish container in front of the web server.
+	Varnish        bool   `yaml:"varnish,omitempty"`
+	VarnishVersion string `yaml:"varnish_version,omitempty"`
+	Root           string `yaml:"-"`
+}
+
+// DefaultVarnishVersion is the Varnish a project runs when varnish_version is unset (Magento 2.4.8's).
+const DefaultVarnishVersion = "7.6"
+
+// VarnishImage is the varnish image the project runs.
+func (p *Project) VarnishImage() string {
+	if p.VarnishVersion != "" {
+		return "varnish:" + p.VarnishVersion
+	}
+	return "varnish:" + DefaultVarnishVersion
 }
 
 // ProjectPath is the project's config file.
@@ -196,6 +210,12 @@ func (p *Project) Validate() error {
 		if !pkgRe.MatchString(k) {
 			return fmt.Errorf("packages %q is invalid (allowed: 2+ chars of a-z, 0-9, + . -, starting with a letter or digit)", k)
 		}
+	}
+	if p.Varnish && p.Webserver == "none" {
+		return errors.New("varnish needs a webserver (webserver is none)")
+	}
+	if v := p.VarnishVersion; v != "" && !versionRe.MatchString(v) {
+		return fmt.Errorf("varnish_version %q is invalid (e.g. 7.6, 9)", v)
 	}
 	return nil
 }

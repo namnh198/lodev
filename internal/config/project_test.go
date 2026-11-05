@@ -46,19 +46,21 @@ func TestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := map[string]func(p *Project){
-		"name":      func(p *Project) { p.Name = "Bad_Name" },
-		"php":       func(p *Project) { p.PHP = "7.3" },
-		"type":      func(p *Project) { p.Type = "drupal" },
-		"webserver": func(p *Project) { p.Webserver = "caddy" },
-		"tld":       func(p *Project) { p.Domains = []string{"shop.local"} },
-		"reserved":  func(p *Project) { p.Domains = []string{"mailpit.test"} },
-		"service":   func(p *Project) { p.Services = []string{"postgres"} },
-		"space":     func(p *Project) { p.Domains = []string{"github.com shop.test"} },
-		"newline":   func(p *Project) { p.Domains = []string{"a.test\n1.2.3.4 bank.test"} },
-		"upper":     func(p *Project) { p.Domains = []string{"Shop.test"} },
-		"dash":      func(p *Project) { p.Domains = []string{"-shop.test"} },
-		"bare":      func(p *Project) { p.Domains = []string{".test"} },
-		"stack":     func(p *Project) { p.Name = "lodev-services" },
+		"name":            func(p *Project) { p.Name = "Bad_Name" },
+		"php":             func(p *Project) { p.PHP = "7.3" },
+		"type":            func(p *Project) { p.Type = "drupal" },
+		"webserver":       func(p *Project) { p.Webserver = "caddy" },
+		"tld":             func(p *Project) { p.Domains = []string{"shop.local"} },
+		"reserved":        func(p *Project) { p.Domains = []string{"mailpit.test"} },
+		"service":         func(p *Project) { p.Services = []string{"postgres"} },
+		"space":           func(p *Project) { p.Domains = []string{"github.com shop.test"} },
+		"newline":         func(p *Project) { p.Domains = []string{"a.test\n1.2.3.4 bank.test"} },
+		"upper":           func(p *Project) { p.Domains = []string{"Shop.test"} },
+		"dash":            func(p *Project) { p.Domains = []string{"-shop.test"} },
+		"bare":            func(p *Project) { p.Domains = []string{".test"} },
+		"stack":           func(p *Project) { p.Name = "lodev-services" },
+		"varnish none":    func(p *Project) { p.Webserver = "none"; p.Varnish = true },
+		"varnish version": func(p *Project) { p.VarnishVersion = "7.x" },
 	}
 	for name, mutate := range bad {
 		p := valid()
@@ -66,6 +68,41 @@ func TestValidate(t *testing.T) {
 		if p.Validate() == nil {
 			t.Errorf("%s: expected error", name)
 		}
+	}
+}
+
+func TestValidateVarnish(t *testing.T) {
+	for _, mutate := range []func(p *Project){
+		func(p *Project) { p.Webserver, p.Varnish = "nginx", true },
+		func(p *Project) { p.VarnishVersion = "9" }, // kept while Varnish is off
+		func(p *Project) { p.Webserver, p.Varnish, p.VarnishVersion = "apache", true, "9.1" },
+	} {
+		p := valid()
+		mutate(p)
+		if err := p.Validate(); err != nil {
+			t.Errorf("%+v: %v", p, err)
+		}
+	}
+	p := valid()
+	p.Webserver, p.Varnish = "none", true
+	if err := p.Validate(); err == nil || err.Error() != "varnish needs a webserver (webserver is none)" {
+		t.Errorf("err = %v", err)
+	}
+	p = valid()
+	p.VarnishVersion = "7.x"
+	if err := p.Validate(); err == nil || err.Error() != `varnish_version "7.x" is invalid (e.g. 7.6, 9)` {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestVarnishImage(t *testing.T) {
+	p := valid()
+	if got := p.VarnishImage(); got != "varnish:7.6" {
+		t.Errorf("default %q", got)
+	}
+	p.VarnishVersion = "9.1"
+	if got := p.VarnishImage(); got != "varnish:9.1" {
+		t.Errorf("override %q", got)
 	}
 }
 

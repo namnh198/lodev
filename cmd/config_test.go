@@ -235,7 +235,7 @@ func TestConfigShowTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "KEY", "php", "8.3", "shop.test")
+	mustContain(t, out, "KEY", "php", "8.3", "shop.test", "varnish", "varnish_version")
 	if readShop(t, root) != shopConf {
 		t.Fatal("file changed")
 	}
@@ -434,4 +434,24 @@ func TestConfigGlobalDockerTools(t *testing.T) {
 	}
 	out, _, _ = runConfig(t, newConfigGlobalCmd)
 	mustContain(t, out, "use_docker_compose_system", "use_docker_buildx_system")
+}
+
+func TestConfigVarnish(t *testing.T) {
+	root := newShop(t)
+	if _, _, err := runConfig(t, newConfigCmd, "--varnish=true", "--varnish-version=9.1"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readShop(t, root), "varnish: true", `varnish_version: "9.1"`)
+	if _, _, err := runConfig(t, newConfigCmd, "--webserver=none"); err == nil {
+		t.Error("varnish with webserver none was saved")
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--varnish=maybe"); err == nil || err.Error() != `--varnish "maybe" is not true or false` {
+		t.Errorf("err = %v", err)
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--varnish=false", "--varnish-version="); err != nil {
+		t.Fatal(err)
+	}
+	if got := readShop(t, root); strings.Contains(got, "varnish") {
+		t.Errorf("varnish keys left:\n%s", got)
+	}
 }
