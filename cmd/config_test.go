@@ -456,3 +456,27 @@ func TestConfigVarnish(t *testing.T) {
 		t.Errorf("varnish keys left:\n%s", got)
 	}
 }
+
+func TestConfigGlobalDataDir(t *testing.T) {
+	newGlobalHome(t, "")
+	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--data-dir=/srv/d", "--mount-volume=true", "--mysql-mount-path=/srv/m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readGlobal(t), "data_dir: /srv/d", "mount_volume: true", "mount_paths:", "mysql: /srv/m")
+	mustContain(t, errOut, "data_dir changed: existing data stays in "+filepath.Join(config.Home(), "data"))
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mount-volume=nah"); err == nil || err.Error() != `--mount-volume "nah" is not true or false` {
+		t.Errorf("err = %v", err)
+	}
+	out, _, err := runConfig(t, newConfigGlobalCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "data_dir", "/srv/d", "mount_volume", "mount_paths.mysql")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-mount-path="); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readGlobal(t), "mysql: /srv/m") {
+		t.Errorf("mount path kept:\n%s", readGlobal(t))
+	}
+}

@@ -320,9 +320,14 @@ func globalValues(g *config.Global) [][2]string {
 	for _, s := range config.VersionedServices {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
-	return append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
+	rows = append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
+	rows = append(rows, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
+	for _, s := range config.DataServices {
+		rows = append(rows, [2]string{"mount_paths." + s, g.MountPaths[s]})
+	}
+	return rows
 }
 
 // loadGlobalForEdit reads the global config; one that only fails validation is returned as is.
@@ -416,11 +421,21 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 			set([]string{"versions", s}, flag, v)
 		}
 	}
+	if fl.Changed("data-dir") {
+		v, _ := fl.GetString("data-dir")
+		set([]string{"data_dir"}, "data-dir", v)
+	}
+	for _, s := range config.DataServices {
+		if flag := s + "-mount-path"; fl.Changed(flag) {
+			v, _ := fl.GetString(flag)
+			set([]string{"mount_paths", s}, flag, v)
+		}
+	}
 	if fl.Changed("opensearch-memory") {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
 	}
-	for _, k := range []string{"update_check", "use_docker_compose_system", "use_docker_buildx_system"} {
+	for _, k := range []string{"update_check", "use_docker_compose_system", "use_docker_buildx_system", "mount_volume"} {
 		flag := strings.ReplaceAll(k, "_", "-")
 		if !fl.Changed(flag) {
 			continue
@@ -474,9 +489,12 @@ func newConfigGlobalCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				diff, _, err := applyGlobalConfig(old, changes)
+				diff, g, err := applyGlobalConfig(old, changes)
 				if err != nil {
 					return err
+				}
+				if g != nil && g.DataPath() != old.DataPath() {
+					ui.Warn("data_dir changed: existing data stays in %s", old.DataPath())
 				}
 				printDiff(c.OutOrStdout(), diff, "Run: lodev services up to apply")
 				if len(diff) == 0 {
@@ -506,6 +524,11 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("update-check", "", `check for new lodev versions: true | false ("" = true)`)
 	f.String("use-docker-compose-system", "", `run the system docker compose instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
+	f.String("data-dir", "", `folder for project homes and mounted service data ("" = ~/.lodev/data)`)
+	f.String("mount-volume", "", `keep shared service data in folders under data_dir, not Docker volumes: true | false ("" = false)`)
+	for _, s := range config.DataServices {
+		f.String(s+"-mount-path", "", fmt.Sprintf(`%s data folder with mount_volume ("" = <data_dir>/%s)`, s, s))
+	}
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
 	return c
