@@ -28,7 +28,7 @@ services:
       - MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
-      - VARNISH_HOST=varnish
+      - VARNISH_HOST=lodev-shop-varnish
     networks: [lodev, default]
     extra_hosts:
       - "en.test:172.30.0.2"
@@ -51,6 +51,8 @@ services:
     depends_on:
       web:
         condition: service_started
+        # varnishd resolves the backend once: recreate varnish when web is recreated.
+        restart: true
     networks: [lodev, default]
     volumes:
       - "/work/shop/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro"

@@ -1,12 +1,13 @@
 {{.Marker}}
 # lodev's default VCL: delete the line above to manage this file yourself.
 # Magento: replace it with Magento's own VCL (that also drops the marker):
-#   bin/magento varnish:vcl:generate --backend-host=web --backend-port=80 --access-list=web > .lodev/varnish.vcl
-# and set the cache to Varnish with http_cache_hosts=varnish:80.
+#   bin/magento varnish:vcl:generate --backend-host=lodev-{{.Name}}-web --backend-port=80 --access-list=lodev-{{.Name}}-web > .lodev/varnish.vcl
+# and set the cache to Varnish with http_cache_hosts=lodev-{{.Name}}-varnish:80.
 vcl 4.1;
 
+# The container name: "web" is every project's service name on the shared lodev network.
 backend default {
-    .host = "web";
+    .host = "lodev-{{.Name}}-web";
     .port = "80";
 }
 

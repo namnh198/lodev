@@ -227,7 +227,7 @@ func writeVarnishVCL(p *config.Project) error {
 		ui.Info(".lodev/varnish.vcl is user-managed; not regenerating")
 		return nil
 	}
-	vcl, err := templates.VarnishVCL()
+	vcl, err := templates.VarnishVCL(p)
 	if err != nil {
 		return err
 	}

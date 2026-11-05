@@ -139,6 +139,7 @@ type service struct {
 	Networks    any      `yaml:"networks"`
 	DependsOn   map[string]struct {
 		Condition string `yaml:"condition"`
+		Restart   bool   `yaml:"restart"`
 	} `yaml:"depends_on"`
 	Healthcheck struct {
 		Test []string `yaml:"test"`
@@ -426,7 +427,8 @@ func TestProjectComposeVarnishGolden(t *testing.T) {
 func TestProjectComposeVarnish(t *testing.T) {
 	svcs := parse(t, must(t)(ProjectCompose(varnishInput())))
 	web, v := svcs["web"], svcs["varnish"]
-	if web.Labels != nil || !slices.Contains(web.Environment, "VARNISH_HOST=varnish") {
+	// Container names: service names repeat across projects on the shared lodev network.
+	if web.Labels != nil || !slices.Contains(web.Environment, "VARNISH_HOST=lodev-shop-varnish") {
 		t.Errorf("web %+v", web)
 	}
 	if v.Image != "varnish:9.1" ||
@@ -435,16 +437,21 @@ func TestProjectComposeVarnish(t *testing.T) {
 		!slices.Contains(v.Volumes, "/work/shop/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro") {
 		t.Errorf("varnish %+v", v)
 	}
+	// Varnish resolves its backend once; a recreated web gets a new IP.
+	if d := v.DependsOn["web"]; d.Condition != "service_started" || !d.Restart {
+		t.Errorf("varnish depends_on %+v", v.DependsOn)
+	}
 	off := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))
-	if _, ok := off["varnish"]; ok || slices.Contains(off["web"].Environment, "VARNISH_HOST=varnish") {
+	if _, ok := off["varnish"]; ok || slices.ContainsFunc(off["web"].Environment, func(e string) bool { return strings.HasPrefix(e, "VARNISH_HOST=") }) {
 		t.Errorf("varnish off still renders it: %+v", off)
 	}
 }
 
 func TestVarnishVCLGolden(t *testing.T) {
-	b := must(t)(VarnishVCL())
+	b := must(t)(VarnishVCL(shop("nginx")))
 	golden(t, "varnish", b)
-	for _, want := range []string{"vcl 4.1;", `.host = "web";`, "varnish:vcl:generate --backend-host=web --backend-port=80"} {
+	for _, want := range []string{"vcl 4.1;", `.host = "lodev-shop-web";`,
+		"varnish:vcl:generate --backend-host=lodev-shop-web --backend-port=80 --access-list=lodev-shop-web"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("VCL lacks %q", want)
 		}

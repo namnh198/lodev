@@ -29,7 +29,7 @@ services:
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
 {{- if .P.Varnish}}
-      - VARNISH_HOST=varnish
+      - VARNISH_HOST=lodev-{{.P.Name}}-varnish
 {{- end}}
     networks: [lodev, default]
     extra_hosts:
@@ -63,6 +63,8 @@ services:
     depends_on:
       web:
         condition: service_started
+        # varnishd resolves the backend once: recreate varnish when web is recreated.
+        restart: true
     networks: [lodev, default]
     volumes:
       - {{q (print .P.Root "/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro")}}

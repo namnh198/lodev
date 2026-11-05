@@ -442,7 +442,8 @@ func TestConfigVarnish(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustContain(t, readShop(t, root), "varnish: true", `varnish_version: "9.1"`)
-	if _, _, err := runConfig(t, newConfigCmd, "--webserver=none"); err == nil {
+	before := readShop(t, root)
+	if _, _, err := runConfig(t, newConfigCmd, "--webserver=none"); err == nil || readShop(t, root) != before {
 		t.Error("varnish with webserver none was saved")
 	}
 	if _, _, err := runConfig(t, newConfigCmd, "--varnish=maybe"); err == nil || err.Error() != `--varnish "maybe" is not true or false` {
