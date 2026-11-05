@@ -115,6 +115,11 @@ func WebBuildDockerfile(p *config.Project, parts []UserPart) ([]byte, error) {
 	}{config.PHPImage(p.PHP), p.NodeJS, strings.Join(pkgs, " "), ps})
 }
 
+// VarnishVCL is p's default .lodev/varnish.vcl; its first line is GeneratedMarker.
+func VarnishVCL(p *config.Project) ([]byte, error) {
+	return render("varnish.vcl.tmpl", struct{ Marker, Name string }{GeneratedMarker, p.Name})
+}
+
 func TraefikDynamic(certNames []string) ([]byte, error) {
 	return render("traefik-dynamic.yaml.tmpl", certNames)
 }

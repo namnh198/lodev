@@ -139,6 +139,7 @@ type service struct {
 	Networks    any      `yaml:"networks"`
 	DependsOn   map[string]struct {
 		Condition string `yaml:"condition"`
+		Restart   bool   `yaml:"restart"`
 	} `yaml:"depends_on"`
 	Healthcheck struct {
 		Test []string `yaml:"test"`
@@ -410,5 +411,59 @@ func TestProjectComposeMongoDBURI(t *testing.T) {
 	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
 	if !slices.Contains(web.Environment, "MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin") {
 		t.Errorf("env %v", web.Environment)
+	}
+}
+
+func varnishInput() ProjectInput {
+	in := projectInput("nginx")
+	in.Project.Varnish, in.Project.VarnishVersion = true, "9.1"
+	return in
+}
+
+func TestProjectComposeVarnishGolden(t *testing.T) {
+	golden(t, "project-varnish", must(t)(ProjectCompose(varnishInput())))
+}
+
+func TestProjectComposeVarnish(t *testing.T) {
+	svcs := parse(t, must(t)(ProjectCompose(varnishInput())))
+	web, v := svcs["web"], svcs["varnish"]
+	// Container names: service names repeat across projects on the shared lodev network.
+	if web.Labels != nil || !slices.Contains(web.Environment, "VARNISH_HOST=lodev-shop-varnish") {
+		t.Errorf("web %+v", web)
+	}
+	if v.Image != "varnish:9.1" ||
+		!slices.Contains(v.Labels, "traefik.http.routers.p-shop.rule=Host(`shop.test`) || Host(`en.test`)") ||
+		!slices.Contains(v.Labels, "traefik.http.services.p-shop.loadbalancer.server.port=80") ||
+		!slices.Contains(v.Volumes, "/work/shop/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro") {
+		t.Errorf("varnish %+v", v)
+	}
+	// Varnish resolves its backend once; a recreated web gets a new IP.
+	// Varnish starts once web accepts connections, else its probe marks the backend sick (503s).
+	if d := v.DependsOn["web"]; d.Condition != "service_healthy" || !d.Restart {
+		t.Errorf("varnish depends_on %+v", v.DependsOn)
+	}
+	if !slices.Equal(web.Healthcheck.Test, []string{"CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80"}) {
+		t.Errorf("web healthcheck %v", web.Healthcheck.Test)
+	}
+	off := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))
+	if _, ok := off["varnish"]; ok || slices.ContainsFunc(off["web"].Environment, func(e string) bool { return strings.HasPrefix(e, "VARNISH_HOST=") }) {
+		t.Errorf("varnish off still renders it: %+v", off)
+	}
+	if off["web"].Healthcheck.Test != nil {
+		t.Errorf("web healthcheck without varnish: %v", off["web"].Healthcheck.Test)
+	}
+}
+
+func TestVarnishVCLGolden(t *testing.T) {
+	b := must(t)(VarnishVCL(shop("nginx")))
+	golden(t, "varnish", b)
+	for _, want := range []string{"vcl 4.1;", `.host = "lodev-shop-web";`,
+		"varnish:vcl:generate --backend-host=lodev-shop-web --backend-port=80 --access-list=lodev-shop-web"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("VCL lacks %q", want)
+		}
+	}
+	if !strings.HasPrefix(string(b), GeneratedMarker+"\n") {
+		t.Error("VCL must start with the marker")
 	}
 }

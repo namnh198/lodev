@@ -87,6 +87,7 @@ func projectValues(p *config.Project, list func([]string) string) [][2]string {
 		{"docroot", p.Docroot}, {"domains", list(p.Domains)}, {"services", list(p.Services)},
 		{"nodejs", p.NodeJS}, {"php_extensions", list(p.PHPExtensions)},
 		{"packages", list(p.Packages)}, {"user", p.User},
+		{"varnish", strconv.FormatBool(p.Varnish)}, {"varnish_version", p.VarnishVersion},
 	}
 }
 
@@ -132,6 +133,7 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 	for _, s := range []struct{ flag, key string }{
 		{"type", "type"}, {"php-version", "php"}, {"webserver", "webserver"},
 		{"docroot", "docroot"}, {"nodejs-version", "nodejs"}, {"user", "user"},
+		{"varnish-version", "varnish_version"},
 	} {
 		if !fl.Changed(s.flag) {
 			continue
@@ -146,6 +148,18 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 			out = append(out, change{key: []string{s.key}, del: true})
 		default:
 			out = append(out, change{key: []string{s.key}, value: v})
+		}
+	}
+	if fl.Changed("varnish") {
+		v, _ := fl.GetString("varnish")
+		on, err := strconv.ParseBool(v)
+		if v != "" && err != nil {
+			return nil, fmt.Errorf("--varnish %q is not true or false", v)
+		}
+		if on {
+			out = append(out, change{key: []string{"varnish"}, value: true})
+		} else {
+			out = append(out, change{key: []string{"varnish"}, del: true})
 		}
 	}
 	for _, l := range []struct {
@@ -280,6 +294,8 @@ func newConfigCmd() *cobra.Command {
 	f.String("docroot", "", `document root relative to the project; "." or "" for the project root`)
 	f.String("nodejs-version", "", `Node.js version: lts | latest | current | 20 | 20.11 ("" removes Node.js)`)
 	f.String("user", "", `shell user in the web container ("" = your host username)`)
+	f.String("varnish", "", `put Varnish in front of the web server: true | false ("" = false)`)
+	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
 	for _, l := range []struct{ name, what string }{
 		{"domains", "domains (.test)"}, {"services", "shared services"},
 		{"php-extensions", "PHP extensions"}, {"packages", "apt packages"},
