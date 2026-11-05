@@ -595,3 +595,34 @@ func TestWriteVarnishVCL(t *testing.T) {
 		t.Fatalf("user VCL overwritten: %q", b)
 	}
 }
+
+func TestProjectHome(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	g, _ := config.LoadGlobal()
+	if got := projectHome(g, &config.Project{Name: "shop"}); got != filepath.Join(config.Home(), "data", "home-shop") {
+		t.Errorf("projectHome = %q", got)
+	}
+}
+
+func TestDeleteKeepsHome(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	hf := filepath.Join(t.TempDir(), "hosts")
+	os.WriteFile(hf, []byte("127.0.0.1 localhost\n"), 0o644)
+	defer func(o string) { hosts.File = o }(hosts.File)
+	hosts.File = hf
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+	dockerOutput = func(...string) (string, error) { return "", nil }
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
+	g, _ := config.LoadGlobal()
+	h := projectHome(g, p)
+	writeFile(t, filepath.Join(h, ".bash_history"), "ls\n")
+	out, _, restore := ui.Capture(false)
+	defer restore()
+	if err := deleteProject(p, false, true); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out.String(), "Kept "+h+" (bash history, composer and npm caches)")
+	if _, err := os.Stat(filepath.Join(h, ".bash_history")); err != nil {
+		t.Errorf("home removed: %v", err)
+	}
+}

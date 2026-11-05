@@ -48,6 +48,7 @@ type ProjectInput struct {
 	Image      string
 	User       string
 	UID, GID   int
+	HomeDir    string // host folder mounted as /home/<User>
 }
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
@@ -62,9 +63,10 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		Image      string
 		User       string
 		UID, GID   int
+		HomeDir    string
 		Rule       string
 		CustomDir  map[string]string
-	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, strings.Join(hosts, " || "), customDirs})
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, strings.Join(hosts, " || "), customDirs})
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.
