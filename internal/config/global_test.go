@@ -280,3 +280,51 @@ func TestGlobalDockerToolKeys(t *testing.T) {
 		t.Errorf("compose key: %v %v", g.UseDockerComposeSystem, g.UseDockerBuildxSystem)
 	}
 }
+
+func TestDataPath(t *testing.T) {
+	writeGlobal(t, "")
+	home, _ := os.UserHomeDir()
+	for in, want := range map[string]string{
+		"":           filepath.Join(Home(), "data"),
+		"~/x":        filepath.Join(home, "x"),
+		"/srv/lodev": "/srv/lodev",
+	} {
+		if got := (&Global{DataDir: in}).DataPath(); got != want {
+			t.Errorf("DataPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMountPath(t *testing.T) {
+	writeGlobal(t, "")
+	home, _ := os.UserHomeDir()
+	g := &Global{}
+	if got := g.MountPath("mysql"); got != "" {
+		t.Errorf("off: %q", got)
+	}
+	g.MountVolume = true
+	if got := g.MountPath("mysql"); got != filepath.Join(Home(), "data", "mysql") {
+		t.Errorf("default: %q", got)
+	}
+	g.MountPaths = map[string]string{"mysql": "~/db"}
+	if got := g.MountPath("mysql"); got != filepath.Join(home, "db") {
+		t.Errorf("override: %q", got)
+	}
+	if got := g.MountPath("mailpit"); got != "" {
+		t.Errorf("mailpit: %q", got)
+	}
+}
+
+func TestValidateDataPaths(t *testing.T) {
+	for want, mutate := range map[string]func(g *Global){
+		`data_dir "data" must be an absolute path or start with ~/`:                                              func(g *Global) { g.DataDir = "data" },
+		`mount_paths.mysql "rel" must be an absolute path or start with ~/`:                                      func(g *Global) { g.MountPaths = map[string]string{"mysql": "rel"} },
+		`mount_paths: unknown service "mailpit" (allowed: mysql, mariadb, redis, opensearch, rabbitmq, mongodb)`: func(g *Global) { g.MountPaths = map[string]string{"mailpit": "/x"} },
+	} {
+		g := defaultGlobal()
+		mutate(g)
+		if err := g.Validate(); err == nil || err.Error() != want {
+			t.Errorf("err = %v, want %s", err, want)
+		}
+	}
+}
