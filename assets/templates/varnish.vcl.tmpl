@@ -1,0 +1,41 @@
+{{.Marker}}
+# lodev's default VCL: delete the line above to manage this file yourself.
+# Magento: replace it with Magento's own VCL (that also drops the marker):
+#   bin/magento varnish:vcl:generate --backend-host=web --backend-port=80 > .lodev/varnish.vcl
+# and set the cache to Varnish with http_cache_hosts=varnish:80.
+vcl 4.1;
+
+backend default {
+    .host = "web";
+    .port = "80";
+}
+
+# Docker networks: PHP in the web container sends PURGE/BAN from here.
+acl purge {
+    "localhost";
+    "10.0.0.0"/8;
+    "172.16.0.0"/12;
+    "192.168.0.0"/16;
+}
+
+sub vcl_recv {
+    if (req.method == "PURGE") {
+        if (client.ip !~ purge) {
+            return (synth(405, "Not allowed"));
+        }
+        return (purge);
+    }
+    if (req.method == "BAN") {
+        if (client.ip !~ purge) {
+            return (synth(405, "Not allowed"));
+        }
+        ban("req.url ~ " + req.url);
+        return (synth(200, "Banned"));
+    }
+    if (req.method != "GET" && req.method != "HEAD") {
+        return (pass);
+    }
+    if (req.http.Authorization) {
+        return (pass);
+    }
+}

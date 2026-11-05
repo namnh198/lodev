@@ -28,6 +28,9 @@ services:
       - MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
+{{- if .P.Varnish}}
+      - VARNISH_HOST=varnish
+{{- end}}
     networks: [lodev, default]
     extra_hosts:
 {{- range .ExtraHosts}}
@@ -40,6 +43,29 @@ services:
 {{- if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver ":" (index .CustomDir .P.Webserver) ":ro")}}
+{{- if not .P.Varnish}}
+    labels:
+      - traefik.enable=true
+      - "traefik.http.routers.p-{{.P.Name}}.rule={{.Rule}}"
+      - traefik.http.routers.p-{{.P.Name}}.entrypoints=websecure
+      - traefik.http.routers.p-{{.P.Name}}.tls=true
+      - traefik.http.services.p-{{.P.Name}}.loadbalancer.server.port=80
+{{- end}}
+{{- end}}
+{{- if .P.Varnish}}
+
+  # Traefik → varnish:80 → web:80; the VCL is .lodev/varnish.vcl.
+  varnish:
+    image: {{.P.VarnishImage}}
+    container_name: lodev-{{.P.Name}}-varnish
+    hostname: {{.P.Name}}-varnish
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+    networks: [lodev, default]
+    volumes:
+      - {{q (print .P.Root "/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro")}}
     labels:
       - traefik.enable=true
       - "traefik.http.routers.p-{{.P.Name}}.rule={{.Rule}}"

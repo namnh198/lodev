@@ -412,3 +412,44 @@ func TestProjectComposeMongoDBURI(t *testing.T) {
 		t.Errorf("env %v", web.Environment)
 	}
 }
+
+func varnishInput() ProjectInput {
+	in := projectInput("nginx")
+	in.Project.Varnish, in.Project.VarnishVersion = true, "9.1"
+	return in
+}
+
+func TestProjectComposeVarnishGolden(t *testing.T) {
+	golden(t, "project-varnish", must(t)(ProjectCompose(varnishInput())))
+}
+
+func TestProjectComposeVarnish(t *testing.T) {
+	svcs := parse(t, must(t)(ProjectCompose(varnishInput())))
+	web, v := svcs["web"], svcs["varnish"]
+	if web.Labels != nil || !slices.Contains(web.Environment, "VARNISH_HOST=varnish") {
+		t.Errorf("web %+v", web)
+	}
+	if v.Image != "varnish:9.1" ||
+		!slices.Contains(v.Labels, "traefik.http.routers.p-shop.rule=Host(`shop.test`) || Host(`en.test`)") ||
+		!slices.Contains(v.Labels, "traefik.http.services.p-shop.loadbalancer.server.port=80") ||
+		!slices.Contains(v.Volumes, "/work/shop/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro") {
+		t.Errorf("varnish %+v", v)
+	}
+	off := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))
+	if _, ok := off["varnish"]; ok || slices.Contains(off["web"].Environment, "VARNISH_HOST=varnish") {
+		t.Errorf("varnish off still renders it: %+v", off)
+	}
+}
+
+func TestVarnishVCLGolden(t *testing.T) {
+	b := must(t)(VarnishVCL())
+	golden(t, "varnish", b)
+	for _, want := range []string{"vcl 4.1;", `.host = "web";`, "varnish:vcl:generate --backend-host=web --backend-port=80"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("VCL lacks %q", want)
+		}
+	}
+	if !strings.HasPrefix(string(b), GeneratedMarker+"\n") {
+		t.Error("VCL must start with the marker")
+	}
+}
