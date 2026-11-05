@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"lodev/internal/config"
 	"lodev/internal/ui"
 )
 
 var File = "/etc/hosts"
+
+// runSudo runs sudo with the terminal attached, so it can ask for the password; swapped in tests.
+var runSudo = func(args ...string) error {
+	c := exec.Command("sudo", args...)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return c.Run()
+}
 
 // Render replaces (or appends) the block for name; no domains removes it.
 func Render(content, name string, domains []string) (string, error) {
@@ -41,7 +50,7 @@ func Render(content, name string, domains []string) (string, error) {
 	return strings.Join(out, "\n") + "\n", nil
 }
 
-// Apply writes the block into File with sudo, only when it changes.
+// Apply writes the block into File, only when it changes: directly when File is writable, else with sudo.
 func Apply(name string, domains []string) error {
 	data, err := os.ReadFile(File)
 	if err != nil {
@@ -54,6 +63,20 @@ func Apply(name string, domains []string) error {
 	if next == string(data) {
 		return nil
 	}
+	// No O_TRUNC: the probe must not change the file.
+	if f, err := os.OpenFile(File, os.O_WRONLY, 0); err == nil {
+		f.Close()
+		// The backup lives in lodev's home: a non-root user cannot create files in /etc.
+		if err := os.MkdirAll(config.Home(), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(config.Home(), "hosts.bak"), data, 0o644); err != nil {
+			return err
+		}
+		ui.Info("Updating %s", File)
+		// In place: /etc may not allow the rename an atomic write needs.
+		return os.WriteFile(File, []byte(next), 0o644)
+	}
 	tmp, err := os.CreateTemp("", "lodev-hosts-*")
 	if err != nil {
 		return err
@@ -65,9 +88,7 @@ func Apply(name string, domains []string) error {
 	tmp.Close()
 	ui.Info("Updating %s (sudo)", File)
 	for _, args := range [][]string{{"cp", File, "/etc/hosts.lodev.bak"}, {"cp", tmp.Name(), File}} {
-		c := exec.Command("sudo", args...)
-		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-		if err := c.Run(); err != nil {
+		if err := runSudo(args...); err != nil {
 			return fmt.Errorf("sudo %s: %w", strings.Join(args, " "), err)
 		}
 	}
