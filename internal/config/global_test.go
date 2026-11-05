@@ -280,3 +280,70 @@ func TestGlobalDockerToolKeys(t *testing.T) {
 		t.Errorf("compose key: %v %v", g.UseDockerComposeSystem, g.UseDockerBuildxSystem)
 	}
 }
+
+func TestDataPath(t *testing.T) {
+	writeGlobal(t, "")
+	home, _ := os.UserHomeDir()
+	for in, want := range map[string]string{
+		"":           filepath.Join(Home(), "data"),
+		"~/x":        filepath.Join(home, "x"),
+		"/srv/lodev": "/srv/lodev",
+	} {
+		if got := (&Global{DataDir: in}).DataPath(); got != want {
+			t.Errorf("DataPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMountPath(t *testing.T) {
+	writeGlobal(t, "")
+	home, _ := os.UserHomeDir()
+	g := &Global{}
+	if got := g.MountPath("mysql"); got != "" {
+		t.Errorf("off: %q", got)
+	}
+	g.MountVolume = true
+	if got := g.MountPath("mysql"); got != filepath.Join(Home(), "data", "mysql") {
+		t.Errorf("default: %q", got)
+	}
+	g.MountPaths = map[string]string{"mysql": "~/db"}
+	if got := g.MountPath("mysql"); got != filepath.Join(home, "db") {
+		t.Errorf("override: %q", got)
+	}
+	if got := g.MountPath("mailpit"); got != "" {
+		t.Errorf("mailpit: %q", got)
+	}
+}
+
+func TestValidateDataPaths(t *testing.T) {
+	for want, mutate := range map[string]func(g *Global){
+		`data_dir "data" must be an absolute path or start with ~/`:                                              func(g *Global) { g.DataDir = "data" },
+		`mount_paths.mysql "rel" must be an absolute path or start with ~/`:                                      func(g *Global) { g.MountPaths = map[string]string{"mysql": "rel"} },
+		`mount_paths: unknown service "mailpit" (allowed: mysql, mariadb, redis, opensearch, rabbitmq, mongodb)`: func(g *Global) { g.MountPaths = map[string]string{"mailpit": "/x"} },
+	} {
+		g := defaultGlobal()
+		mutate(g)
+		if err := g.Validate(); err == nil || err.Error() != want {
+			t.Errorf("err = %v, want %s", err, want)
+		}
+	}
+}
+
+func TestValidateSharedMountPaths(t *testing.T) {
+	for name, paths := range map[string]map[string]string{
+		"same":                   {"mysql": "/d/db", "mariadb": "/d/db"},
+		"nested":                 {"mysql": "/d/db", "mariadb": "/d/db/maria"},
+		"under data_dir default": {"mysql": "/srv/data/redis"},
+	} {
+		g := defaultGlobal()
+		g.DataDir, g.MountPaths = "/srv/data", paths
+		if err := g.Validate(); err == nil || !strings.Contains(err.Error(), "share") {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	g := defaultGlobal()
+	g.MountPaths = map[string]string{"mysql": "/d/mysql", "mariadb": "/d/mariadb"}
+	if err := g.Validate(); err != nil {
+		t.Errorf("distinct paths: %v", err)
+	}
+}

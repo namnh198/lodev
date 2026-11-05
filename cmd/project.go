@@ -374,6 +374,15 @@ func start(p *config.Project, rebuild bool) error {
 	if err != nil {
 		return err
 	}
+	g, err := config.LoadGlobal()
+	if err != nil {
+		return err
+	}
+	// Created here, not by Docker: Docker would create a missing bind source owned by root.
+	home := projectHome(g, p)
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		return err
+	}
 	data, err := templates.ProjectCompose(templates.ProjectInput{
 		Project:    p,
 		ExtraHosts: append(reg.AllDomains(), config.ReservedDomains...),
@@ -382,6 +391,7 @@ func start(p *config.Project, rebuild bool) error {
 		User:       user,
 		UID:        os.Getuid(),
 		GID:        os.Getgid(),
+		HomeDir:    home,
 	})
 	if err != nil {
 		return err
@@ -420,6 +430,11 @@ func announceStarted(p *config.Project) {
 	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
 }
 
+// projectHome is the host folder mounted as the container user's home.
+func projectHome(g *config.Global, p *config.Project) string {
+	return filepath.Join(g.DataPath(), "home-"+p.Name)
+}
+
 func deleteProject(p *config.Project, dropDB, yes bool) error {
 	reg, err := registry.Load()
 	if err != nil {
@@ -450,6 +465,12 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 	delete(reg, p.Name)
 	if err := reg.Save(); err != nil {
 		return err
+	}
+	if g, err := config.LoadGlobal(); err == nil {
+		h := projectHome(g, p)
+		if _, err := os.Stat(h); err == nil {
+			ui.Info("Kept %s (bash history, composer and npm caches)", h)
+		}
 	}
 	if dropDB && p.DB() != "" && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
 		if err := dbExec(p.DB(), fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {

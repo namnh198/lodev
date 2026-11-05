@@ -68,6 +68,7 @@ func projectInput(webserver string) ProjectInput {
 		CAFile:     home + "/ca/rootCA.pem",
 		Image:      "lodev/shop-web",
 		User:       "kuroko", UID: 501, GID: 20,
+		HomeDir: home + "/data/home-shop",
 	}
 }
 
@@ -465,5 +466,37 @@ func TestVarnishVCLGolden(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(b), GeneratedMarker+"\n") {
 		t.Error("VCL must start with the marker")
+	}
+}
+
+func TestSharedComposeMountVolume(t *testing.T) {
+	g := defaultGlobal(t)
+	g.MountVolume, g.DataDir = true, "/data dir"
+	g.MountPaths = map[string]string{"mysql": "/ssd/mysql"}
+	b := must(t)(SharedCompose(g, home))
+	svcs := parse(t, b)
+	for svc, want := range map[string]string{
+		"mysql": "/ssd/mysql:/var/lib/mysql", "mariadb": "/data dir/mariadb:/var/lib/mysql",
+		"redis": "/data dir/redis:/data", "opensearch": "/data dir/opensearch:/usr/share/opensearch/data",
+		"rabbitmq": "/data dir/rabbitmq:/var/lib/rabbitmq", "mongodb": "/data dir/mongodb:/data/db",
+	} {
+		v := svcs[svc].Volumes
+		if !slices.Contains(v, want) {
+			t.Errorf("%s volumes %v lack %q", svc, v, want)
+		}
+		if slices.ContainsFunc(v, func(s string) bool { return strings.HasPrefix(s, "lodev-"+svc+":") }) {
+			t.Errorf("%s still mounts its named volume: %v", svc, v)
+		}
+	}
+	if !slices.Contains(svcs["mongodb"].Volumes, "lodev-mongodb-config:/data/configdb") {
+		t.Errorf("mongodb configdb %v", svcs["mongodb"].Volumes)
+	}
+	golden(t, "services-mountvolume", b)
+}
+
+func TestProjectComposeHome(t *testing.T) {
+	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
+	if !slices.Contains(web.Volumes, home+"/data/home-shop:/home/kuroko") {
+		t.Errorf("web volumes %v", web.Volumes)
 	}
 }

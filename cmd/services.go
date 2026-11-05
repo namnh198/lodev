@@ -90,6 +90,9 @@ func servicesUp() error {
 		return err
 	}
 	warnImageChange(g)
+	if err := prepareServiceData(g, g.EnabledServices()); err != nil {
+		return err
+	}
 	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
 		return err
 	}
@@ -169,6 +172,13 @@ const volumesWarning = "This deletes all shared service data: MySQL, MariaDB, Re
 
 // startService starts one shared service from the existing compose file.
 func startService(svc string) error {
+	g, err := config.LoadGlobal()
+	if err != nil {
+		return err
+	}
+	if err := prepareServiceData(g, []string{svc}); err != nil {
+		return err
+	}
 	return servicesCompose("up", "-d", svc)
 }
 

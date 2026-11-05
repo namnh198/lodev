@@ -32,12 +32,18 @@ type Global struct {
 	// Run the system docker compose / docker build instead of lodev's pinned binaries.
 	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
+	// DataDir holds each project's home and, with MountVolume, the shared services' data.
+	DataDir     string            `yaml:"data_dir,omitempty"`
+	MountVolume bool              `yaml:"mount_volume"`
+	MountPaths  map[string]string `yaml:"mount_paths,omitempty"`
 }
 
 var (
 	VersionedServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
 	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
-	versionRe         = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
+	// DataServices keep data in a volume (or, with mount_volume, a folder).
+	DataServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
+	versionRe    = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 )
 
 // Image is the image of a versioned shared service at its configured version.
@@ -54,6 +60,41 @@ func (g *Global) Image(svc string) string {
 		return "mongo:" + v
 	}
 	return svc + ":" + v
+}
+
+// expandPath resolves a leading ~/ to the user's home.
+func expandPath(p string) string {
+	if rest, ok := strings.CutPrefix(p, "~/"); ok {
+		h, _ := os.UserHomeDir()
+		return filepath.Join(h, rest)
+	}
+	return p
+}
+
+func checkPath(key, p string) error {
+	if !filepath.IsAbs(p) && !strings.HasPrefix(p, "~/") {
+		return fmt.Errorf("%s %q must be an absolute path or start with ~/", key, p)
+	}
+	return nil
+}
+
+// DataPath is data_dir expanded, or ~/.lodev/data.
+func (g *Global) DataPath() string {
+	if g.DataDir == "" {
+		return filepath.Join(Home(), "data")
+	}
+	return expandPath(g.DataDir)
+}
+
+// MountPath is the folder svc keeps its data in, or "" for its named volume.
+func (g *Global) MountPath(svc string) string {
+	if !g.MountVolume || !slices.Contains(DataServices, svc) {
+		return ""
+	}
+	if p := g.MountPaths[svc]; p != "" {
+		return expandPath(p)
+	}
+	return filepath.Join(g.DataPath(), svc)
 }
 
 // GlobalPath is the global config file.
@@ -161,8 +202,37 @@ func (g *Global) Validate() error {
 			return fmt.Errorf("versions.%s %q is not a version (e.g. 8.0)", s, g.Versions[s])
 		}
 	}
+	if g.DataDir != "" {
+		if err := checkPath("data_dir", g.DataDir); err != nil {
+			return err
+		}
+	}
+	for _, s := range slices.Sorted(maps.Keys(g.MountPaths)) {
+		if !slices.Contains(DataServices, s) {
+			return fmt.Errorf("mount_paths: unknown service %q (allowed: %s)", s, strings.Join(DataServices, ", "))
+		}
+		if err := checkPath("mount_paths."+s, g.MountPaths[s]); err != nil {
+			return err
+		}
+	}
+	// Two servers on one data folder corrupt it (e.g. mysql and mariadb on one InnoDB datadir).
+	on := *g
+	on.MountVolume = true
+	for i, a := range DataServices {
+		for _, b := range DataServices[i+1:] {
+			if pa, pb := on.MountPath(a), on.MountPath(b); within(pa, pb) || within(pb, pa) {
+				return fmt.Errorf("mount_paths: %s and %s would share data (%s, %s)", a, b, pa, pb)
+			}
+		}
+	}
 	_, err := HeapSize(g.Memory.OpenSearch)
 	return err
+}
+
+// within reports whether path is dir or inside it.
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
 // PMAHosts is phpMyAdmin's server list: the enabled databases, or mysql when none is.

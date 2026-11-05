@@ -42,6 +42,9 @@ if [ -n "${LODEV_USER:-}" ]; then
   if [ -z "$by_name" ]; then
     useradd -m -d "/home/$LODEV_USER" -s /bin/bash -u "$LODEV_UID" -g "$group" "$LODEV_USER"
   fi
+  # The home may be a mounted, persistent folder: useradd skips /etc/skel then. Copy what is
+  # missing as the user (no chown -R over caches), never overwriting the user's files.
+  runuser -u "$LODEV_USER" -- cp -r --update=none /etc/skel/. "/home/$LODEV_USER/"
   printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$LODEV_USER" > /etc/sudoers.d/lodev
   chmod 0440 /etc/sudoers.d/lodev
   sed -i "s/^user .*;/user $LODEV_USER $group;/" /etc/nginx/nginx.conf
