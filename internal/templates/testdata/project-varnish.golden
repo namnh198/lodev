@@ -11,6 +11,11 @@ services:
     container_name: lodev-shop-web
     hostname: shop-web
     restart: unless-stopped
+    # Varnish waits for this: a backend that refuses its first probe starts sick (503s).
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80"]
+      interval: 2s
+      retries: 30
     environment:
       - LODEV_PHP=8.3
       - LODEV_WEBSERVER=nginx
@@ -50,7 +55,7 @@ services:
     restart: unless-stopped
     depends_on:
       web:
-        condition: service_started
+        condition: service_healthy
         # varnishd resolves the backend once: recreate varnish when web is recreated.
         restart: true
     networks: [lodev, default]

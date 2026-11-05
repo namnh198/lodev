@@ -438,12 +438,19 @@ func TestProjectComposeVarnish(t *testing.T) {
 		t.Errorf("varnish %+v", v)
 	}
 	// Varnish resolves its backend once; a recreated web gets a new IP.
-	if d := v.DependsOn["web"]; d.Condition != "service_started" || !d.Restart {
+	// Varnish starts once web accepts connections, else its probe marks the backend sick (503s).
+	if d := v.DependsOn["web"]; d.Condition != "service_healthy" || !d.Restart {
 		t.Errorf("varnish depends_on %+v", v.DependsOn)
+	}
+	if !slices.Equal(web.Healthcheck.Test, []string{"CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80"}) {
+		t.Errorf("web healthcheck %v", web.Healthcheck.Test)
 	}
 	off := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))
 	if _, ok := off["varnish"]; ok || slices.ContainsFunc(off["web"].Environment, func(e string) bool { return strings.HasPrefix(e, "VARNISH_HOST=") }) {
 		t.Errorf("varnish off still renders it: %+v", off)
+	}
+	if off["web"].Healthcheck.Test != nil {
+		t.Errorf("web healthcheck without varnish: %v", off["web"].Healthcheck.Test)
 	}
 }
 
