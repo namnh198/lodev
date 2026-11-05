@@ -183,7 +183,27 @@ update_check: true  # after a command, say when a newer lodev release exists (as
                     # turn off with `lodev config-global --update-check=false`
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
 use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
+data_dir: ~/.lodev/data           # project homes and mounted service data ("" = ~/.lodev/data)
+mount_volume: false               # true = shared service data in <data_dir>/<service>, not Docker volumes
+mount_paths:                      # optional, per service: mysql mariadb redis opensearch rabbitmq mongodb
+  mysql: /Volumes/SSD/mysql
 ```
+
+### Project homes and data folders
+
+Each project's web container mounts `<data_dir>/home-<name>` as the user's home, so bash and
+mysql history, composer auth (`~/.config/composer/auth.json`), the composer and npm caches and
+anything else in the home survive container re-creates. lodev creates the folder on
+`lodev start`; `lodev remove` keeps it (and says where). Paths are absolute or start with `~/`;
+changing `data_dir` (`lodev config-global --data-dir=<path>`) moves nothing.
+
+`lodev config-global --mount-volume=true` (and optionally `--mysql-mount-path=<path>`, likewise
+for the other data services) then `lodev services up` keeps the shared services' data in folders.
+On that first `services up`, a service whose folder is empty gets its old `lodev-<service>` volume
+copied in once (the service is stopped first; the volume is kept as a backup). If a copy fails,
+empty the folder before retrying. Turning `mount_volume` off goes back to the volumes; data
+written to the folders meanwhile is not copied back. OpenSearch's folder is made world-writable
+(it runs as UID 1000 and does not take ownership of its data folder).
 
 ### Docker Compose and Buildx
 
@@ -199,7 +219,8 @@ Changing a MySQL/MariaDB version recreates its container on the existing data vo
 `lodev services up` warns when the image changes. Dump your databases first: a major
 downgrade (or skipping majors) may not read the old data.
 
-Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …), kept across
+Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …; folders with
+`mount_volume`), kept across
 `poweroff` and `services down`. Older lodev versions left an anonymous volume behind each time
 Redis was recreated; list them with `docker volume ls -f dangling=true` and, once you have
 checked that nothing else needs them, remove them with `docker volume prune` (it removes every
