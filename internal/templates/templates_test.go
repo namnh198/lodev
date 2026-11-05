@@ -68,6 +68,7 @@ func projectInput(webserver string) ProjectInput {
 		CAFile:     home + "/ca/rootCA.pem",
 		Image:      "lodev/shop-web",
 		User:       "kuroko", UID: 501, GID: 20,
+		HomeDir:    home + "/data/home-shop",
 	}
 }
 
@@ -491,4 +492,11 @@ func TestSharedComposeMountVolume(t *testing.T) {
 		t.Errorf("mongodb configdb %v", svcs["mongodb"].Volumes)
 	}
 	golden(t, "services-mountvolume", b)
+}
+
+func TestProjectComposeHome(t *testing.T) {
+	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
+	if !slices.Contains(web.Volumes, home+"/data/home-shop:/home/kuroko") {
+		t.Errorf("web volumes %v", web.Volumes)
+	}
 }

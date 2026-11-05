@@ -47,6 +47,7 @@ services:
       - {{q (print .P.Root ":/var/www/html")}}
       - {{q (print .CAFile ":/etc/lodev/rootCA.pem:ro")}}
       - {{q (print .P.Root "/.lodev/php:/etc/lodev/php.d:ro")}}
+      - {{q (print .HomeDir ":/home/" .User)}}
 {{- if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver ":" (index .CustomDir .P.Webserver) ":ro")}}

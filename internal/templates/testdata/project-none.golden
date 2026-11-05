@@ -38,3 +38,4 @@ services:
       - "/work/shop:/var/www/html"
       - "/home/u/.lodev/ca/rootCA.pem:/etc/lodev/rootCA.pem:ro"
       - "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
+      - "/home/u/.lodev/data/home-shop:/home/kuroko"

@@ -38,6 +38,7 @@ services:
       - "/work/shop:/var/www/html"
       - "/home/u/.lodev/ca/rootCA.pem:/etc/lodev/rootCA.pem:ro"
       - "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
+      - "/home/u/.lodev/data/home-shop:/home/kuroko"
       - "/work/shop/.lodev/apache-webserver.conf:/etc/lodev/webserver.conf:ro"
       - "/work/shop/.lodev/apache:/etc/apache2/custom.d:ro"
     labels:
