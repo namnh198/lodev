@@ -10,6 +10,9 @@ services:
     image: lodev/shop-web
     container_name: lodev-shop-web
     hostname: shop-web
+    # dockerd userns-remap would shift the container user's UID off the host's, so it could
+    # not write the bind-mounted project and home; a no-op without remapping.
+    userns_mode: host
     restart: unless-stopped
     environment:
       - LODEV_PHP=8.3

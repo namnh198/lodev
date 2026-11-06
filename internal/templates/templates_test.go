@@ -500,3 +500,13 @@ func TestProjectComposeHome(t *testing.T) {
 		t.Errorf("web volumes %v", web.Volumes)
 	}
 }
+
+// With dockerd's userns-remap, the web container would see the bind-mounted project and home
+// as another UID's; host mode keeps container UIDs equal to the host's, as lodev assumes.
+func TestProjectComposeWebUsesHostUserns(t *testing.T) {
+	b, err := ProjectCompose(projectInput("nginx"))
+	web, _, _ := strings.Cut(string(must(t)(b, err)), "\n  varnish:")
+	if !strings.Contains(web, "\n    userns_mode: host\n") {
+		t.Fatalf("web service has no userns_mode: host:\n%s", web)
+	}
+}
