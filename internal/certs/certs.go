@@ -36,7 +36,13 @@ func runMkcert(args ...string) error {
 		}
 		c := exec.Command(path, args...)
 		c.Dir = dir()
-		return attached(c)
+		// Captured: mkcert's notes (e.g. "the local CA is not installed") are noise on every start.
+		out, err := c.CombinedOutput()
+		ui.Debug("%s", out)
+		if err != nil {
+			return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
 	}
 
 	if err := os.MkdirAll(caDir(), 0o755); err != nil {
@@ -50,7 +56,9 @@ func runMkcert(args ...string) error {
 		}
 	}
 	run := append([]string{"run", "--rm", "-e", "CAROOT=/ca", "-v", caDir() + ":/ca", "-v", dir() + ":/certs", "-w", "/certs", "lodev/mkcert"}, args...)
-	if err := docker.Run(run...); err != nil {
+	out, err := docker.Output(run...)
+	ui.Debug("%s", out)
+	if err != nil {
 		return err
 	}
 	if fresh {
