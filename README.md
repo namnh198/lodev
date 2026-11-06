@@ -119,6 +119,7 @@ lodev services up          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAd
 cd ~/Sites/myshop
 lodev create                 # detects Laravel / WordPress / Magento / plain PHP
 lodev start                # → https://myshop.test
+lodev start myshop         # same, from any folder (also stop/restart/remove)
 lodev magento setup:upgrade
 ```
 
