@@ -1,6 +1,15 @@
 #!/bin/sh
 set -e
 
+# userns-remap: begin
+# dockerd's userns-remap stores image files under the remapped root's UID; with userns_mode: host
+# that UID shows here, and sudo refuses to run unless its files are root's. A no-op otherwise.
+if [ "$(stat -c %u /usr/bin/sudo)" != 0 ]; then
+  chown -R 0:0 /usr/bin/sudo /etc/sudo.conf /etc/sudoers /etc/sudoers.d /usr/libexec/sudo
+  chmod 4755 /usr/bin/sudo
+fi
+# userns-remap: end
+
 if [ ! -x "/usr/sbin/php-fpm${LODEV_PHP}" ]; then
   echo "unsupported LODEV_PHP: ${LODEV_PHP}" >&2
   exit 1
