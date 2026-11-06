@@ -211,16 +211,19 @@ func poweroff() error {
 	// and then silently skips the project's containers that file does not name.
 	for _, name := range slices.Compact(names) {
 		label := "label=com.docker.compose.project=lodev-" + name
-		ids, err := dockerOutput("ps", "-aq", "--filter", label)
+		out, err := dockerOutput("ps", "-a", "--format", "{{.Names}}", "--filter", label)
 		if err != nil {
 			return err
 		}
-		if ids != "" {
+		if containers := strings.Fields(out); len(containers) > 0 {
 			ui.Info("Stopping project %s", name)
-			for _, sub := range []string{"stop", "rm"} {
-				// Output, not Run: docker prints every ID it stops or removes.
-				if _, err := dockerOutput(append([]string{sub}, strings.Fields(ids)...)...); err != nil {
+			for _, step := range [][2]string{{"stop", "Stopped"}, {"rm", "Removed"}} {
+				// Output, not Run: docker prints every name it stops or removes; list them like compose does.
+				if _, err := dockerOutput(append([]string{step[0]}, containers...)...); err != nil {
 					return err
+				}
+				for _, c := range containers {
+					ui.Success("✔ Container %s  %s", c, step[1])
 				}
 			}
 		}

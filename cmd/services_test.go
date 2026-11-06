@@ -103,7 +103,8 @@ func TestWithLockExcludesOthers(t *testing.T) {
 const composeLabel = "label=com.docker.compose.project=lodev-"
 
 // stubDocker records dockerRun calls, answers the running-projects `docker ps` with running,
-// a per-project `docker ps -aq` with "id-<name>" and `docker network ls -q` with "net-<name>".
+// a per-project `docker ps --format {{.Names}}` with "lodev-<name>-web" and "lodev-<name>-varnish",
+// and `docker network ls -q` with "net-<name>".
 func stubDocker(t *testing.T, running string) *[]string {
 	t.Helper()
 	oldRun, oldOut := dockerRun, dockerOutput
@@ -116,8 +117,8 @@ func stubDocker(t *testing.T, running string) *[]string {
 		case a[0] == "stop" || a[0] == "rm" || slices.Equal(a[:2], []string{"network", "rm"}):
 			// Quiet calls: docker prints each removed ID, which must not reach the terminal.
 			calls = append(calls, "quiet: "+strings.Join(a, " "))
-		case slices.Equal(a[:2], []string{"ps", "-aq"}):
-			return "id-" + name, nil
+		case a[0] == "ps" && strings.HasPrefix(a[len(a)-1], composeLabel):
+			return "lodev-" + name + "-web\nlodev-" + name + "-varnish", nil
 		case len(a) > 2 && slices.Equal(a[:3], []string{"network", "ls", "-q"}):
 			return "net-" + name, nil
 		case a[0] == "ps":
@@ -141,15 +142,17 @@ func TestPoweroff(t *testing.T) {
 	}
 	// Stopping prints nothing else, so say what is happening.
 	mustContain(t, out.String(), "Powering off lodev: stopping all projects and shared services",
-		"Stopping project a", "Stopping project b", "Stopping project x", "lodev is powered off")
+		"Stopping project a", "Stopping project b", "Stopping project x", "lodev is powered off",
+		"✔ Container lodev-a-web  Stopped", "✔ Container lodev-a-varnish  Stopped",
+		"✔ Container lodev-a-web  Removed", "✔ Container lodev-a-varnish  Removed")
 	// By label, not `compose -p … stop`: compose would read a docker-compose.yml in the cwd
 	// and silently skip containers whose service is not in it.
 	// Containers (stopped ones too) and the project network are removed, like compose down:
 	// a stale network or container breaks the next start.
 	want := []string{
-		"quiet: stop id-a", "quiet: rm id-a", "quiet: network rm net-a",
-		"quiet: stop id-b", "quiet: rm id-b", "quiet: network rm net-b",
-		"quiet: stop id-x", "quiet: rm id-x", "quiet: network rm net-x",
+		"quiet: stop lodev-a-web lodev-a-varnish", "quiet: rm lodev-a-web lodev-a-varnish", "quiet: network rm net-a",
+		"quiet: stop lodev-b-web lodev-b-varnish", "quiet: rm lodev-b-web lodev-b-varnish", "quiet: network rm net-b",
+		"quiet: stop lodev-x-web lodev-x-varnish", "quiet: rm lodev-x-web lodev-x-varnish", "quiet: network rm net-x",
 		"compose -p lodev-services -f " + servicesFile() + " down",
 	}
 	if !slices.Equal(*calls, want) {
@@ -164,7 +167,7 @@ func TestPoweroffNoServicesFile(t *testing.T) {
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(*calls, []string{"quiet: stop id-b", "quiet: rm id-b", "quiet: network rm net-b"}) {
+	if !slices.Equal(*calls, []string{"quiet: stop lodev-b-web lodev-b-varnish", "quiet: rm lodev-b-web lodev-b-varnish", "quiet: network rm net-b"}) {
 		t.Errorf("calls: %v", *calls)
 	}
 }
