@@ -342,6 +342,7 @@ services:
 | Path | Effect |
 |---|---|
 | `.lodev/php/*.ini` | Extra php.ini settings (`memory_limit=4G`) |
+| `.lodev/php/prepend.php` | PHP `auto_prepend_file` for web and CLI (e.g. set `$_SERVER['MAGE_RUN_CODE']`); created by `lodev start` |
 | `.lodev/nginx/*.conf` or `.lodev/apache/*.conf` | Snippets included in the server / vhost block |
 | `.lodev/nginx-webserver.conf`, `.lodev/apache-webserver.conf` | The whole webserver config (generated, one file per webserver) |
 
@@ -349,6 +350,10 @@ Apply with `lodev restart`; none of these builds an image. A generated webserver
 `# lodev-generated: delete this line to manage this file yourself`; delete that line to take the
 file over (lodev stops regenerating it and it is no longer ignored). Switching `webserver:` does
 not touch the other webserver's file. `lodev create` scaffolds `*.example` files in each folder.
+
+PHP's `REMOTE_ADDR` is the client from `X-Forwarded-For`, past Traefik and Varnish. From this machine
+that is `172.30.0.1` (the lodev network gateway); to test GeoIP, send a header:
+`curl -k -H 'X-Forwarded-For: 8.8.8.8' https://<project>.test/`.
 
 lodev no longer writes your project's root `.gitignore`; old `.lodev/compose.yaml` /
 `.lodev/webserver.conf` lines there can be removed (lodev keeps `.lodev/.gitignore` itself).

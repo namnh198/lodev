@@ -312,7 +312,7 @@ func TestScaffold(t *testing.T) {
 		if err := scaffold(root, ws); err != nil {
 			t.Fatal(err)
 		}
-		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/example.compose.yml.example"}
+		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/php/prepend.php", ".lodev/example.compose.yml.example"}
 		if dir != "" {
 			files = append(files, ".lodev/"+dir+"/example.conf.example")
 		}
@@ -331,6 +331,10 @@ func TestScaffold(t *testing.T) {
 	}
 	root := t.TempDir()
 	scaffold(root, "nginx")
+	want := "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n"
+	if b, _ := os.ReadFile(filepath.Join(root, ".lodev", "php", "prepend.php")); string(b) != want {
+		t.Fatalf("prepend.php: %q", b)
+	}
 	f := filepath.Join(root, ".lodev", "php", "example.ini.example")
 	os.WriteFile(f, []byte("mine"), 0o644)
 	scaffold(root, "nginx")

@@ -42,6 +42,8 @@ services:
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
+      # Keep a client's X-Forwarded-For (e.g. a spoofed IP to test GeoIP); traefik only listens on 127.0.0.1.
+      - --entrypoints.websecure.forwardedHeaders.insecure=true
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
     ports:

@@ -25,6 +25,8 @@ COPY install-php.sh /usr/local/bin/lodev-install-php
 RUN lodev-install-php $PHP_VERSIONS
 # After the install: the install only symlinks to this file, so editing it skips the PHP layer.
 COPY zz-lodev.ini /etc/lodev/zz-lodev.ini
+# zz-lodev.ini prepends php.d/prepend.php: a placeholder so PHP runs in builds; the project mount hides it.
+RUN mkdir -p /etc/lodev/php.d && touch /etc/lodev/php.d/prepend.php
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 # Mailpit's binary doubles as a sendmail replacement for PHP mail().

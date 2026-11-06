@@ -1,4 +1,7 @@
 # lodev-generated: delete this line to manage this file yourself
+<IfModule !remoteip_module>
+    LoadModule remoteip_module /usr/lib/apache2/modules/mod_remoteip.so
+</IfModule>
 <VirtualHost *:80>
     DocumentRoot {{.Root}}
     DirectoryIndex index.php index.html
@@ -16,6 +19,9 @@
     </FilesMatch>
 
     SetEnvIf X-Forwarded-Proto https HTTPS=on
+    # Traefik and Varnish (lodev or the project network): take the client from X-Forwarded-For.
+    RemoteIPHeader X-Forwarded-For
+    RemoteIPInternalProxy 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
 
     ErrorLog /proc/self/fd/2
     CustomLog /proc/self/fd/1 combined
