@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/pflag"
 
 	"lodev/internal/config"
 	"lodev/internal/hosts"
@@ -625,4 +628,59 @@ func TestDeleteKeepsHome(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(h, ".bash_history")); err != nil {
 		t.Errorf("home removed: %v", err)
 	}
+}
+
+func TestProjectArgByName(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
+	config.SaveProject(p)
+	registry.Registry{"shop": {Path: p.Root}}.Save()
+	got, err := projectArg([]string{"shop"})
+	if err != nil || got.Root != p.Root || got.Name != "shop" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestProjectArgUnknown(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	_, err := projectArg([]string{"nope"})
+	if err == nil || err.Error() != `unknown project "nope" (see: lodev list)` {
+		t.Fatal(err)
+	}
+}
+
+func TestProjectArgMissingFolder(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	registry.Registry{"gone": {Path: filepath.Join(t.TempDir(), "gone")}}.Save()
+	if _, err := projectArg([]string{"gone"}); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal(err)
+	}
+}
+
+func TestProjectArgNoArgsUsesCwd(t *testing.T) {
+	p, _ := newProjectConfig(t.TempDir(), "here", "php", "", "", "")
+	config.SaveProject(p)
+	t.Chdir(p.Root)
+	got, err := projectArg(nil)
+	if err != nil || got.Name != "here" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestStartNameWithAll(t *testing.T) {
+	// cobra keeps parsed flags on the command between Execute calls; start and end clean
+	reset := func(c string) {
+		sub, _, _ := rootCmd.Find([]string{c})
+		sub.Flags().VisitAll(func(f *pflag.Flag) { f.Value.Set(f.DefValue); f.Changed = false })
+	}
+	for _, c := range []string{"start", "restart"} {
+		reset(c)
+		rootCmd.SetArgs([]string{c, "shop", "--all"})
+		err := rootCmd.Execute()
+		reset(c)
+		if err == nil || err.Error() != "cannot use a project name with --all" {
+			t.Fatalf("%s: %v", c, err)
+		}
+	}
+	rootCmd.SetArgs(nil)
 }

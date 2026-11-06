@@ -41,6 +41,22 @@ func currentProject() (*config.Project, error) {
 	return config.LoadProject(root)
 }
 
+// projectArg is the project named in args (looked up in the registry), or the current folder's.
+func projectArg(args []string) (*config.Project, error) {
+	if len(args) == 0 {
+		return currentProject()
+	}
+	reg, err := registry.Load()
+	if err != nil {
+		return nil, err
+	}
+	e, ok := reg[args[0]]
+	if !ok {
+		return nil, fmt.Errorf("unknown project %q (see: lodev list)", args[0])
+	}
+	return config.LoadProject(e.Path)
+}
+
 // WebserverConfFile is the generated webserver config, mounted into the container.
 func WebserverConfFile(p *config.Project) string {
 	return filepath.Join(p.Root, ".lodev", p.Webserver+"-webserver.conf")
@@ -481,6 +497,8 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 	return nil
 }
 
+var errNameWithAll = errors.New("cannot use a project name with --all")
+
 // startFn is start, swappable in tests of the --all paths.
 var startFn = start
 
@@ -578,17 +596,20 @@ func init() {
 
 	var rebuild, startAll bool
 	startCmd := &cobra.Command{
-		Use:     "start",
+		Use:     "start [name]",
 		Aliases: []string{"up"},
-		Short:   "Start the project, or every project with --all (and the shared services if needed)",
-		Args:    cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		Short:   "Start the project (current folder or [name]), or every project with --all (and the shared services if needed)",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
 			if startAll {
+				if len(args) > 0 {
+					return errNameWithAll
+				}
 				return withLock(func() error {
 					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, false) })
 				})
 			}
-			p, err := currentProject()
+			p, err := projectArg(args)
 			if err != nil {
 				return err
 			}
@@ -600,11 +621,11 @@ func init() {
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild")
 
 	stopCmd := &cobra.Command{
-		Use:   "stop",
-		Short: "Stop the project container",
-		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
-			p, err := currentProject()
+		Use:   "stop [name]",
+		Short: "Stop the project container (current folder or [name])",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			p, err := projectArg(args)
 			if err != nil {
 				return err
 			}
@@ -620,14 +641,17 @@ func init() {
 		return startFn(p, false)
 	}
 	restartCmd := &cobra.Command{
-		Use:   "restart",
-		Short: "Stop and start the project, or every project with --all",
-		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		Use:   "restart [name]",
+		Short: "Stop and start the project (current folder or [name]), or every project with --all",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
 			if restartAll {
+				if len(args) > 0 {
+					return errNameWithAll
+				}
 				return withLock(func() error { return allThenServiceURLs(restart) })
 			}
-			p, err := currentProject()
+			p, err := projectArg(args)
 			if err != nil {
 				return err
 			}
@@ -638,12 +662,12 @@ func init() {
 
 	var dropDB, yes bool
 	removeCmd := &cobra.Command{
-		Use:     "remove",
+		Use:     "remove [name]",
 		Aliases: []string{"down"},
-		Short:   "Remove the project container, hosts entries and certificate",
-		Args:    cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
-			p, err := currentProject()
+		Short:   "Remove the project container, hosts entries and certificate (current folder or [name])",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			p, err := projectArg(args)
 			if err != nil {
 				return err
 			}
