@@ -570,7 +570,7 @@ func init() {
 			if !noAsk && stdinTTY() {
 				set := map[string]bool{}
 				c.Flags().Visit(func(f *pflag.Flag) { set[f.Name] = true })
-				if err := askProject(p, set); err != nil {
+				if err := askProject(os.Stdin, os.Stdout, p, set); err != nil {
 					return err
 				}
 			}

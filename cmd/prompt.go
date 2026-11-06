@@ -1,47 +1,94 @@
 package cmd
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
-
-	"charm.land/huh/v2"
+	"strings"
 
 	"lodev/internal/config"
 )
 
-// askProject prompts for every value whose flag was not given (set is keyed by flag name).
-func askProject(p *config.Project, set map[string]bool) error {
+// askProject asks, one line each like `ddev config`, for every value whose flag was not given
+// (set is keyed by flag name).
+func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]bool) error {
+	r := bufio.NewReader(in)
 	oldName, oldType := p.Name, p.Type
-	var f1 []huh.Field
-	if !set["name"] {
-		f1 = append(f1, huh.NewInput().Title("Project name").Value(&p.Name).Validate(config.CheckName))
+	steps := []struct {
+		flag, title string
+		val         *string
+		opts        []string
+		check       func(string) error
+	}{
+		{"name", "Project name", &p.Name, nil, config.CheckName},
+		{"type", "Project type", &p.Type, config.Types, nil},
+		{"php", "PHP version", &p.PHP, config.SupportedPHP, nil},
 	}
-	if !set["type"] {
-		f1 = append(f1, huh.NewSelect[string]().Title("Project type").Options(huh.NewOptions(config.Types...)...).Value(&p.Type))
-	}
-	if !set["php"] {
-		f1 = append(f1, huh.NewSelect[string]().Title("PHP version").Options(huh.NewOptions(config.SupportedPHP...)...).Value(&p.PHP))
-	}
-	if err := runFields(f1); err != nil {
-		return err
+	for _, s := range steps {
+		if !set[s.flag] {
+			v, err := ask(r, out, s.title, *s.val, s.opts, s.check)
+			if err != nil {
+				return err
+			}
+			*s.val = v
+		}
 	}
 	settleAnswers(p, oldName, oldType, set["docroot"])
-	var f2 []huh.Field
 	if !set["docroot"] {
-		f2 = append(f2, huh.NewInput().Title("Document root").Description("relative to the project; empty for the project root").
-			Placeholder("(project root)").Value(&p.Docroot))
+		def := p.Docroot
+		if def == "" {
+			def = "."
+		}
+		v, err := ask(r, out, `Document root, relative to the project; "." for the project root`, def, nil, nil)
+		if err != nil {
+			return err
+		}
+		p.Docroot = v
 	}
 	if !set["webserver"] {
-		f2 = append(f2, huh.NewSelect[string]().Title("Webserver").Options(huh.NewOptions(config.Webservers...)...).Value(&p.Webserver))
-	}
-	if err := runFields(f2); err != nil {
-		return err
+		v, err := ask(r, out, "Webserver", p.Webserver, config.Webservers, nil)
+		if err != nil {
+			return err
+		}
+		p.Webserver = v
 	}
 	settleAnswers(p, p.Name, p.Type, true)
 	p.ApplyDefaults()
 	return p.Validate()
+}
+
+// ask prints "title [opts] (def): " and reads one answer; Enter keeps def, a bad answer asks again.
+func ask(r *bufio.Reader, w io.Writer, title, def string, opts []string, check func(string) error) (string, error) {
+	prompt := title
+	if len(opts) > 0 {
+		prompt += " [" + strings.Join(opts, ", ") + "]"
+	}
+	prompt += " (" + def + "): "
+	for {
+		fmt.Fprint(w, prompt)
+		line, err := r.ReadString('\n')
+		if err != nil && line == "" {
+			return "", errors.New("init aborted")
+		}
+		v := strings.TrimSpace(line)
+		if v == "" {
+			v = def
+		}
+		var bad error
+		if len(opts) > 0 && !slices.Contains(opts, v) {
+			bad = fmt.Errorf("must be one of: %s", strings.Join(opts, ", "))
+		} else if check != nil {
+			bad = check(v)
+		}
+		if bad == nil {
+			return v, nil
+		}
+		fmt.Fprintf(w, "  %v\n", bad)
+	}
 }
 
 // settleAnswers makes values derived from earlier defaults follow the user's answers.
@@ -58,19 +105,6 @@ func settleAnswers(p *config.Project, oldName, oldType string, docrootSet bool) 
 	if p.Docroot == "." {
 		p.Docroot = ""
 	}
-}
-
-func runFields(fields []huh.Field) error {
-	if len(fields) == 0 {
-		return nil
-	}
-	if err := huh.NewForm(huh.NewGroup(fields...)).Run(); err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return errors.New("init aborted")
-		}
-		return err
-	}
-	return nil
 }
 
 // scaffold writes inert *.example files showing where to customize; existing files are kept.
