@@ -85,3 +85,30 @@ func TestSplitService(t *testing.T) {
 		}
 	}
 }
+
+func TestShowLogs(t *testing.T) {
+	old := dockerRun
+	t.Cleanup(func() { dockerRun = old })
+	var got []string
+	dockerRun = func(a ...string) error { got = a; return nil }
+
+	// shared services (and traefik) are not in the project's compose: read their container
+	for _, svc := range []string{"mysql", "traefik"} {
+		if err := showLogs(svc); err != nil || !slices.Equal(got, []string{"logs", "-f", "lodev-" + svc}) {
+			t.Fatalf("%s: %v %v", svc, got, err)
+		}
+	}
+
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
+	config.SaveProject(p)
+	t.Chdir(p.Root)
+	if err := showLogs("web"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"compose", "-p", "lodev-shop", "-f", composeFile(p), "logs", "-f", "web"}; !slices.Equal(got, want) {
+		t.Fatalf("got %v", got)
+	}
+	if err := showLogs(""); err != errServiceName {
+		t.Fatal(err)
+	}
+}

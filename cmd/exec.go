@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -75,6 +76,21 @@ func runInService(service, user string, cmd []string) error {
 	return err
 }
 
+// showLogs follows a service's logs: shared services (and traefik) by container, others via the project's compose.
+func showLogs(service string) error {
+	if service == "" {
+		return errServiceName
+	}
+	if service == "traefik" || slices.Contains(config.SharedServices, service) {
+		return dockerRun("logs", "-f", "lodev-"+service)
+	}
+	p, err := currentProject()
+	if err != nil {
+		return err
+	}
+	return dockerRun(docker.ComposeArgs(composeProject(p), composeFile(p), "logs", "-f", service)...)
+}
+
 // checkWebUser fails early for containers started by an older lodev, which lack the host user.
 func checkWebUser(p *config.Project, user string) error {
 	if user == "" || user == "root" || userReady(p, user) {
@@ -117,6 +133,15 @@ func init() {
 	}
 	sshCmd.Flags().StringVarP(&sshService, "service", "s", "web", "service to open a shell in")
 
+	var logsService string
+	logsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Follow the logs of a service (default web; shared services like mysql too)",
+		Args:  cobra.NoArgs,
+		RunE:  func(*cobra.Command, []string) error { return showLogs(logsService) },
+	}
+	logsCmd.Flags().StringVarP(&logsService, "service", "s", "web", "service to show the logs of")
+
 	execCmd := &cobra.Command{
 		Use:                "exec [-s service] <command...>",
 		Short:              "Run a command in a service container (default web)",
@@ -132,7 +157,7 @@ func init() {
 			return runInService(svc, "", rest)
 		},
 	}
-	rootCmd.AddCommand(sshCmd, execCmd)
+	rootCmd.AddCommand(sshCmd, execCmd, logsCmd)
 
 	for _, name := range []string{"php", "composer", "npm", "node", "artisan", "wp", "magento"} {
 		name := name
