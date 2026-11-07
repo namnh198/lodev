@@ -3,6 +3,8 @@ package templates
 
 import (
 	"bytes"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -49,6 +51,48 @@ type ProjectInput struct {
 	User       string
 	UID, GID   int
 	HomeDir    string // host folder mounted as /home/<User>
+	// Env is the project's own variables (config.yaml, then .lodev/.env); they override lodev's.
+	Env map[string]string
+}
+
+// webEnv is the web service's KEY=value list: lodev's variables, then Env sorted by key.
+// A $ is doubled so compose does not interpolate it.
+func webEnv(in ProjectInput) []string {
+	p := in.Project
+	db := p.DB()
+	if db == "" {
+		db = "mysql"
+	}
+	kv := [][2]string{
+		{"LODEV_PHP", p.PHP}, {"LODEV_WEBSERVER", p.Webserver}, {"LODEV_USER", in.User},
+		{"LODEV_UID", strconv.Itoa(in.UID)}, {"LODEV_GID", strconv.Itoa(in.GID)},
+		{"PHP_IDE_CONFIG", "serverName=" + p.Name},
+		{"DB_HOST", db}, {"DB_PORT", "3306"}, {"DB_DATABASE", p.DBName()}, {"DB_USERNAME", "root"}, {"DB_PASSWORD", "root"},
+		{"REDIS_HOST", "redis"}, {"OPENSEARCH_HOST", "opensearch"},
+		{"MONGODB_URI", "mongodb://root:root@mongodb:27017/?authSource=admin"},
+		{"MAIL_HOST", "mailpit"}, {"MAIL_PORT", "1025"},
+	}
+	if p.Varnish {
+		kv = append(kv, [2]string{"VARNISH_HOST", "lodev-" + p.Name + "-varnish"})
+	}
+	if len(p.CronLines()) > 0 {
+		kv = append(kv, [2]string{"LODEV_CRON", "1"})
+	}
+	extra := maps.Clone(in.Env)
+	for i := range kv {
+		if v, ok := extra[kv[i][0]]; ok {
+			kv[i][1] = v
+			delete(extra, kv[i][0])
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(extra)) {
+		kv = append(kv, [2]string{k, extra[k]})
+	}
+	out := make([]string, len(kv))
+	for i, e := range kv {
+		out[i] = e[0] + "=" + strings.ReplaceAll(e[1], "$", "$$")
+	}
+	return out
 }
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
@@ -66,7 +110,10 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		HomeDir    string
 		Rule       string
 		CustomDir  map[string]string
-	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, strings.Join(hosts, " || "), customDirs})
+		Env        []string
+		Cron       bool
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, strings.Join(hosts, " || "), customDirs,
+		webEnv(in), len(in.Project.CronLines()) > 0})
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

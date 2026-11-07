@@ -25,24 +25,8 @@ services:
       retries: 30
 {{- end}}
     environment:
-      - LODEV_PHP={{.P.PHP}}
-      - LODEV_WEBSERVER={{.P.Webserver}}
-      - LODEV_USER={{.User}}
-      - LODEV_UID={{.UID}}
-      - LODEV_GID={{.GID}}
-      - PHP_IDE_CONFIG=serverName={{.P.Name}}
-      - DB_HOST={{or .P.DB "mysql"}}
-      - DB_PORT=3306
-      - DB_DATABASE={{.P.DBName}}
-      - DB_USERNAME=root
-      - DB_PASSWORD=root
-      - REDIS_HOST=redis
-      - OPENSEARCH_HOST=opensearch
-      - MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin
-      - MAIL_HOST=mailpit
-      - MAIL_PORT=1025
-{{- if .P.Varnish}}
-      - VARNISH_HOST=lodev-{{.P.Name}}-varnish
+{{- range .Env}}
+      - {{q .}}
 {{- end}}
     networks: [lodev, default]
     extra_hosts:
@@ -53,6 +37,9 @@ services:
       - {{q (print .P.Root ":/var/www/html")}}
       - {{q (print .CAFile ":/etc/lodev/rootCA.pem:ro")}}
       - {{q (print .P.Root "/.lodev/php:/etc/lodev/php.d:ro")}}
+{{- if .Cron}}
+      - {{q (print .P.Root "/.lodev/crontab:/etc/lodev/crontab:ro")}}
+{{- end}}
       - {{q (print .HomeDir ":/home/" .User)}}
 {{- if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}

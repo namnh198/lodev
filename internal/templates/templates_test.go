@@ -517,3 +517,70 @@ func TestProjectComposeWebAllowsLowPorts(t *testing.T) {
 		t.Fatalf("web service lets no user bind ports below 1024:\n%s", b)
 	}
 }
+
+func TestWebEnvOverridesBuiltin(t *testing.T) {
+	in := projectInput("nginx")
+	in.Env = map[string]string{"DB_HOST": "db2", "ZED": "1", "APP": "x"}
+	got := webEnv(in)
+	n := 0
+	for _, e := range got {
+		if strings.HasPrefix(e, "DB_HOST=") {
+			n++
+			if e != "DB_HOST=db2" {
+				t.Errorf("DB_HOST item %q", e)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d DB_HOST items: %q", n, got)
+	}
+	if !slices.Equal(got[len(got)-2:], []string{"APP=x", "ZED=1"}) || got[0] != "LODEV_PHP=8.3" {
+		t.Errorf("order: %q", got)
+	}
+}
+
+func TestWebEnvEscapes(t *testing.T) {
+	in := projectInput("nginx")
+	in.Env = map[string]string{"P": `a$b "c" #d: e`}
+	b, err := ProjectCompose(in)
+	out := string(must(t)(b, err))
+	if !strings.Contains(out, `"P=a$$b \"c\" #d: e"`) {
+		t.Fatalf("P not escaped:\n%s", out)
+	}
+	var doc struct {
+		Services map[string]struct {
+			Environment []string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(doc.Services["web"].Environment, `P=a$$b "c" #d: e`) {
+		t.Errorf("web env: %q", doc.Services["web"].Environment)
+	}
+}
+
+func TestProjectComposeCron(t *testing.T) {
+	in := projectInput("nginx")
+	in.Project.Cron = true
+	b, err := ProjectCompose(in)
+	out := string(must(t)(b, err))
+	for _, want := range []string{`- "LODEV_CRON=1"`, `"/work/shop/.lodev/crontab:/etc/lodev/crontab:ro"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s:\n%s", want, out)
+		}
+	}
+	in.Project.Cron = false
+	b, _ = ProjectCompose(in)
+	if strings.Contains(string(b), "LODEV_CRON") || strings.Contains(string(b), "crontab") {
+		t.Errorf("cron off still in compose:\n%s", b)
+	}
+}
+
+func TestProjectComposeCronEnvGolden(t *testing.T) {
+	in := projectInput("nginx")
+	in.Project.Cron = true
+	in.Env = map[string]string{"MAGE_RUN_CODE": "default"}
+	b, err := ProjectCompose(in)
+	golden(t, "project-cron-env", must(t)(b, err))
+}

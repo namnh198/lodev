@@ -18,22 +18,22 @@ services:
       net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
     environment:
-      - LODEV_PHP=8.3
-      - LODEV_WEBSERVER=none
-      - LODEV_USER=kuroko
-      - LODEV_UID=501
-      - LODEV_GID=20
-      - PHP_IDE_CONFIG=serverName=shop
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_DATABASE=shop
-      - DB_USERNAME=root
-      - DB_PASSWORD=root
-      - REDIS_HOST=redis
-      - OPENSEARCH_HOST=opensearch
-      - MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin
-      - MAIL_HOST=mailpit
-      - MAIL_PORT=1025
+      - "LODEV_PHP=8.3"
+      - "LODEV_WEBSERVER=none"
+      - "LODEV_USER=kuroko"
+      - "LODEV_UID=501"
+      - "LODEV_GID=20"
+      - "PHP_IDE_CONFIG=serverName=shop"
+      - "DB_HOST=mysql"
+      - "DB_PORT=3306"
+      - "DB_DATABASE=shop"
+      - "DB_USERNAME=root"
+      - "DB_PASSWORD=root"
+      - "REDIS_HOST=redis"
+      - "OPENSEARCH_HOST=opensearch"
+      - "MONGODB_URI=mongodb://root:root@mongodb:27017/?authSource=admin"
+      - "MAIL_HOST=mailpit"
+      - "MAIL_PORT=1025"
     networks: [lodev, default]
     extra_hosts:
       - "en.test:172.30.0.2"
