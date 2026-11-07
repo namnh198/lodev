@@ -17,6 +17,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
+	"lodev/internal/update"
 )
 
 func ComposeArgs(project, file string, sub ...string) []string {
@@ -53,10 +54,18 @@ func ExecArgs(project, file, service, user, workdir string, tty bool, cmd []stri
 
 // PHPBuildArgs builds the base image, labelled with the hash of the assets it came from.
 func PHPBuildArgs(versions []string, node, hash string, noCache bool, dir string) []string {
-	return buildArgs(noCache, "-t", config.WebserverImage(), "--label", "lodev.hash="+hash,
-		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "), "--build-arg", "NODE_VERSION="+node,
-		dir)
+	args := append([]string{"-t", config.WebserverImage()}, PHPBuildFlags(versions, node, hash)...)
+	return buildArgs(noCache, append(args, dir)...)
 }
+
+// PHPBuildFlags are the base image's label and build args; the release workflow builds with them too.
+func PHPBuildFlags(versions []string, node, hash string) []string {
+	return []string{"--label", "lodev.hash=" + hash,
+		"--build-arg", "PHP_VERSIONS=" + strings.Join(versions, " "), "--build-arg", "NODE_VERSION=" + node}
+}
+
+// ImageHash is the base image's lodev.hash label: its assets and the Node.js it installs.
+func ImageHash(assetsHash, node string) string { return assetsHash + "+node" + node }
 
 // LegacyBuildArgs builds a legacy image, labelled with the base image ID it was built on.
 func LegacyBuildArgs(ver, baseID string, noCache bool, dir string) []string {
@@ -183,8 +192,30 @@ var (
 	}
 	build   = BuildImage
 	run     = Run
+	pull    = func(ref string) error { return Run("pull", ref) }
+	tag     = func(src, dst string) error { _, err := Output("tag", src, dst); return err }
 	phpHash = func() (string, error) { return assets.Hash("webserver") }
 )
+
+// pullBase fetches a stable release's base image from the registry and tags it as base; false
+// (build it here instead) when the pull fails or the image is not the one these assets build.
+func pullBase(base, hash string) bool {
+	remote := config.RegistryImage()
+	ui.Info("Pulling %s...", remote)
+	if err := pull(remote); err != nil {
+		ui.Info("could not pull %s (%v); building it here", remote, err)
+		return false
+	}
+	if got := inspect(`{{index .Config.Labels "lodev.hash"}}`, remote); got != hash {
+		ui.Info("%s does not match this lodev's assets; building it here", remote)
+		return false
+	}
+	if err := tag(remote, base); err != nil {
+		ui.Info("could not tag %s as %s (%v); building it here", remote, base, err)
+		return false
+	}
+	return true
+}
 
 // EnsurePHPImage (re)builds the base image when missing, built from other
 // assets (e.g. after upgrading lodev) or rebuild, and likewise the legacy
@@ -194,14 +225,18 @@ func EnsurePHPImage(ver, node string, rebuild bool) error {
 	if err != nil {
 		return err
 	}
-	hash += "+node" + node // a new node_version rebuilds the image too
+	hash = ImageHash(hash, node) // a new node_version rebuilds the image too
 	base := config.WebserverImage()
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, base) != hash {
-		ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
-		if err := build("webserver", func(dir string) []string {
-			return PHPBuildArgs(config.BundledPHP, node, hash, rebuild, dir)
-		}); err != nil {
-			return err
+		// A stable release's image is on the registry: pulling beats a minutes-long build.
+		pulled := !rebuild && node == config.DefaultNodeVersion && update.Stable(config.ImageTag) && pullBase(base, hash)
+		if !pulled {
+			ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
+			if err := build("webserver", func(dir string) []string {
+				return PHPBuildArgs(config.BundledPHP, node, hash, rebuild, dir)
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	img := config.PHPImage(ver)

@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -263,4 +264,67 @@ func TestEnsureProjectImage(t *testing.T) {
 
 func TestComposeConfigArgs(t *testing.T) {
 	check(t, ComposeConfigArgs("P", []string{"a.yml", "b.yaml"}), "compose --env-file /dev/null -p P -f a.yml -f b.yaml config")
+}
+
+func TestPHPBuildFlags(t *testing.T) {
+	got := PHPBuildFlags([]string{"8.2", "8.3"}, "24", "H+node24")
+	want := []string{"--label", "lodev.hash=H+node24", "--build-arg", "PHP_VERSIONS=8.2 8.3", "--build-arg", "NODE_VERSION=24"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// fakeRegistry stubs pull and tag: pulled images get remoteHash as their lodev.hash label.
+func fakeRegistry(t *testing.T, labels map[string]string, pullErr error, remoteHash string) *[]string {
+	t.Helper()
+	op, ot := pull, tag
+	t.Cleanup(func() { pull, tag = op, ot })
+	var calls []string
+	pull = func(ref string) error {
+		calls = append(calls, "pull "+ref)
+		if pullErr == nil {
+			labels[ref] = remoteHash
+		}
+		return pullErr
+	}
+	tag = func(src, dst string) error {
+		calls = append(calls, "tag "+src+" "+dst)
+		labels[dst] = labels[src]
+		return nil
+	}
+	return &calls
+}
+
+func TestEnsurePHPImagePull(t *testing.T) {
+	oldTag := config.ImageTag
+	t.Cleanup(func() { config.ImageTag = oldTag })
+	remote := "ghcr.io/namnh198/lodev-webserver:v1.2.0"
+	for _, c := range []struct {
+		name, version, node  string
+		rebuild              bool
+		pullErr              error
+		remoteHash           string
+		wantCalls, wantBuilt []string
+	}{
+		{"stable pulls", "v1.2.0", "24", false, nil, "H+node24", []string{"pull " + remote, "tag " + remote + " lodev/webserver:v1.2.0"}, nil},
+		{"pull fails → build", "v1.2.0", "24", false, errors.New("offline"), "", []string{"pull " + remote}, []string{"lodev/webserver:v1.2.0"}},
+		{"pulled hash differs → build", "v1.2.0", "24", false, nil, "OTHER", []string{"pull " + remote}, []string{"lodev/webserver:v1.2.0"}},
+		{"nightly builds", "v1.2.0-3-gabc", "24", false, nil, "H+node24", nil, []string{"lodev/webserver:v1.2.0-3-gabc"}},
+		{"dev builds", "dev", "24", false, nil, "H+node24", nil, []string{"lodev/webserver:dev"}},
+		{"other node builds", "v1.2.0", "22", false, nil, "H+node22", nil, []string{"lodev/webserver:v1.2.0"}},
+		{"rebuild-base builds", "v1.2.0", "24", true, nil, "H+node24", nil, []string{"lodev/webserver:v1.2.0"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			config.ImageTag = c.version
+			labels := map[string]string{}
+			built := fakeImages(t, labels)
+			calls := fakeRegistry(t, labels, c.pullErr, c.remoteHash)
+			if err := EnsurePHPImage("8.3", c.node, c.rebuild); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(*calls, c.wantCalls) || !slices.Equal(*built, c.wantBuilt) {
+				t.Errorf("calls %q built %q, want %q %q", *calls, *built, c.wantCalls, c.wantBuilt)
+			}
+		})
+	}
 }

@@ -110,7 +110,7 @@ func defaultGlobal() *Global {
 	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 8080
 	g.Memory.OpenSearch = "2g"
 	g.UpdateCheck = true
-	g.NodeVersion = "24"
+	g.NodeVersion = DefaultNodeVersion
 	g.ContainerTimeout = "120s"
 	for _, s := range SharedServices {
 		g.Services[s] = !slices.Contains(DefaultOff, s)

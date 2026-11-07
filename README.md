@@ -109,6 +109,11 @@ like `v1.3.0-rc1`, is marked pre-release). Publishing is then manual: copy `lode
 `Formula/` in the `namnh198/homebrew-tap` repo, and `PKGBUILD` + `.SRCINFO` to the `lodev-bin`
 AUR repo; bump `version` in `flake.nix`.
 
+A stable tag also builds the PHP image for amd64 and arm64 (native runners) and pushes it to
+`ghcr.io/namnh198/lodev-webserver:<tag>`; that lodev version pulls it instead of building it.
+After the first push, make the package public once (GitHub → Packages → `lodev-webserver` →
+Package settings → Change visibility → Public); until then lodev's pull fails and it builds locally.
+
 `.github/workflows/nightly.yml` replaces the `nightly` pre-release on every push to `main`
 (`make dist VER=nightly CHANNEL=nightly`); it is never marked latest, so stable users are not affected.
 
@@ -144,7 +149,9 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 
 All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
 with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24), wp-cli, n98-magerun2, nano,
-vim-tiny and sqlite3; it is built on the first `lodev start` (about a minute). PHP 7.4, 8.0 and
+vim-tiny and sqlite3. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
+first `lodev start`; nightly and dev builds, a `node_version` other than 24, `--rebuild-base` or a
+failed pull build it locally instead (about a minute). PHP 7.4, 8.0 and
 8.1 add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first
 time a project uses them.
 
