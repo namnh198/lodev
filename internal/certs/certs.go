@@ -2,6 +2,8 @@
 package certs
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -87,12 +89,25 @@ func runMkcert(args ...string) error {
 	return nil
 }
 
-// EnsureCA creates lodev's own CA when the host has no mkcert (a host mkcert keeps its own CA).
+// EnsureCA creates the CA when it is missing (first run, or deleted since): lodev's own one
+// without mkcert, mkcert's own one (installed into the trust store) with it.
 func EnsureCA() error {
-	if _, err := exec.LookPath("mkcert"); err == nil || exists(filepath.Join(caDir(), "rootCA.pem")) {
-		return nil
+	ca, err := CAFile()
+	if err != nil || exists(ca) {
+		return err
 	}
-	return mkcertRun("-install") // in lodev's mkcert container: creates the CA, trusts it only there
+	// Host mkcert: runMkcert installs the missing CA first. lodev's container: -install creates it.
+	return mkcertRun("-install")
+}
+
+// caSum identifies the CA by content: a deleted and recreated CA keeps its path but signs anew.
+func caSum(ca string) string {
+	b, err := os.ReadFile(ca)
+	if err != nil {
+		return ""
+	}
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:])
 }
 
 func attached(c *exec.Cmd) error {
@@ -114,12 +129,16 @@ func CAFile() (string, error) {
 
 // Ensure issues <name>.pem for domains unless the existing cert already covers them.
 func Ensure(name string, domains []string) error {
+	if err := EnsureCA(); err != nil {
+		return err
+	}
 	ca, err := CAFile()
 	if err != nil {
 		return err
 	}
-	// The CA is part of the key: certs from lodev's own CA are reissued once mkcert is used.
-	want := ca + "\n" + strings.Join(domains, " ")
+	// The CA (path and content) is part of the key: certs are reissued when mkcert's CA replaces
+	// lodev's own, or when the CA was deleted and created again.
+	want := ca + "\n" + caSum(ca) + "\n" + strings.Join(domains, " ")
 	domainsFile := filepath.Join(dir(), name+".domains")
 	if got, err := os.ReadFile(domainsFile); err == nil && string(got) == want && exists(filepath.Join(dir(), name+".pem")) {
 		return nil

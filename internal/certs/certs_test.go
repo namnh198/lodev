@@ -1,10 +1,14 @@
 package certs
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -34,10 +38,20 @@ func noMkcert(t *testing.T, home string) string {
 	return filepath.Join(home, "rootCA", "rootCA.pem") + "\n"
 }
 
+// withCA writes lodev's CA and returns the .domains prefix for it: path and content hash.
+func withCA(t *testing.T, home string) string {
+	t.Helper()
+	ca := filepath.Join(strings.TrimSuffix(noMkcert(t, home), "\n"))
+	os.MkdirAll(filepath.Dir(ca), 0o755)
+	os.WriteFile(ca, []byte("ca-content"), 0o644)
+	sum := sha256.Sum256([]byte("ca-content"))
+	return ca + "\n" + hex.EncodeToString(sum[:]) + "\n"
+}
+
 func TestEnsureSkipsWhenUnchanged(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("LODEV_HOME", home)
-	ca := noMkcert(t, home)
+	ca := withCA(t, home)
 	dir := filepath.Join(home, "certs")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "shop.pem"), nil, 0o644)
@@ -53,7 +67,7 @@ func TestEnsureSkipsWhenUnchanged(t *testing.T) {
 func TestEnsureRegeneratesWhenDomainsChange(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("LODEV_HOME", home)
-	ca := noMkcert(t, home)
+	ca := withCA(t, home)
 	dir := filepath.Join(home, "certs")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "shop.pem"), nil, 0o644)
@@ -178,5 +192,44 @@ func TestEnsureCA(t *testing.T) {
 	os.WriteFile(filepath.Join(home, "rootCA", "rootCA.pem"), nil, 0o644)
 	if err := EnsureCA(); err != nil || len(calls) != 1 {
 		t.Fatalf("CA exists: calls %q, err %v", calls, err)
+	}
+}
+
+// A deleted CA must be recreated and the certs it signed reissued: the path alone does not change.
+func TestEnsureReissuesWhenCAIsGone(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	noMkcert(t, home)
+	ca := filepath.Join(home, "rootCA", "rootCA.pem")
+	orig := mkcertRun
+	t.Cleanup(func() { mkcertRun = orig })
+	var calls []string
+	mkcertRun = func(args ...string) error { // like mkcert: creates the CA when it is missing
+		calls = append(calls, strings.Join(args, " "))
+		os.MkdirAll(filepath.Dir(ca), 0o755)
+		if _, err := os.Stat(ca); err != nil {
+			os.WriteFile(ca, []byte("CA-"+strconv.Itoa(len(calls))), 0o644)
+		}
+		os.WriteFile(filepath.Join(home, "certs", "shop.pem"), nil, 0o644)
+		return nil
+	}
+	if err := Ensure("shop", []string{"a.test"}); err != nil {
+		t.Fatal(err)
+	}
+	n := len(calls) // -install (no CA yet), then the cert
+	if err := Ensure("shop", []string{"a.test"}); err != nil || len(calls) != n {
+		t.Fatalf("unchanged: mkcert ran again: %q, %v", calls[n:], err)
+	}
+	os.RemoveAll(filepath.Dir(ca))
+	if err := Ensure("shop", []string{"a.test"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(ca); err != nil || !slices.Equal(calls[n:], []string{"-install", "-cert-file shop.pem -key-file shop-key.pem a.test"}) {
+		t.Fatalf("CA not recreated or cert not reissued: %v, calls %q", err, calls[n:])
+	}
+	os.WriteFile(ca, []byte("another CA"), 0o644) // replaced, e.g. restored from elsewhere
+	n = len(calls)
+	if err := Ensure("shop", []string{"a.test"}); err != nil || len(calls) != n+1 {
+		t.Fatalf("cert not reissued for a new CA: calls %q, %v", calls, err)
 	}
 }

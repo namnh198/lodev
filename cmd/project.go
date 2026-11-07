@@ -393,6 +393,10 @@ func start(p *config.Project, rebuild rebuildOpts) error {
 	if err := reg.Save(); err != nil {
 		return err
 	}
+	// The web container mounts the CA: a missing one would become a root-owned folder.
+	if err := certs.EnsureCA(); err != nil {
+		return err
+	}
 	ca, err := certs.CAFile()
 	if err != nil {
 		return err
