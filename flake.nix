@@ -18,7 +18,7 @@
           src = ./.;
           subPackages = [ "." ];
           # First build fails with the real hash; paste it here (see README, "Nix").
-          vendorHash = pkgs.lib.fakeHash;
+          vendorHash = "sha256-r8glwA5RlH2rJtggi0vne+nVYrVJ0mFZCEVbGqin1Uk="; # update when go.mod changes: the `got:` hash from a failing nix build
           env.CGO_ENABLED = 0;
           ldflags = [ "-s" "-w" "-X lodev/cmd.Version=${version}" ];
           nativeBuildInputs = [ pkgs.installShellFiles ];

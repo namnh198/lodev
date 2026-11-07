@@ -81,9 +81,8 @@ nix run github:namnh198/lodev -- version
 Both need flakes. Without `experimental-features = nix-command flakes` in `~/.config/nix/nix.conf`
 (or `/etc/nix/nix.conf`), add `--extra-experimental-features 'nix-command flakes'` after `nix`.
 
-`flake.nix` builds from source. Its `vendorHash` is a placeholder until the first build: run
-`nix build`, copy the `got: sha256-…` value from the error into `vendorHash`, and commit it
-(again whenever `go.mod` changes).
+`flake.nix` builds from source. Whenever `go.mod` changes, its `vendorHash` must follow: run
+`nix build`, copy the `got: sha256-…` value from the error into `vendorHash`, and commit it.
 
 ### From source
 
