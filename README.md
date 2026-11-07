@@ -133,7 +133,7 @@ lodev services up          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAd
 cd ~/Sites/myshop
 lodev create                 # detects Laravel / WordPress / Magento / plain PHP
 lodev start                # → https://myshop.test
-lodev start myshop         # same, from any folder (also stop/restart/remove)
+lodev start myshop         # same, from any folder (also stop/restart/remove/ssh)
 lodev magento setup:upgrade
 ```
 
@@ -477,7 +477,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev db-export [db] [-s svc] [-f file] [-c gz]` | Dump a database of the shared `mysql`, `mariadb` or `mongodb` (default: the project's database and service) to `<db>-<time>.sql[.gz]` (`.archive` for MongoDB), or `-f -` for stdout |
 | `lodev db-import [db] -f file [-s svc]` | Load a dump into a database (created if missing; plain or gzip, detected); replaces its tables/collections; `-f -` reads stdin. MongoDB dumps can land in another database name |
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
-| `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
+| `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |

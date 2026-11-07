@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/registry"
 	"lodev/internal/ui"
 )
 
@@ -132,5 +133,31 @@ func TestShowLogsJSON(t *testing.T) {
 	}
 	if err := showLogsJSON("mysql"); err == nil || err.Error() != "--json works only with the web service" {
 		t.Errorf("mysql: %v", err)
+	}
+}
+
+func TestSSHByName(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
+	config.SaveProject(p)
+	registry.Registry{"shop": {Path: p.Root}}.Save()
+	t.Chdir(t.TempDir()) // not inside any project
+	oldRun, oldReady := dockerRun, userReady
+	t.Cleanup(func() { dockerRun, userReady = oldRun, oldReady })
+	userReady = func(*config.Project, string) bool { return true }
+	var got []string
+	dockerRun = func(a ...string) error { got = a; return nil }
+	ssh, _, _ := rootCmd.Find([]string{"ssh"})
+	t.Cleanup(func() { ssh.Flags().Set("service", "web"); rootCmd.SetArgs(nil) })
+	rootCmd.SetArgs([]string{"ssh", "shop"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(got, "lodev-shop") || got[len(got)-1] != "bash" || !slices.Contains(got, "web") {
+		t.Fatalf("docker %q", got)
+	}
+	rootCmd.SetArgs([]string{"ssh", "nope"})
+	if err := rootCmd.Execute(); err == nil || err.Error() != `unknown project "nope" (see: lodev list)` {
+		t.Errorf("unknown: %v", err)
 	}
 }

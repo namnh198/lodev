@@ -56,6 +56,11 @@ func runInService(service, user string, cmd []string) error {
 	if err != nil {
 		return err
 	}
+	return runInProject(p, service, user, cmd)
+}
+
+// runInProject runs cmd in service of p (web: as the project user, in /var/www/html).
+func runInProject(p *config.Project, service, user string, cmd []string) error {
 	workdir := ""
 	if service == "web" {
 		workdir = "/var/www/html"
@@ -70,7 +75,7 @@ func runInService(service, user string, cmd []string) error {
 			return err
 		}
 	}
-	err = docker.Run(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
+	err := dockerRun(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
 		os.Exit(exitErr.ExitCode())
@@ -133,18 +138,22 @@ func xdebugScript(action string) string {
 func init() {
 	var sshService string
 	sshCmd := &cobra.Command{
-		Use:   "ssh",
-		Short: "Open a shell in a service container (default web)",
-		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		Use:   "ssh [name]",
+		Short: "Open a shell in a service container (default web) of the project here or [name]",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
 			if sshService == "" {
 				return errServiceName
+			}
+			p, err := projectArg(args)
+			if err != nil {
+				return err
 			}
 			shell := []string{"bash"}
 			if sshService != "web" {
 				shell = []string{"sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"}
 			}
-			return runInService(sshService, "", shell)
+			return runInProject(p, sshService, "", shell)
 		},
 	}
 	sshCmd.Flags().StringVarP(&sshService, "service", "s", "web", "service to open a shell in")
