@@ -1,4 +1,4 @@
 ARG BASE
 FROM ${BASE}
 ARG PHP_VERSION
-RUN lodev-install-php "$PHP_VERSION"
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt/lists,sharing=locked lodev-install-php "$PHP_VERSION"

@@ -33,5 +33,5 @@ for v in "$@"; do
   done
 done
 
-apt-get clean
-rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/log/apt/* /var/log/dpkg.log
+# apt's lists and .debs are BuildKit cache mounts (see the Dockerfiles): kept for the next build.
+rm -rf /tmp/* /var/log/apt/* /var/log/dpkg.log

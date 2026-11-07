@@ -503,15 +503,22 @@ func TestStartAllOutsideProject(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	saveProjects(t, []string{"a"}, nil)
-	defer func(o func(*config.Project, bool) error) { startFn = o }(startFn)
+	defer func(o func(*config.Project, rebuildOpts) error) { startFn = o }(startFn)
 	var started []string
-	startFn = func(p *config.Project, _ bool) error { started = append(started, p.Name); return nil }
+	startFn = func(p *config.Project, _ rebuildOpts) error { started = append(started, p.Name); return nil }
 	start, _, _ := rootCmd.Find([]string{"start"})
 	defer func() {
 		start.Flags().Set("all", "false")
 		start.Flags().Set("rebuild", "false")
 		rootCmd.SetArgs(nil)
 	}()
+	for _, f := range []string{"--rebuild", "--rebuild-base"} {
+		rootCmd.SetArgs([]string{"start", "--all", f})
+		if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "all") {
+			t.Errorf("--all %s: %v", f, err)
+		}
+		start.Flags().VisitAll(func(f *pflag.Flag) { f.Value.Set(f.DefValue); f.Changed = false })
+	}
 
 	stdout, _, restore := ui.Capture(false)
 	rootCmd.SetArgs([]string{"start", "--all"})
@@ -687,4 +694,27 @@ func TestStartNameWithAll(t *testing.T) {
 		}
 	}
 	rootCmd.SetArgs(nil)
+}
+
+func TestStartRebuildFlags(t *testing.T) {
+	newShop(t)
+	defer func(o func(*config.Project, rebuildOpts) error) { startFn = o }(startFn)
+	var got []rebuildOpts
+	startFn = func(_ *config.Project, r rebuildOpts) error { got = append(got, r); return nil }
+	start, _, _ := rootCmd.Find([]string{"start"})
+	reset := func() {
+		start.Flags().VisitAll(func(f *pflag.Flag) { f.Value.Set(f.DefValue); f.Changed = false })
+	}
+	defer func() { reset(); rootCmd.SetArgs(nil) }()
+	for _, args := range [][]string{{"start"}, {"start", "--rebuild"}, {"start", "--rebuild-base"}} {
+		reset()
+		rootCmd.SetArgs(args)
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	want := []rebuildOpts{{}, {project: true}, {project: true, base: true}}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
 }

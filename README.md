@@ -150,7 +150,8 @@ time a project uses them.
 
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, the first `lodev start` builds the images for the new version.
-  `lodev start --rebuild` forces a clean rebuild (fresh PHP packages).
+  `lodev start --rebuild` rebuilds the project image without the build cache; `--rebuild-base` also
+  rebuilds the shared PHP image(s) from scratch (fresh PHP packages; slow).
 - Images of older lodev versions are kept. List them with `docker images lodev/webserver`
   and free the space with `docker rmi lodev/webserver:<old version>`; lodev before
   `lodev/webserver` used `lodev/php` (`docker rmi $(docker images -q lodev/php)`).
@@ -269,7 +270,9 @@ environment:                 # optional: variables for the web container (see En
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`
 make lodev build a project image `lodev/<name>-web` on top of the PHP image. Projects without
 any of them use the shared PHP image and build nothing. The image is rebuilt on the next
-`lodev start` / `lodev restart` after one of them changes; `lodev start --rebuild` forces it.
+`lodev start` / `lodev restart` after one of them changes; `lodev start --rebuild` forces it. apt and
+Node downloads are kept in BuildKit cache mounts, so a layer that reruns (e.g. after the PHP image
+changed) installs without downloading again; `--rebuild` uses no cache at all, so it downloads.
 
 ## Cron
 
@@ -417,7 +420,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; apply with `lodev restart` |
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`); apply with `lodev services up` |
-| `lodev start [--rebuild \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image; `--all` starts every known project from any folder |
+| `lodev start [--rebuild \| --rebuild-base \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder |
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |

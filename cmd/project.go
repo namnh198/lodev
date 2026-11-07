@@ -302,7 +302,10 @@ func ensureServices(p *config.Project) error {
 	return nil
 }
 
-func start(p *config.Project, rebuild bool) error {
+// rebuildOpts picks the images start rebuilds without the layer cache.
+type rebuildOpts struct{ project, base bool }
+
+func start(p *config.Project, rebuild rebuildOpts) error {
 	user, from := p.ContainerUser()
 	if w := userWarning(user, from); w != "" {
 		ui.Warn("%s", w)
@@ -321,10 +324,10 @@ func start(p *config.Project, rebuild bool) error {
 	if err != nil {
 		return err
 	}
-	if err := docker.EnsurePHPImage(p.PHP, g.NodeVersion, rebuild); err != nil {
+	if err := docker.EnsurePHPImage(p.PHP, g.NodeVersion, rebuild.base); err != nil {
 		return err
 	}
-	img, err := docker.EnsureProjectImage(p, rebuild)
+	img, err := docker.EnsureProjectImage(p, rebuild.project)
 	if err != nil {
 		return err
 	}
@@ -602,7 +605,7 @@ func init() {
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 
-	var rebuild, startAll bool
+	var rebuild, rebuildBase, startAll bool
 	startCmd := &cobra.Command{
 		Use:     "start [name]",
 		Aliases: []string{"up"},
@@ -614,19 +617,23 @@ func init() {
 					return errNameWithAll
 				}
 				return withLock(func() error {
-					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, false) })
+					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, rebuildOpts{}) })
 				})
 			}
 			p, err := projectArg(args)
 			if err != nil {
 				return err
 			}
-			return withLock(func() error { return start(p, rebuild) })
+			// --rebuild-base cleans the project image too: it is built on the base.
+			opts := rebuildOpts{project: rebuild || rebuildBase, base: rebuildBase}
+			return withLock(func() error { return startFn(p, opts) })
 		},
 	}
-	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the PHP image and the project image")
+	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the project image without the build cache")
+	startCmd.Flags().BoolVar(&rebuildBase, "rebuild-base", false, "also rebuild the shared PHP image(s) without the cache (fresh PHP packages; slow)")
 	startCmd.Flags().BoolVar(&startAll, "all", false, "start every project lodev knows")
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild")
+	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild-base")
 
 	stopCmd := &cobra.Command{
 		Use:   "stop [name]",
@@ -646,7 +653,7 @@ func init() {
 		if err := projectCompose(p, "stop"); err != nil {
 			return err
 		}
-		return startFn(p, false)
+		return startFn(p, rebuildOpts{})
 	}
 	restartCmd := &cobra.Command{
 		Use:   "restart [name]",
