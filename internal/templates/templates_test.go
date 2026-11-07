@@ -656,3 +656,12 @@ func TestSharedComposeTLD(t *testing.T) {
 	}
 	golden(t, "services-tld-local", b)
 }
+
+func TestProjectComposeNoExtraHosts(t *testing.T) {
+	in := projectInput("none")
+	in.ExtraHosts = nil
+	b, err := ProjectCompose(in)
+	if strings.Contains(string(must(t)(b, err)), "extra_hosts") {
+		t.Errorf("empty extra_hosts rendered (compose rejects it):\n%s", b)
+	}
+}

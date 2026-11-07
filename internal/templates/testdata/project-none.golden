@@ -43,6 +43,7 @@ services:
       - "MAIL_HOST=mailpit"
       - "MAIL_PORT=1025"
     networks: [lodev, default]
+    # Every project's domains reach traefik, so one project can call another over https.
     extra_hosts:
       - "en.test:172.30.0.2"
       - "shop.test:172.30.0.2"

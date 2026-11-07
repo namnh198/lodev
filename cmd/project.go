@@ -415,7 +415,7 @@ func start(p *config.Project, rebuild rebuildOpts) error {
 	}
 	data, err := templates.ProjectCompose(templates.ProjectInput{
 		Project:    p,
-		ExtraHosts: append(reg.AllDomains(), config.ReservedDomains()...),
+		ExtraHosts: reg.AllDomains(),
 		CAFile:     ca,
 		Image:      img,
 		User:       user,

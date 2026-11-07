@@ -30,9 +30,12 @@ services:
       - {{q .}}
 {{- end}}
     networks: [lodev, default]
+{{- if .ExtraHosts}}
+    # Every project's domains reach traefik, so one project can call another over https.
     extra_hosts:
 {{- range .ExtraHosts}}
       - "{{.}}:172.30.0.2"
+{{- end}}
 {{- end}}
     volumes:
       - {{q (print .P.Root ":/var/www/html")}}
