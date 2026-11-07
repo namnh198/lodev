@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -58,7 +59,12 @@ type Project struct {
 	// Varnish puts a varnish container in front of the web server.
 	Varnish        bool   `yaml:"varnish,omitempty"`
 	VarnishVersion string `yaml:"varnish_version,omitempty"`
-	Root           string `yaml:"-"`
+	// Cron runs CronJobs (or the type's default job) in the web container.
+	Cron     bool     `yaml:"cron,omitempty"`
+	CronJobs []string `yaml:"cron_jobs,omitempty"`
+	// Environment is set in the web container; .lodev/.env overrides it.
+	Environment map[string]string `yaml:"environment,omitempty"`
+	Root        string            `yaml:"-"`
 }
 
 // DefaultVarnishVersion is the Varnish a project runs when varnish_version is unset (Magento 2.4.8's).
@@ -211,6 +217,20 @@ func (p *Project) Validate() error {
 			return fmt.Errorf("packages %q is invalid (allowed: 2+ chars of a-z, 0-9, + . -, starting with a letter or digit)", k)
 		}
 	}
+	if p.Cron && len(p.CronJobs) == 0 && defaultCronJobs[p.Type] == "" {
+		return fmt.Errorf("cron needs cron_jobs (type %s has no default job)", p.Type)
+	}
+	for i, j := range p.CronJobs {
+		f := strings.Fields(j)
+		if len(f) < 6 && !(len(f) >= 2 && strings.HasPrefix(f[0], "@")) {
+			return fmt.Errorf("cron_jobs[%d] %q needs a schedule and a command", i, j)
+		}
+	}
+	for _, k := range slices.Sorted(maps.Keys(p.Environment)) {
+		if err := CheckEnvKey(k); err != nil {
+			return err
+		}
+	}
 	if p.Varnish && p.Webserver == "none" {
 		return errors.New("varnish needs a webserver (webserver is none)")
 	}
@@ -288,6 +308,38 @@ func DetectType(root string) string {
 		return "wordpress"
 	}
 	return "php"
+}
+
+var defaultCronJobs = map[string]string{
+	"magento":   `* * * * * php bin/magento cron:run 2>&1 | grep -v "Ran jobs by schedule" >> var/log/magento.cron.log`,
+	"laravel":   `* * * * * php artisan schedule:run >> storage/logs/schedule.log 2>&1`,
+	"wordpress": `* * * * * wp cron event run --due-now >> wp-content/cron.log 2>&1`,
+}
+
+// CronLines is the crontab the web container runs: nil when cron is off.
+func (p *Project) CronLines() []string {
+	switch {
+	case !p.Cron:
+		return nil
+	case len(p.CronJobs) > 0:
+		return p.CronJobs
+	case defaultCronJobs[p.Type] != "":
+		return []string{defaultCronJobs[p.Type]}
+	}
+	return nil
+}
+
+var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// CheckEnvKey rejects names a shell cannot export and lodev's own LODEV_* variables.
+func CheckEnvKey(key string) error {
+	if !envKeyRe.MatchString(key) {
+		return fmt.Errorf("environment key %q is invalid (A-Z, a-z, 0-9, _; not starting with a digit)", key)
+	}
+	if strings.HasPrefix(key, "LODEV_") {
+		return fmt.Errorf("environment: %s is reserved for lodev", key)
+	}
+	return nil
 }
 
 func DefaultDocroot(typ string) string {

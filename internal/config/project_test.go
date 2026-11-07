@@ -375,3 +375,76 @@ func TestPHPImageUsesImageTag(t *testing.T) {
 		t.Errorf("PHPImage(7.4) = %q", got)
 	}
 }
+
+func TestCronLines(t *testing.T) {
+	jobs := map[string]string{
+		"magento":   `* * * * * php bin/magento cron:run 2>&1 | grep -v "Ran jobs by schedule" >> var/log/magento.cron.log`,
+		"laravel":   `* * * * * php artisan schedule:run >> storage/logs/schedule.log 2>&1`,
+		"wordpress": `* * * * * wp cron event run --due-now >> wp-content/cron.log 2>&1`,
+	}
+	for typ, job := range jobs {
+		p := &Project{Type: typ, Cron: true}
+		if got := p.CronLines(); !slices.Equal(got, []string{job}) {
+			t.Errorf("%s: %q", typ, got)
+		}
+	}
+	if got := (&Project{Type: "php", Cron: true}).CronLines(); got != nil {
+		t.Errorf("php default: %q", got)
+	}
+	custom := []string{"*/5 * * * * php x.php"}
+	if got := (&Project{Type: "magento", Cron: true, CronJobs: custom}).CronLines(); !slices.Equal(got, custom) {
+		t.Errorf("custom: %q", got)
+	}
+	if got := (&Project{Type: "magento", CronJobs: custom}).CronLines(); got != nil {
+		t.Errorf("cron off: %q", got)
+	}
+}
+
+func TestValidateCron(t *testing.T) {
+	base := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx"}
+	for _, c := range []struct {
+		cron bool
+		typ  string
+		jobs []string
+		want string
+	}{
+		{true, "php", nil, "cron needs cron_jobs (type php has no default job)"},
+		{true, "php", []string{"* * * * *"}, `cron_jobs[0] "* * * * *" needs a schedule and a command`},
+		{true, "php", []string{"@hourly"}, `cron_jobs[0] "@hourly" needs a schedule and a command`},
+		{true, "php", []string{"@hourly php x.php"}, ""},
+		{true, "php", []string{"*/5 * * * * php x.php"}, ""},
+		{false, "php", []string{"* * *"}, `cron_jobs[0] "* * *" needs a schedule and a command`},
+		{true, "magento", nil, ""},
+	} {
+		p := base
+		p.Cron, p.Type, p.CronJobs = c.cron, c.typ, c.jobs
+		err := p.Validate()
+		if c.want == "" && err != nil || c.want != "" && (err == nil || err.Error() != c.want) {
+			t.Errorf("%+v: err = %v, want %q", c, err, c.want)
+		}
+	}
+}
+
+func TestCheckEnvKey(t *testing.T) {
+	for _, k := range []string{"APP_KEY", "_x", "DB_HOST"} {
+		if err := CheckEnvKey(k); err != nil {
+			t.Errorf("%s: %v", k, err)
+		}
+	}
+	for _, k := range []string{"1A", "A-B", ""} {
+		want := fmt.Sprintf("environment key %q is invalid (A-Z, a-z, 0-9, _; not starting with a digit)", k)
+		if err := CheckEnvKey(k); err == nil || err.Error() != want {
+			t.Errorf("%q: %v", k, err)
+		}
+	}
+	if err := CheckEnvKey("LODEV_USER"); err == nil || err.Error() != "environment: LODEV_USER is reserved for lodev" {
+		t.Errorf("LODEV_USER: %v", err)
+	}
+}
+
+func TestValidateEnvironment(t *testing.T) {
+	p := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", Environment: map[string]string{"LODEV_X": "1"}}
+	if err := p.Validate(); err == nil || err.Error() != "environment: LODEV_X is reserved for lodev" {
+		t.Errorf("err = %v", err)
+	}
+}
