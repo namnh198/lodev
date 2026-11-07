@@ -471,6 +471,8 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
+| `lodev db-export [db] [-s svc] [-f file] [-c gz]` | Dump a database of the shared `mysql`, `mariadb` or `mongodb` (default: the project's database and service) to `<db>-<time>.sql[.gz]` (`.archive` for MongoDB), or `-f -` for stdout |
+| `lodev db-import [db] -f file [-s svc]` | Load a dump into a database (created if missing; plain or gzip, detected); replaces its tables/collections; `-f -` reads stdin. MongoDB dumps can land in another database name |
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |

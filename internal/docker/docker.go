@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -105,6 +106,17 @@ func Run(args ...string) error {
 	}
 	ui.Debug("$ %s %s", filepath.Base(c.Path), joinArgs(c.Args[1:]))
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return c.Run()
+}
+
+// Stream runs docker with in as stdin and out as stdout (nil: none); stderr goes to the terminal.
+func Stream(args []string, in io.Reader, out io.Writer) error {
+	c, err := command(args)
+	if err != nil {
+		return err
+	}
+	ui.Debug("$ %s %s", filepath.Base(c.Path), joinArgs(c.Args[1:]))
+	c.Stdin, c.Stdout, c.Stderr = in, out, os.Stderr
 	return c.Run()
 }
 

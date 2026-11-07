@@ -22,6 +22,9 @@ var dockerRun = docker.Run
 // dockerPipe runs docker from | docker to; swapped in tests.
 var dockerPipe = docker.Pipe
 
+// dockerStream runs docker with the given stdin/stdout; swapped in tests.
+var dockerStream = docker.Stream
+
 // servicesCompose runs on the merged file; stacks generated before custom files existed have only the base.
 func servicesCompose(sub ...string) error {
 	file := servicesFullFile()
