@@ -189,8 +189,9 @@ func (p *Project) ValidateTLD(tld string) error {
 			return fmt.Errorf("docroot %q must be a folder inside the project", d)
 		}
 	}
+	domainRe := domainRegexp(tld)
 	for _, d := range p.Domains {
-		if err := checkDomain(d, tld); err != nil {
+		if err := checkDomain(d, tld, domainRe); err != nil {
 			return err
 		}
 		if slices.Contains(reservedDomains(tld), d) {
@@ -352,13 +353,17 @@ func reservedDomains(tld string) []string {
 	return []string{"mailpit" + t, "phpmyadmin" + t, "rabbitmq" + t, "mongo" + t}
 }
 
-func checkDomain(d, tld string) error {
-	if regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+` + regexp.QuoteMeta(tld) + `$`).MatchString(d) {
+func domainRegexp(tld string) *regexp.Regexp {
+	return regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+` + regexp.QuoteMeta(tld) + `$`)
+}
+
+func checkDomain(d, tld string, re *regexp.Regexp) error {
+	if re.MatchString(d) {
 		return nil
 	}
 	err := fmt.Sprintf("domain %q is invalid (lowercase host name ending in .%s)", d, tld)
 	// On another TLD (e.g. tld edited by hand): say how to move the projects.
-	if i := strings.LastIndex(d, "."); i > 0 && CheckTLD(d[i+1:]) == nil {
+	if i := strings.LastIndex(d, "."); i > 0 && d[i+1:] != tld && CheckTLD(d[i+1:]) == nil {
 		err += fmt.Sprintf("; run lodev config-global --tld=%s --from-tld=%s to move every project", tld, d[i+1:])
 	}
 	return errors.New(err)

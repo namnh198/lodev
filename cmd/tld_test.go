@@ -12,6 +12,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/hosts"
 	"lodev/internal/registry"
+	"lodev/internal/ui"
 )
 
 type tldFixture struct {
@@ -139,7 +140,7 @@ func TestRetargetSkipsMissing(t *testing.T) {
 	if !strings.Contains(f.config("a"), "a.local") {
 		t.Error("a not moved")
 	}
-	mustContain(t, f.out.String(), "skipped b", "1 project(s) updated")
+	mustContain(t, f.out.String(), "1 project(s) updated")
 }
 
 func TestRetargetNoop(t *testing.T) {
@@ -264,5 +265,50 @@ func TestRetargetInvalidProjectAborts(t *testing.T) {
 	os.WriteFile(config.ProjectPath(f.roots["a"]), []byte("name: a\ntype: php\nphp: \"7.0\"\ndomains: [a.test]\n"), 0o644)
 	if err := retargetTLD("test", "local", &f.out); err == nil || !strings.Contains(err.Error(), "project a:") || !strings.Contains(err.Error(), "php") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestConfigGlobalBadTLDSavesNothing(t *testing.T) {
+	newGlobalHome(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--tld=Bad", "--http-port=8081"); err == nil || !strings.Contains(err.Error(), `tld "Bad"`) {
+		t.Fatalf("err = %v", err)
+	}
+	if got := readGlobal(t); strings.Contains(got, "8081") {
+		t.Errorf("port saved before the tld error:\n%s", got)
+	}
+}
+
+func TestConfigGlobalShowsTLD(t *testing.T) {
+	newGlobalHome(t, "tld: local\n")
+	out, _, _ := runConfig(t, newConfigGlobalCmd)
+	mustContain(t, out, "tld", "local")
+}
+
+func TestConfigGlobalEmptyChangeSaysNothingChanged(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--enable-services=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "nothing changed")
+}
+
+func TestRetargetSkippedProjectMovesItsHosts(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA, "b": tldB}, nil, false)
+	os.RemoveAll(f.roots["b"])
+	_, errOut, restore := ui.Capture(false)
+	err := retargetTLD("test", "local", &f.out)
+	restore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut.String(), "skipped b") || strings.Contains(f.out.String(), "skipped b") {
+		t.Errorf("skip note: stderr %q stdout %q", errOut, f.out.String())
+	}
+	if h := f.read(f.hosts); strings.Contains(h, "b.test") || !strings.Contains(h, "127.0.0.1 b.local") {
+		t.Errorf("hosts:\n%s", h)
+	}
+	if reg, _ := registry.Load(); !slices.Equal(reg["b"].Domains, []string{"b.local"}) {
+		t.Errorf("registry b %+v", reg["b"])
 	}
 }

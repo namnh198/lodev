@@ -1,6 +1,11 @@
 package hosts
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func render(t *testing.T, content, name string, domains []string) string {
 	t.Helper()
@@ -60,5 +65,21 @@ func TestRenderRefusesUnterminatedBlock(t *testing.T) {
 	in := base + "# lodev:shop begin\n127.0.0.1 a.test\n10.0.0.1 nas\n"
 	if _, err := Render(in, "shop", nil); err == nil {
 		t.Fatal("unterminated block accepted")
+	}
+}
+
+func TestApplyAll(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "hosts")
+	os.WriteFile(f, []byte("127.0.0.1 localhost\n# lodev:a begin\n127.0.0.1 a.test\n# lodev:a end\n"), 0o644)
+	old := File
+	t.Cleanup(func() { File = old })
+	File = f
+	t.Setenv("LODEV_HOME", t.TempDir())
+	if err := ApplyAll([]Block{{"a", []string{"a.local"}}, {"b", []string{"b.local"}}}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(f)
+	if !strings.Contains(string(got), "127.0.0.1 a.local") || !strings.Contains(string(got), "# lodev:b begin\n127.0.0.1 b.local") || strings.Contains(string(got), "a.test") {
+		t.Errorf("hosts:\n%s", got)
 	}
 }

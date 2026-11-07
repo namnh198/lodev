@@ -302,7 +302,7 @@ func newConfigCmd() *cobra.Command {
 	f.String("cron", "", `run cron_jobs (or the type's default job) in the web container: true | false ("" = false)`)
 	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
 	for _, l := range []struct{ name, what string }{
-		{"domains", "domains (." + config.TLD() + ")"}, {"services", "shared services"},
+		{"domains", "domains (.<tld>)"}, {"services", "shared services"},
 		{"php-extensions", "PHP extensions"}, {"packages", "apt packages"},
 	} {
 		f.StringSlice(l.name, nil, "replace the "+l.what)
@@ -326,7 +326,7 @@ func globalValues(g *config.Global) [][2]string {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
 	rows = append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
-		[2]string{"node_version", g.NodeVersion}, [2]string{"container_timeout", g.ContainerTimeout},
+		[2]string{"node_version", g.NodeVersion}, [2]string{"container_timeout", g.ContainerTimeout}, [2]string{"tld", g.TLD},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
 	rows = append(rows, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
@@ -498,12 +498,18 @@ func newConfigGlobalCmd() *cobra.Command {
 			if fl.Changed("from-tld") && !fl.Changed("tld") {
 				return errors.New("--from-tld needs --tld")
 			}
+			if fl.Changed("tld") { // before any save: a bad --tld must not leave the other flags half-applied
+				v, _ := fl.GetString("tld")
+				if err := config.CheckTLD(v); err != nil {
+					return err
+				}
+			}
 			changes, err := globalChanges(c)
 			if err != nil {
 				return err
 			}
 			return withLock(func() error {
-				if len(changes) > 0 {
+				if len(changes) > 0 || !fl.Changed("tld") {
 					if err := saveGlobalChanges(c, changes); err != nil {
 						return err
 					}

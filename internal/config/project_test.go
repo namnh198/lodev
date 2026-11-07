@@ -448,3 +448,18 @@ func TestValidateEnvironment(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestDomainHintOnlyForAnotherTLD(t *testing.T) {
+	writeGlobal(t, "")
+	p := &Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"My_shop.test"}}
+	if err := p.Validate(); err == nil || strings.Contains(err.Error(), "--from-tld") {
+		t.Errorf("same TLD got a move hint: %v", err)
+	}
+}
+
+func BenchmarkValidateDomains(b *testing.B) {
+	p := &Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"a.test", "b.test", "c.test"}}
+	for b.Loop() {
+		p.ValidateTLD("test")
+	}
+}

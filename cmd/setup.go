@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"io/fs"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -50,7 +50,7 @@ func firstRunSetup() {
 	ui.Info("First run: setting up lodev in %s", config.Home())
 	data, err := assets.FS.ReadFile("templates/global-config.yaml")
 	if setupOS == "linux" { // macOS resolves .local through mDNS (slow); Linux reads /etc/hosts first
-		data = bytes.Replace(data, []byte("\ntld: test "), []byte("\ntld: local"), 1)
+		data = regexp.MustCompile(`(?m)^tld: test\b`).ReplaceAll(data, []byte("tld: local"))
 	}
 	if err == nil {
 		err = os.MkdirAll(config.Home(), 0o755)

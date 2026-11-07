@@ -50,15 +50,26 @@ func Render(content, name string, domains []string) (string, error) {
 	return strings.Join(out, "\n") + "\n", nil
 }
 
+// Block is one lodev block of File: a name and its domains (none removes the block).
+type Block struct {
+	Name    string
+	Domains []string
+}
+
 // Apply writes the block into File, only when it changes: directly when File is writable, else with sudo.
-func Apply(name string, domains []string) error {
+func Apply(name string, domains []string) error { return ApplyAll([]Block{{name, domains}}) }
+
+// ApplyAll writes several blocks with a single write (one sudo prompt, one backup).
+func ApplyAll(blocks []Block) error {
 	data, err := os.ReadFile(File)
 	if err != nil {
 		return err
 	}
-	next, err := Render(string(data), name, domains)
-	if err != nil {
-		return err
+	next := string(data)
+	for _, b := range blocks {
+		if next, err = Render(next, b.Name, b.Domains); err != nil {
+			return err
+		}
 	}
 	if next == string(data) {
 		return nil

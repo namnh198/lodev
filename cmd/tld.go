@@ -13,6 +13,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/hosts"
 	"lodev/internal/registry"
+	"lodev/internal/ui"
 )
 
 // tldMove is one project's planned switch to the new TLD.
@@ -42,10 +43,12 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 		return err
 	}
 	var moves []tldMove
+	var skipped []string
 	for _, name := range reg.Names() {
 		m, err := planTLDMove(name, reg[name].Path, oldTLD, newTLD)
 		if errors.Is(err, fs.ErrNotExist) {
-			fmt.Fprintf(out, "skipped %s: %s is gone\n", name, config.ProjectPath(reg[name].Path))
+			ui.Warn("skipped %s: %s is gone (its /etc/hosts entry moves anyway)", name, config.ProjectPath(reg[name].Path))
+			skipped = append(skipped, name)
 			continue
 		}
 		if err != nil {
@@ -67,6 +70,15 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 		}
 		reg[m.name] = registry.Entry{Path: m.p.Root, Domains: m.p.WebDomains()}
 	}
+	for _, name := range skipped { // no config to read: move what the registry remembers
+		e := reg[name]
+		for i, d := range e.Domains {
+			if base, ok := strings.CutSuffix(d, "."+oldTLD); ok {
+				e.Domains[i] = base + "." + newTLD
+			}
+		}
+		reg[name] = e
+	}
 	if err := reg.Save(); err != nil {
 		return err
 	}
@@ -85,13 +97,15 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 
 	// The configs are on newTLD now: from here on a failure is finished by rerunning with --from-tld.
 	rerun := fmt.Sprintf("rerun: lodev config-global --tld=%s --from-tld=%s", newTLD, oldTLD)
-	if err := hosts.Apply("lodev-services", config.ReservedDomains()); err != nil {
-		return fmt.Errorf("%w; %s", err, rerun)
-	}
+	blocks := []hosts.Block{{Name: "lodev-services", Domains: config.ReservedDomains()}}
 	for _, m := range moves {
-		if err := hosts.Apply(m.name, m.p.WebDomains()); err != nil {
-			return fmt.Errorf("%w; %s", err, rerun)
-		}
+		blocks = append(blocks, hosts.Block{Name: m.name, Domains: m.p.WebDomains()})
+	}
+	for _, name := range skipped {
+		blocks = append(blocks, hosts.Block{Name: name, Domains: reg[name].Domains})
+	}
+	if err := hosts.ApplyAll(blocks); err != nil { // one write: one sudo prompt, one backup of the original
+		return fmt.Errorf("%w; %s", err, rerun)
 	}
 	var errs []error
 	if containerRunning("lodev-traefik") {
