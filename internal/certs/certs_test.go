@@ -162,3 +162,21 @@ func TestCAFileMovesOldCADir(t *testing.T) {
 		t.Fatal("old ca dir still there")
 	}
 }
+
+func TestEnsureCA(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	noMkcert(t, home)
+	orig := mkcertRun
+	t.Cleanup(func() { mkcertRun = orig })
+	var calls [][]string
+	mkcertRun = func(args ...string) error { calls = append(calls, args); return nil }
+	if err := EnsureCA(); err != nil || len(calls) != 1 || strings.Join(calls[0], " ") != "-install" {
+		t.Fatalf("no CA: calls %q, err %v", calls, err)
+	}
+	os.MkdirAll(filepath.Join(home, "rootCA"), 0o755)
+	os.WriteFile(filepath.Join(home, "rootCA", "rootCA.pem"), nil, 0o644)
+	if err := EnsureCA(); err != nil || len(calls) != 1 {
+		t.Fatalf("CA exists: calls %q, err %v", calls, err)
+	}
+}

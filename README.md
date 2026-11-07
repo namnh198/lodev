@@ -114,6 +114,12 @@ AUR repo; bump `version` in `flake.nix`.
 
 ## Quick start
 
+The first `lodev` command (any but `help`, `version`, `completion`, `self-upgrade`) sets lodev up in
+`~/.lodev`: `config.yaml` with the defaults, `projects.json`, `data/`, the pinned `docker-compose` and
+`docker-buildx` in `bin/`, and, without mkcert and with Docker running, the local CA in `rootCA/`.
+Commands that need Docker (`start`, `stop`, `ssh`, `services …`, the shortcuts, …) stop with an
+error when it is not running.
+
 ```bash
 lodev services up          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin
 cd ~/Sites/myshop

@@ -14,11 +14,20 @@ var rootCmd = &cobra.Command{
 	Short:         "Lightweight local PHP dev environments on Docker with shared services",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if debug, _ := cmd.Flags().GetBool("debug"); debug {
 			ui.SetDebug(true)
 		}
+		if !skipsSetup(cmd) {
+			firstRun()
+		}
+		if needsDocker[cmd.CommandPath()] {
+			if err := dockerPing(); err != nil {
+				return err
+			}
+		}
 		startUpdateCheck(cmd)
+		return nil
 	},
 }
 

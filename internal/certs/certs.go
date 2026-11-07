@@ -56,8 +56,10 @@ func runMkcert(args ...string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(caDir(), 0o755); err != nil {
-		return err
+	for _, d := range []string{caDir(), dir()} { // Docker would create a missing bind source as root
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			return err
+		}
 	}
 	fresh := !exists(filepath.Join(caDir(), "rootCA.pem"))
 	if !docker.ImageExists("lodev/mkcert") {
@@ -82,6 +84,14 @@ func runMkcert(args ...string) error {
 		fmt.Println()
 	}
 	return nil
+}
+
+// EnsureCA creates lodev's own CA when the host has no mkcert (a host mkcert keeps its own CA).
+func EnsureCA() error {
+	if _, err := exec.LookPath("mkcert"); err == nil || exists(filepath.Join(caDir(), "rootCA.pem")) {
+		return nil
+	}
+	return mkcertRun("-install") // in lodev's mkcert container: creates the CA, trusts it only there
 }
 
 func attached(c *exec.Cmd) error {

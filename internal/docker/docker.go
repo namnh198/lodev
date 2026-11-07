@@ -119,7 +119,7 @@ func Output(args ...string) (string, error) {
 
 func Ping() error {
 	if _, err := Output("info", "--format", "{{.ServerVersion}}"); err != nil {
-		return errors.New("Docker is not running. Start Docker Desktop.")
+		return errors.New("Docker is not running: start Docker Desktop (or the docker service) and try again")
 	}
 	return nil
 }

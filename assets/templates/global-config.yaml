@@ -1,0 +1,38 @@
+# lodev global config, written on the first run with the defaults. All keys are optional.
+# Change them here or with `lodev config-global`; run `lodev services up` to apply.
+ports:
+  http: 80
+  https: 443
+  dashboard: 8080   # Traefik dashboard
+  mysql: ""         # e.g. 3306 to reach MySQL from TablePlus etc.
+  mariadb: ""       # e.g. 3307; must differ from mysql
+  mongodb: ""       # e.g. 27017 to reach MongoDB from MongoDB Compass etc.
+services:           # traefik is always on
+  mysql: true
+  redis: true
+  opensearch: true
+  mailpit: true
+  phpmyadmin: true
+  mariadb: false     # opt-in: `lodev services enable mariadb`, or `services: [mariadb]` in a project
+  rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
+  mongodb: false     # opt-in: `lodev services enable mongodb`, or `services: [mongodb]` in a project
+  mongo-express: false # opt-in web UI at https://mongo.test; also starts mongodb
+memory:
+  opensearch: 2g    # container limit, 1g..4g; JVM heap is half
+versions:           # 8 | 8.0 | 8.0.36; only these keys
+  mysql: "8.0"
+  mariadb: "11.4"
+  redis: "7"        # redis:<v>-alpine
+  opensearch: "2"
+  rabbitmq: "4"     # rabbitmq:<v>-management
+  mongodb: "8"      # mongo:<v>
+node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
+                    # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
+update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
+                    # turn off with `lodev config-global --update-check=false`
+use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
+use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
+# data_dir: ~/.lodev/data         # project homes and mounted service data (unset = <lodev home>/data)
+mount_volume: false               # true = shared service data in <data_dir>/<service>, not Docker volumes
+mount_paths:                      # optional, per service: mysql mariadb redis opensearch rabbitmq mongodb
+  # mysql: /Volumes/SSD/mysql
