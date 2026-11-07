@@ -5,7 +5,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      version = "0.0.0-dev"; # bump on release; `lodev version` shows it
+      version = "0.1.5"; # the latest release; bump it on every release (`lodev version` shows v<version>)
       systems = [ "aarch64-darwin" "x86_64-darwin" "aarch64-linux" "x86_64-linux" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
@@ -17,10 +17,10 @@
           inherit version;
           src = ./.;
           subPackages = [ "." ];
-          # First build fails with the real hash; paste it here (see README, "Nix").
-          vendorHash = "sha256-r8glwA5RlH2rJtggi0vne+nVYrVJ0mFZCEVbGqin1Uk="; # update when go.mod changes: the `got:` hash from a failing nix build
+          # When go.mod changes, a nix build fails with `got: sha256-…`: paste that here (README, "Nix").
+          vendorHash = "sha256-r8glwA5RlH2rJtggi0vne+nVYrVJ0mFZCEVbGqin1Uk=";
           env.CGO_ENABLED = 0;
-          ldflags = [ "-s" "-w" "-X lodev/cmd.Version=${version}" ];
+          ldflags = [ "-s" "-w" "-X lodev/cmd.Version=v${version}" ];
           nativeBuildInputs = [ pkgs.installShellFiles ];
           postInstall = ''
             installShellCompletion --cmd lodev \
