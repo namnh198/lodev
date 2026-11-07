@@ -29,6 +29,23 @@ jobs:
             --title "$GITHUB_REF_NAME" --generate-notes \
             dist/*.tar.gz dist/*.zip dist/*.deb dist/checksums.txt \
             dist/packaging/lodev.rb dist/packaging/PKGBUILD dist/packaging/.SRCINFO
+      # Stable releases only; after the release step, since the formula points at its archives.
+      # HOMEBREW_TAP_TOKEN: a token that can push to namnh198/homebrew-tap (GITHUB_TOKEN cannot).
+      - name: Update the Homebrew tap
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/namnh198/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp dist/packaging/lodev.rb tap/Formula/lodev.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/lodev.rb
+          if git diff --cached --quiet; then echo "Formula/lodev.rb unchanged"; exit 0; fi
+          git commit -m "feat: release lodev $GITHUB_REF_NAME"
+          git push origin HEAD:main
 
   # Stable releases only (no "-" in the tag): lodev of that version pulls this image instead of
   # building it. Each arch builds natively and is pushed by digest; image-tag joins them under one tag.
