@@ -8,7 +8,7 @@ import (
 
 func TestExtract(t *testing.T) {
 	d := t.TempDir()
-	if err := Extract("php", d); err != nil {
+	if err := Extract("webserver", d); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(d, "Dockerfile")); err != nil {
@@ -29,11 +29,11 @@ func TestExtract(t *testing.T) {
 }
 
 func TestHash(t *testing.T) {
-	a, err := Hash("php")
+	a, err := Hash("webserver")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := Hash("php")
+	b, _ := Hash("webserver")
 	m, _ := Hash("mkcert")
 	if len(a) != 64 || a != b || a == m {
 		t.Fatalf("php %q again %q mkcert %q", a, b, m)

@@ -170,7 +170,7 @@ var (
 	}
 	build   = BuildImage
 	run     = Run
-	phpHash = func() (string, error) { return assets.Hash("php") }
+	phpHash = func() (string, error) { return assets.Hash("webserver") }
 )
 
 // EnsurePHPImage (re)builds the base image when missing, built from other
@@ -185,7 +185,7 @@ func EnsurePHPImage(ver, node string, rebuild bool) error {
 	base := config.WebserverImage()
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, base) != hash {
 		ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
-		if err := build("php", func(dir string) []string {
+		if err := build("webserver", func(dir string) []string {
 			return PHPBuildArgs(config.BundledPHP, node, hash, rebuild, dir)
 		}); err != nil {
 			return err
@@ -200,7 +200,7 @@ func EnsurePHPImage(ver, node string, rebuild bool) error {
 		return nil
 	}
 	ui.Info("Building %s...", img)
-	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, baseID, rebuild, dir) })
+	return build("webserver", func(dir string) []string { return LegacyBuildArgs(ver, baseID, rebuild, dir) })
 }
 
 // WebImageParts reads the top-level Dockerfile* files of .lodev/web-images, sorted, skipping *.example.

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:embed all:php all:mkcert all:templates
+//go:embed all:webserver all:mkcert all:templates
 var FS embed.FS
 
 // Extract copies the embedded subtree sub into dst.
