@@ -74,9 +74,12 @@ yay -S lodev-bin        # or paru -S lodev-bin
 ### Nix
 
 ```bash
-nix profile install github:namnh198/lodev
+nix profile add github:namnh198/lodev
 nix run github:namnh198/lodev -- version
 ```
+
+Both need flakes. Without `experimental-features = nix-command flakes` in `~/.config/nix/nix.conf`
+(or `/etc/nix/nix.conf`), add `--extra-experimental-features 'nix-command flakes'` after `nix`.
 
 `flake.nix` builds from source. Its `vendorHash` is a placeholder until the first build: run
 `nix build`, copy the `got: sha256-…` value from the error into `vendorHash`, and commit it
