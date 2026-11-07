@@ -198,6 +198,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   mongodb: "8"      # mongo:<v>
 node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
                     # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
+tld: test                     # domains end in .<tld>; first run writes local on Linux, test elsewhere
 container_timeout: 120s       # how long start / services up wait for containers to turn healthy
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
@@ -258,7 +259,7 @@ type: magento                # laravel | wordpress | magento | php
 php: "8.3"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
 webserver: nginx             # nginx | apache | none (CLI-only, no domain)
 docroot: pub
-domains:                     # default <name>.test; all must end in .test
+domains:                     # default <name>.<tld>; all must end in .<tld> (tld in the global config)
   - myshop.test
   - store-en.test
 services: [mysql, redis, opensearch]   # mariadb instead of mysql for MariaDB (not both)
@@ -312,6 +313,23 @@ lodev dotenv get --app-key                                # abc
 
 It is a plain `KEY=value` file (comments, quotes and `export` allowed) you can also edit by hand.
 Changes apply on `lodev restart`; cron jobs, `lodev ssh` and `lodev exec` see them too.
+
+## Domains and TLD
+
+Project domains (`<name>.test`) and the shared services' (`mailpit.test`, `phpmyadmin.test`,
+`rabbitmq.test`, `mongo.test`) end in `tld` from `~/.lodev/config.yaml`: `test` by default, `local`
+for a fresh install on Linux. Switch every project at once:
+
+```bash
+lodev config-global --tld=local
+```
+
+It rewrites each project's `domains` in `.lodev/config.yaml` (shop.test → shop.local, comments
+kept) and `projects.json`, replaces lodev's blocks in `/etc/hosts`, then runs `services up` and
+restarts the projects that are running; stopped ones pick the new domains up on their next start.
+Nothing is written if any project cannot move. On macOS `.local` goes through mDNS (slow, may skip
+`/etc/hosts`), so `test` or `localhost` work better there. After editing `tld` in the file by hand,
+run `lodev config-global --tld=<new> --from-tld=<old>`.
 
 ## Varnish
 
