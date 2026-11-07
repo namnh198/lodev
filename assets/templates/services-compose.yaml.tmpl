@@ -159,7 +159,7 @@ services:
       start_interval: 1s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.mailpit.rule=Host(`mailpit.test`)
+      - traefik.http.routers.mailpit.rule=Host(`mailpit.{{.G.TLD}}`)
       - traefik.http.routers.mailpit.entrypoints=websecure
       - traefik.http.routers.mailpit.tls=true
       - traefik.http.services.mailpit.loadbalancer.server.port=8025
@@ -193,7 +193,7 @@ services:
 {{- end}}
     labels:
       - traefik.enable=true
-      - traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.test`)
+      - traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.{{.G.TLD}}`)
       - traefik.http.routers.phpmyadmin.entrypoints=websecure
       - traefik.http.routers.phpmyadmin.tls=true
       - traefik.http.services.phpmyadmin.loadbalancer.server.port=80
@@ -214,7 +214,7 @@ services:
       start_interval: 1s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.test`)
+      - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.{{.G.TLD}}`)
       - traefik.http.routers.rabbitmq.entrypoints=websecure
       - traefik.http.routers.rabbitmq.tls=true
       - traefik.http.services.rabbitmq.loadbalancer.server.port=15672
@@ -265,7 +265,7 @@ services:
         condition: service_healthy
     labels:
       - traefik.enable=true
-      - traefik.http.routers.mongo-express.rule=Host(`mongo.test`)
+      - traefik.http.routers.mongo-express.rule=Host(`mongo.{{.G.TLD}}`)
       - traefik.http.routers.mongo-express.entrypoints=websecure
       - traefik.http.routers.mongo-express.tls=true
       - traefik.http.services.mongo-express.loadbalancer.server.port=8081

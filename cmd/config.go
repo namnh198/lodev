@@ -302,7 +302,7 @@ func newConfigCmd() *cobra.Command {
 	f.String("cron", "", `run cron_jobs (or the type's default job) in the web container: true | false ("" = false)`)
 	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
 	for _, l := range []struct{ name, what string }{
-		{"domains", "domains (.test)"}, {"services", "shared services"},
+		{"domains", "domains (." + config.TLD() + ")"}, {"services", "shared services"},
 		{"php-extensions", "PHP extensions"}, {"packages", "apt packages"},
 	} {
 		f.StringSlice(l.name, nil, "replace the "+l.what)

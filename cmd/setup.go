@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
@@ -25,6 +26,7 @@ var (
 	setupDownload = dockertools.Path
 	setupCA       = certs.EnsureCA
 	hasMkcert     = func() bool { _, err := exec.LookPath("mkcert"); return err == nil }
+	setupOS       = runtime.GOOS
 )
 
 // skipsSetup: help, completion, version and self-upgrade need no lodev home.
@@ -47,6 +49,9 @@ func firstRunSetup() {
 	}
 	ui.Info("First run: setting up lodev in %s", config.Home())
 	data, err := assets.FS.ReadFile("templates/global-config.yaml")
+	if setupOS == "linux" { // macOS resolves .local through mDNS (slow); Linux reads /etc/hosts first
+		data = bytes.Replace(data, []byte("\ntld: test "), []byte("\ntld: local"), 1)
+	}
 	if err == nil {
 		err = os.MkdirAll(config.Home(), 0o755)
 	}

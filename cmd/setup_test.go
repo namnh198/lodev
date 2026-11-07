@@ -145,3 +145,17 @@ func TestDockerDownStopsStart(t *testing.T) {
 		t.Error("start wrote files with Docker down")
 	}
 }
+
+func TestFirstRunTLDPerOS(t *testing.T) {
+	for goos, want := range map[string]string{"linux": "local", "darwin": "test", "windows": "test"} {
+		stubSetup(t, true, nil)
+		old := setupOS
+		setupOS = goos
+		firstRunSetup()
+		setupOS = old
+		g, err := config.LoadGlobal()
+		if err != nil || g.TLD != want {
+			t.Errorf("%s: tld %q, %v", goos, g.TLD, err)
+		}
+	}
+}

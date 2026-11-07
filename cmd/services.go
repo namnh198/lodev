@@ -108,16 +108,16 @@ func printServiceURLs() error {
 	fmt.Println()
 	ui.Success("Traefik dashboard: http://localhost:%d", g.Ports.Dashboard)
 	if g.Services["phpmyadmin"] {
-		ui.Success("phpMyAdmin:        https://phpmyadmin.test")
+		ui.Success("phpMyAdmin:        https://phpmyadmin.%s", g.TLD)
 	}
 	if g.Services["mailpit"] {
-		ui.Success("Mailpit:           https://mailpit.test")
+		ui.Success("Mailpit:           https://mailpit.%s", g.TLD)
 	}
 	if g.Services["rabbitmq"] {
-		ui.Success("RabbitMQ:          https://rabbitmq.test")
+		ui.Success("RabbitMQ:          https://rabbitmq.%s", g.TLD)
 	}
 	if g.Services["mongo-express"] {
-		ui.Success("Mongo Express:     https://mongo.test")
+		ui.Success("Mongo Express:     https://mongo.%s", g.TLD)
 	}
 	return nil
 }

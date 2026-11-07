@@ -71,7 +71,7 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 		}
 		port, inf := "InDocker: "+svc+":"+sharedPorts[svc], g.Image(svc)
 		if svc == "rabbitmq" {
-			port, inf = "https://rabbitmq.test\n"+port, inf+"\nUser/Pass: 'guest/guest'"
+			port, inf = "https://rabbitmq."+config.TLD()+"\n"+port, inf+"\nUser/Pass: 'guest/guest'"
 		}
 		rows = append(rows, []string{svc, stat(state("lodev-" + svc)), port, inf})
 	}
@@ -84,13 +84,13 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 	}
 
 	if g.Services["phpmyadmin"] {
-		rows = append(rows, []string{"phpMyAdmin", "", "https://phpmyadmin.test", ""})
+		rows = append(rows, []string{"phpMyAdmin", "", "https://phpmyadmin." + config.TLD(), ""})
 	}
 	if g.Services["mongo-express"] {
-		rows = append(rows, []string{"Mongo Express", "", "https://mongo.test", ""})
+		rows = append(rows, []string{"Mongo Express", "", "https://mongo." + config.TLD(), ""})
 	}
 	if g.Services["mailpit"] {
-		rows = append(rows, []string{"Mailpit", "", "https://mailpit.test\nSMTP: mailpit:1025", ""})
+		rows = append(rows, []string{"Mailpit", "", "https://mailpit." + config.TLD() + "\nSMTP: mailpit:1025", ""})
 	}
 	if len(urls) > 0 {
 		rows = append(rows, []string{"Project URLs", "", strings.Join(urls, "\n"), ""})

@@ -637,3 +637,22 @@ func TestSharedComposeHealthchecks(t *testing.T) {
 		t.Error("traefik ping not enabled")
 	}
 }
+
+func TestSharedComposeTLD(t *testing.T) {
+	g := defaultGlobal(t)
+	g.TLD = "local"
+	for _, s := range []string{"rabbitmq", "mongodb", "mongo-express"} {
+		g.Services[s] = true
+	}
+	b, err := SharedCompose(g, home)
+	out := string(must(t)(b, err))
+	for _, h := range []string{"mailpit.local", "phpmyadmin.local", "rabbitmq.local", "mongo.local"} {
+		if !strings.Contains(out, "Host(`"+h+"`)") {
+			t.Errorf("no Host(`%s`)", h)
+		}
+	}
+	if strings.Contains(out, ".test`") {
+		t.Errorf(".test left:\n%s", out)
+	}
+	golden(t, "services-tld-local", b)
+}
