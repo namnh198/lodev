@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -80,10 +81,7 @@ func runMkcert(args ...string) error {
 	if fresh {
 		ca := filepath.Join(caDir(), "rootCA.pem")
 		fmt.Println()
-		ui.Info(`mkcert is not installed, so lodev created its own local CA. To remove browser warnings:
-  macOS/Chrome/Safari:
-    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain %s
-  Firefox: Settings → Certificates → Import %s`, ca, ca)
+		ui.Info("%s", trustHint(runtime.GOOS, ca))
 		fmt.Println()
 	}
 	return nil
@@ -108,6 +106,29 @@ func caSum(ca string) string {
 	}
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
+}
+
+// trustHint tells how to trust lodev's own CA on goos (browsers warn until it is).
+func trustHint(goos, ca string) string {
+	h := "mkcert is not installed, so lodev created its own local CA. To remove browser warnings:\n"
+	switch goos {
+	case "darwin":
+		h += "  macOS (Chrome, Safari):\n    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain " + ca + "\n"
+	case "linux":
+		h += "  System (curl, PHP, …), one of:\n" +
+			"    Debian/Ubuntu: sudo cp " + ca + " /usr/local/share/ca-certificates/lodev.crt && sudo update-ca-certificates\n" +
+			"    Fedora/RHEL:   sudo cp " + ca + " /etc/pki/ca-trust/source/anchors/lodev.pem && sudo update-ca-trust\n" +
+			"    Arch:          sudo trust anchor --store " + ca + "\n" +
+			"  Chrome/Chromium (needs certutil: libnss3-tools / nss-tools):\n" +
+			`    certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n lodev -i ` + ca + "\n" +
+			"  Firefox, each profile with a cert9.db:\n" +
+			`    for d in ~/.mozilla/firefox/*/ ~/snap/firefox/common/.mozilla/firefox/*/; do [ -f "$d/cert9.db" ] && certutil -d "sql:$d" -A -t "C,," -n lodev -i ` + ca + "; done\n" +
+			"  Or install mkcert (and certutil) and run `mkcert -install`: lodev then uses its CA.\n"
+		return h
+	case "windows":
+		h += "  Windows (as administrator):\n    certutil -addstore -f ROOT " + ca + "\n"
+	}
+	return h + "  Firefox: Settings → Certificates → Import " + ca
 }
 
 func attached(c *exec.Cmd) error {

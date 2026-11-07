@@ -233,3 +233,32 @@ func TestEnsureReissuesWhenCAIsGone(t *testing.T) {
 		t.Fatalf("cert not reissued for a new CA: calls %q, %v", calls, err)
 	}
 }
+
+func TestTrustHint(t *testing.T) {
+	ca := "/h/.lodev/rootCA/rootCA.pem"
+	mac := trustHint("darwin", ca)
+	for _, want := range []string{"sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain " + ca, "Firefox"} {
+		if !strings.Contains(mac, want) {
+			t.Errorf("darwin hint lacks %q:\n%s", want, mac)
+		}
+	}
+	linux := trustHint("linux", ca)
+	for _, want := range []string{
+		"sudo cp " + ca + " /usr/local/share/ca-certificates/lodev.crt && sudo update-ca-certificates",
+		"sudo cp " + ca + " /etc/pki/ca-trust/source/anchors/lodev.pem && sudo update-ca-trust",
+		"sudo trust anchor --store " + ca,
+		`certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n lodev -i ` + ca,
+		"cert9.db",
+		"mkcert -install",
+	} {
+		if !strings.Contains(linux, want) {
+			t.Errorf("linux hint lacks %q:\n%s", want, linux)
+		}
+	}
+	if strings.Contains(linux, "security add-trusted-cert") {
+		t.Errorf("linux hint shows the macOS command:\n%s", linux)
+	}
+	if w := trustHint("windows", ca); !strings.Contains(w, "certutil -addstore -f ROOT "+ca) {
+		t.Errorf("windows hint:\n%s", w)
+	}
+}
