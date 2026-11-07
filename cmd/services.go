@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lodev/assets"
 	"lodev/internal/certs"
 	"lodev/internal/config"
 	"lodev/internal/docker"
@@ -54,6 +55,28 @@ func checkPort(p int) error {
 	return fmt.Errorf("port %d is in use:\n%s", p, owner)
 }
 
+// ensureDBConfig writes the default ~/.lodev/<db>/lodev.cnf for mysql and mariadb when missing;
+// the user's edits are kept. Created here, not by Docker, which would make a root-owned folder.
+func ensureDBConfig() error {
+	data, err := assets.FS.ReadFile("templates/db.cnf")
+	if err != nil {
+		return err
+	}
+	for _, db := range []string{"mysql", "mariadb"} {
+		f := filepath.Join(config.Home(), db, "lodev.cnf")
+		if _, err := os.Stat(f); err == nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(f, data, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func servicesUp() error {
 	if err := docker.Ping(); err != nil {
 		return err
@@ -87,6 +110,9 @@ func servicesUp() error {
 		return err
 	}
 	if err := hosts.Apply("lodev-services", config.ReservedDomains()); err != nil {
+		return err
+	}
+	if err := ensureDBConfig(); err != nil {
 		return err
 	}
 	warnImageChange(g)

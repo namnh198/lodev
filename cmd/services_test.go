@@ -492,3 +492,26 @@ func TestSetServices(t *testing.T) {
 		t.Errorf("services %v", g.Services)
 	}
 }
+
+func TestEnsureDBConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	if err := ensureDBConfig(); err != nil {
+		t.Fatal(err)
+	}
+	for _, db := range []string{"mysql", "mariadb"} {
+		b, err := os.ReadFile(filepath.Join(home, db, "lodev.cnf"))
+		if err != nil || !strings.HasPrefix(string(b), "# ") || !strings.Contains(string(b), "[mysqld]\n") ||
+			!strings.Contains(string(b), "max_allowed_packet=500M") || !strings.Contains(string(b), "loose-default_authentication_plugin=mysql_native_password") {
+			t.Fatalf("%s: %q %v", db, b, err)
+		}
+	}
+	mine := filepath.Join(home, "mysql", "lodev.cnf")
+	os.WriteFile(mine, []byte("[mysqld]\nmax_connections=500\n"), 0o644)
+	if err := ensureDBConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(mine); string(b) != "[mysqld]\nmax_connections=500\n" {
+		t.Errorf("user's config overwritten: %q", b)
+	}
+}

@@ -403,6 +403,12 @@ it is ambiguous); `web` works only on the project's `default` network. `lodev cr
 
 ## Customizing the shared services
 
+MySQL and MariaDB read `~/.lodev/mysql/lodev.cnf` and `~/.lodev/mariadb/lodev.cnf` (mounted as
+`/etc/mysql/conf.d/zz-lodev.cnf`). `lodev service start` writes them when missing, with lodev's
+defaults (`sql_mode` without `ONLY_FULL_GROUP_BY`, `max_allowed_packet=500M`, 8-hour timeouts,
+`mysql_native_password` on MySQL 8.0), and then leaves your edits alone. Apply an edit with
+`docker restart lodev-mysql` (or `lodev-mariadb`).
+
 Put compose files in `~/.lodev/services/` named `*.compose.yml` (or `.yaml`); `lodev service start`
 merges them, in name order, over the generated `compose.yaml` into `compose-full.yaml`, which
 every `lodev service` command then uses. A file that does not merge makes `service start` fail
@@ -419,7 +425,7 @@ services:
 
 | Path | Effect |
 |---|---|
-| `.lodev/php/*.ini` | Extra php.ini settings (`memory_limit=4G`) |
+| `.lodev/php/*.ini` | Extra php.ini settings, over lodev's defaults: errors shown (`display_errors=On`, `E_ALL`), `memory_limit=-1`, `max_execution_time=360`, `post_max_size`/`upload_max_filesize=1024M`, `max_input_vars=100000`, no output buffering |
 | `.lodev/php/prepend.php` | PHP `auto_prepend_file` for web and CLI (e.g. set `$_SERVER['MAGE_RUN_CODE']`); created by `lodev start` |
 | `.lodev/nginx/*.conf` or `.lodev/apache/*.conf` | Snippets included in the server / vhost block |
 | `.lodev/nginx-webserver.conf`, `.lodev/apache-webserver.conf` | The whole webserver config (generated, one file per webserver) |

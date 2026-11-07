@@ -73,6 +73,7 @@ services:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
       - {{with .G.MountPath "mysql"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mysql:/var/lib/mysql{{end}}
+      - {{q (print .Home "/mysql/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro")}}
     healthcheck:
       # Over TCP: the temporary server MySQL runs while initializing listens on the socket only.
       test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SHOW DATABASES;' >/dev/null"]
@@ -95,6 +96,7 @@ services:
       - MARIADB_ROOT_PASSWORD=root
     volumes:
       - {{with .G.MountPath "mariadb"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mariadb:/var/lib/mysql{{end}}
+      - {{q (print .Home "/mariadb/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro")}}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 30s
