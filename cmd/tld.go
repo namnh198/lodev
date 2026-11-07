@@ -83,31 +83,37 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 		return err
 	}
 
+	// The configs are on newTLD now: from here on a failure is finished by rerunning with --from-tld.
+	rerun := fmt.Sprintf("rerun: lodev config-global --tld=%s --from-tld=%s", newTLD, oldTLD)
 	if err := hosts.Apply("lodev-services", config.ReservedDomains()); err != nil {
-		return err
+		return fmt.Errorf("%w; %s", err, rerun)
 	}
 	for _, m := range moves {
 		if err := hosts.Apply(m.name, m.p.WebDomains()); err != nil {
-			return err
+			return fmt.Errorf("%w; %s", err, rerun)
 		}
 	}
+	var errs []error
 	if containerRunning("lodev-traefik") {
 		if err := servicesUpFn(); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 	running, err := runningProjects()
-	if err != nil {
-		return err
+	if err != nil { // Docker down: nothing runs, so nothing needs a restart
+		fmt.Fprintf(out, "could not list running projects (%v); start them to use the new domains\n", err)
 	}
 	for _, m := range moves {
 		if containsString(running, "lodev-"+m.name+"-web") {
-			if err := restartFn(m.p); err != nil {
-				return err
+			if err := restartFn(m.p); err != nil { // keep going: the others still need their new domains
+				errs = append(errs, fmt.Errorf("restart %s: %w", m.name, err))
 			}
 		}
 	}
 	fmt.Fprintf(out, "TLD changed .%s → .%s: %d project(s) updated\n", oldTLD, newTLD, len(moves))
+	if len(errs) > 0 {
+		return fmt.Errorf("%w; %s", errors.Join(errs...), rerun)
+	}
 	return nil
 }
 
@@ -125,6 +131,10 @@ func planTLDMove(name, root, oldTLD, newTLD string) (tldMove, error) {
 	}
 	m := tldMove{name: name}
 	for _, d := range raw.Domains {
+		if strings.HasSuffix(d, "."+newTLD) { // moved by an earlier run that failed later on
+			m.domains = append(m.domains, d)
+			continue
+		}
 		base, ok := strings.CutSuffix(d, "."+oldTLD)
 		if !ok {
 			return tldMove{}, fmt.Errorf("project %s: domain %q does not end in .%s", name, d, oldTLD)

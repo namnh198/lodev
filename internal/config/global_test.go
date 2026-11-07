@@ -423,3 +423,10 @@ func TestTLDDomains(t *testing.T) {
 		t.Errorf("a.shop.local: %v", err)
 	}
 }
+
+func TestTLDSurvivesOtherConfigErrors(t *testing.T) {
+	writeGlobal(t, "tld: local\ncontainer_timeout: 2 min\n")
+	if got := TLD(); got != "local" {
+		t.Errorf("TLD() = %q, want local", got)
+	}
+}

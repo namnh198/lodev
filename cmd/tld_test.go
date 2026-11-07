@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -189,5 +190,79 @@ func TestRetargetMacLocalWarning(t *testing.T) {
 	}
 	if !strings.HasPrefix(f.out.String(), ".local is resolved by mDNS on macOS: lookups can be slow or skip /etc/hosts; .test avoids it") {
 		t.Errorf("out:\n%s", f.out.String())
+	}
+}
+
+func TestRetargetRerunAfterHostsFailure(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA, "b": tldB}, nil, false)
+	good := hosts.File
+	hosts.File = filepath.Join(t.TempDir(), "missing", "hosts") // Apply fails: configs and global are written first
+	err := retargetTLD("test", "local", &f.out)
+	if err == nil || !strings.Contains(err.Error(), "rerun: lodev config-global --tld=local --from-tld=test") {
+		t.Fatalf("err = %v", err)
+	}
+	hosts.File = good
+	if err := retargetTLD("test", "local", &f.out); err != nil { // domains already on .local stay as they are
+		t.Fatalf("rerun: %v", err)
+	}
+	if h := f.read(f.hosts); !strings.Contains(h, "127.0.0.1 a.local x.a.local") || strings.Contains(h, ".test") {
+		t.Errorf("hosts after rerun:\n%s", h)
+	}
+}
+
+func TestRetargetRestartFailureContinues(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA, "b": tldB}, []string{"a", "b"}, false)
+	restartFn = func(p *config.Project) error {
+		f.restarts = append(f.restarts, p.Name)
+		if p.Name == "a" {
+			return errors.New("boom")
+		}
+		return nil
+	}
+	err := retargetTLD("test", "local", &f.out)
+	if err == nil || !strings.Contains(err.Error(), "boom") || !slices.Equal(f.restarts, []string{"a", "b"}) {
+		t.Fatalf("err %v, restarts %q", err, f.restarts)
+	}
+	mustContain(t, f.out.String(), "TLD changed .test → .local")
+}
+
+func TestRetargetDockerDown(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	dockerOutput = func(...string) (string, error) { return "", errors.New("Cannot connect to the Docker daemon") }
+	if err := retargetTLD("test", "local", &f.out); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	mustContain(t, f.out.String(), "TLD changed .test → .local")
+}
+
+func TestRetargetFromTLDAfterHandEdit(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	os.WriteFile(config.GlobalPath(), []byte("tld: local\n"), 0o644) // edited by hand: a is now invalid
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--tld=local", "--from-tld=test"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.config("a"), "a.local") {
+		t.Errorf("a:\n%s", f.config("a"))
+	}
+}
+
+func TestConfigGlobalTLDReadsCurrent(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--tld=localhost", "--http-port=8081"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.config("a"), "a.localhost") {
+		t.Errorf("a:\n%s", f.config("a"))
+	}
+	if g := f.read(config.GlobalPath()); !strings.Contains(g, "tld: localhost") || !strings.Contains(g, "http: 8081") {
+		t.Errorf("global:\n%s", g)
+	}
+}
+
+func TestRetargetInvalidProjectAborts(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	os.WriteFile(config.ProjectPath(f.roots["a"]), []byte("name: a\ntype: php\nphp: \"7.0\"\ndomains: [a.test]\n"), 0o644)
+	if err := retargetTLD("test", "local", &f.out); err == nil || !strings.Contains(err.Error(), "project a:") || !strings.Contains(err.Error(), "php") {
+		t.Errorf("err = %v", err)
 	}
 }

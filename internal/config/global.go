@@ -289,8 +289,13 @@ func CheckTLD(tld string) error {
 }
 
 // TLD is the configured TLD, or test when the global config does not load.
+// An error in another key keeps the tld it parsed, so it does not surface as wrong-TLD domains.
 func TLD() string {
-	if g, err := LoadGlobal(); err == nil {
+	data, err := os.ReadFile(GlobalPath())
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "test"
+	}
+	if g, _ := ParseGlobal(data); g != nil && CheckTLD(g.TLD) == nil {
 		return g.TLD
 	}
 	return "test"
