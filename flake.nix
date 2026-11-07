@@ -22,6 +22,8 @@
           env.CGO_ENABLED = 0;
           ldflags = [ "-s" "-w" "-X lodev/cmd.Version=v${version}" ];
           nativeBuildInputs = [ pkgs.installShellFiles ];
+          # install_test.go runs install.sh, which downloads with curl (file:// URLs, no network).
+          nativeCheckInputs = [ pkgs.curl ];
           postInstall = ''
             installShellCompletion --cmd lodev \
               --bash <($out/bin/lodev completion bash) \
