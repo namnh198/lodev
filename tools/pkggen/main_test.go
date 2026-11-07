@@ -48,7 +48,7 @@ func TestRender(t *testing.T) {
 		}
 	}
 	pkg := read("PKGBUILD")
-	for _, s := range []string{"pkgver=1.2.3", hash('3'), hash('4')} {
+	for _, s := range []string{"pkgver=1.2.3", hash('3'), hash('4'), "cd lodev_${_ver}_linux_*/"} {
 		if !strings.Contains(pkg, s) {
 			t.Errorf("PKGBUILD lacks %q", s)
 		}
