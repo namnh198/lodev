@@ -17,6 +17,14 @@ services:
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
+    # lodev start waits for this, and varnish too (a backend that fails its first probe starts sick).
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/lodev-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     environment:
       - "LODEV_PHP=8.3"
       - "LODEV_WEBSERVER=nginx"

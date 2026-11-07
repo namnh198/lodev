@@ -26,7 +26,8 @@ apt-get install -y --no-install-recommends "${pkgs[@]}"
 for v in "$@"; do
   phpdismod -v "$v" -s ALL xdebug
   sed -i 's|^listen = .*|listen = 127.0.0.1:9000|' "/etc/php/$v/fpm/pool.d/www.conf"
-  printf 'clear_env = no\ncatch_workers_output = yes\n' >> "/etc/php/$v/fpm/pool.d/www.conf"
+  # pm.status_path: the healthcheck's /phpstatus (served on 127.0.0.1 only, see *-status.conf).
+  printf 'clear_env = no\ncatch_workers_output = yes\npm.status_path = /phpstatus\n' >> "/etc/php/$v/fpm/pool.d/www.conf"
   sed -i 's|^error_log = .*|error_log = /proc/self/fd/2|' "/etc/php/$v/fpm/php-fpm.conf"
   for sapi in cli fpm; do
     ln -sf /etc/lodev/zz-lodev.ini "/etc/php/$v/$sapi/conf.d/99-lodev.ini"

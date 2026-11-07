@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"lodev/assets"
 	"lodev/internal/config"
@@ -132,20 +131,6 @@ func ImageExists(tag string) bool {
 func Running(container string) bool {
 	out, err := Output("inspect", "-f", "{{.State.Running}}", container)
 	return err == nil && out == "true"
-}
-
-func WaitHealthy(container string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		out, _ := Output("inspect", "-f", "{{.State.Health.Status}}", container)
-		if out == "healthy" {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("%s not healthy after %s (status %q); check `lodev services logs`", container, timeout, out)
-		}
-		time.Sleep(time.Second)
-	}
 }
 
 // BuildImage builds tag from an embedded assets subtree.

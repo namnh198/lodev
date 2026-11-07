@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -20,6 +21,8 @@ import (
 // TestMain keeps every other test away from the first-run setup and the real Docker daemon.
 func TestMain(m *testing.M) {
 	firstRun = func() {}
+	waitHealthyFn = func(string, time.Duration, string) error { return nil }
+	waitServicesFn = func([]string, time.Duration) error { return nil }
 	dockerPing = func() error { return nil }
 	os.Exit(m.Run())
 }

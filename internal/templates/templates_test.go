@@ -443,14 +443,14 @@ func TestProjectComposeVarnish(t *testing.T) {
 	if d := v.DependsOn["web"]; d.Condition != "service_healthy" || !d.Restart {
 		t.Errorf("varnish depends_on %+v", v.DependsOn)
 	}
-	if !slices.Equal(web.Healthcheck.Test, []string{"CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80"}) {
+	if !slices.Equal(web.Healthcheck.Test, []string{"CMD", "/usr/local/bin/lodev-healthcheck"}) {
 		t.Errorf("web healthcheck %v", web.Healthcheck.Test)
 	}
 	off := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))
 	if _, ok := off["varnish"]; ok || slices.ContainsFunc(off["web"].Environment, func(e string) bool { return strings.HasPrefix(e, "VARNISH_HOST=") }) {
 		t.Errorf("varnish off still renders it: %+v", off)
 	}
-	if off["web"].Healthcheck.Test != nil {
+	if !slices.Equal(off["web"].Healthcheck.Test, []string{"CMD", "/usr/local/bin/lodev-healthcheck"}) {
 		t.Errorf("web healthcheck without varnish: %v", off["web"].Healthcheck.Test)
 	}
 }
@@ -583,4 +583,57 @@ func TestProjectComposeCronEnvGolden(t *testing.T) {
 	in.Env = map[string]string{"MAGE_RUN_CODE": "default"}
 	b, err := ProjectCompose(in)
 	golden(t, "project-cron-env", must(t)(b, err))
+}
+
+func TestProjectComposeWebHealthcheck(t *testing.T) {
+	for _, ws := range []string{"nginx", "apache", "none"} {
+		b, err := ProjectCompose(projectInput(ws))
+		web, _, _ := strings.Cut(string(must(t)(b, err)), "\n  varnish:")
+		if !strings.Contains(web, "    healthcheck:\n      test: [\"CMD\", \"/usr/local/bin/lodev-healthcheck\"]\n") ||
+			!strings.Contains(web, "      start_interval: 1s\n") {
+			t.Errorf("%s: web has no lodev healthcheck:\n%s", ws, web)
+		}
+	}
+}
+
+func TestSharedComposeHealthchecks(t *testing.T) {
+	g := defaultGlobal(t)
+	for _, s := range []string{"mariadb", "rabbitmq", "mongodb", "mongo-express"} {
+		g.Services[s] = true
+	}
+	b, err := SharedCompose(g, home)
+	out := string(must(t)(b, err))
+	var doc struct {
+		Services map[string]struct {
+			Healthcheck *struct {
+				Test []string `yaml:"test"`
+			} `yaml:"healthcheck"`
+			DependsOn map[string]struct {
+				Condition string `yaml:"condition"`
+			} `yaml:"depends_on"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"traefik": "traefik healthcheck --ping", "mysql": "SHOW DATABASES;", "mariadb": "healthcheck.sh",
+		"redis": "redis-cli ping", "opensearch": "_cluster/health", "mailpit": "/mailpit readyz",
+		"phpmyadmin": "http://127.0.0.1:80", "rabbitmq": "rabbitmq-diagnostics", "mongodb": "ping",
+		"mongo-express": "http://127.0.0.1:8081",
+	}
+	for svc, frag := range want {
+		hc := doc.Services[svc].Healthcheck
+		if hc == nil || !strings.Contains(strings.Join(hc.Test, " "), frag) {
+			t.Errorf("%s healthcheck %+v, want it to contain %q", svc, hc, frag)
+		}
+	}
+	for _, db := range []string{"mysql", "mariadb"} {
+		if doc.Services["phpmyadmin"].DependsOn[db].Condition != "service_healthy" {
+			t.Errorf("phpmyadmin does not wait for %s: %+v", db, doc.Services["phpmyadmin"].DependsOn)
+		}
+	}
+	if !strings.Contains(out, "--ping=true") {
+		t.Error("traefik ping not enabled")
+	}
 }

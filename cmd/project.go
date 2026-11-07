@@ -332,7 +332,7 @@ func start(p *config.Project, rebuild rebuildOpts) error {
 		return err
 	}
 	if db := p.DB(); db != "" {
-		if err := docker.WaitHealthy("lodev-"+db, 60*time.Second); err != nil {
+		if err := waitDB(db, g); err != nil {
 			return err
 		}
 		if err := dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName())); err != nil {
@@ -433,6 +433,9 @@ func start(p *config.Project, rebuild rebuildOpts) error {
 		return err
 	}
 	if err := projectCompose(p, "up", "-d", "--remove-orphans"); err != nil {
+		return err
+	}
+	if err := waitWeb(p, g); err != nil {
 		return err
 	}
 	if err := waitForUser(p, user, 10*time.Second); err != nil {

@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
-       nano vim-tiny sqlite3 \
+       nano vim-tiny sqlite3 jq \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
     && dpkg -i /tmp/sury-keyring.deb \
     && . /etc/os-release \
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     && update-alternatives --install /usr/bin/vim vim /usr/bin/vim.tiny 10 \
     && rm -f /etc/nginx/sites-enabled/default \
     && a2dismod -f mpm_prefork \
-    && a2enmod mpm_event proxy_fcgi rewrite headers setenvif \
+    && a2enmod mpm_event proxy_fcgi proxy_http rewrite headers setenvif \
     && rm -rf /tmp/* /var/log/apt/* /var/log/dpkg.log
 
 COPY install-php.sh /usr/local/bin/lodev-install-php
@@ -60,10 +60,13 @@ COPY zz-lodev.ini /etc/lodev/zz-lodev.ini
 # zz-lodev.ini prepends php.d/prepend.php: a placeholder so PHP runs in builds; the project mount hides it.
 RUN mkdir -p /etc/lodev/php.d && touch /etc/lodev/php.d/prepend.php
 
+COPY nginx-status.conf /etc/nginx/conf.d/lodev-status.conf
+COPY apache-status.conf /etc/apache2/conf-enabled/lodev-status.conf
+COPY healthcheck.sh /usr/local/bin/lodev-healthcheck
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/
 COPY entrypoint.sh /usr/local/bin/lodev-entrypoint
-RUN chmod +x /usr/local/bin/lodev-entrypoint
+RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck
 
 WORKDIR /var/www/html
 ENTRYPOINT ["/usr/local/bin/lodev-entrypoint"]

@@ -96,7 +96,7 @@ func servicesUp() error {
 	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
 		return err
 	}
-	return nil
+	return waitServicesFn(append([]string{"traefik"}, g.EnabledServices()...), g.ContainerWait())
 }
 
 // printServiceURLs lists the shared services' URLs; printed once, not per project start.

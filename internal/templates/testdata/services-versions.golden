@@ -35,6 +35,7 @@ services:
     restart: unless-stopped
     command:
       - --api.insecure=true
+      - --ping=true
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=lodev
@@ -53,6 +54,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - "/home/u/.lodev/certs:/certs:ro"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks:
       lodev:
         ipv4_address: 172.30.0.2
@@ -66,9 +74,13 @@ services:
     volumes:
       - lodev-mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
-      interval: 5s
-      retries: 20
+      # Over TCP: the temporary server MySQL runs while initializing listens on the socket only.
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SHOW DATABASES;' >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks: [lodev]
 
   mariadb:
@@ -81,8 +93,11 @@ services:
       - lodev-mariadb:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
-      retries: 20
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks: [lodev]
 
   redis:
@@ -92,6 +107,13 @@ services:
     # The image declares VOLUME /data; without a named volume each recreate leaves an anonymous one.
     volumes:
       - lodev-redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks: [lodev]
 
   opensearch:
@@ -106,12 +128,27 @@ services:
     mem_limit: 2g
     volumes:
       - lodev-opensearch:/usr/share/opensearch/data
+    healthcheck:
+      # One node: yellow (replicas unassigned) is as healthy as it gets.
+      test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks: [lodev]
 
   mailpit:
     image: axllent/mailpit
     container_name: lodev-mailpit
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     labels:
       - traefik.enable=true
       - traefik.http.routers.mailpit.rule=Host(`mailpit.test`)
@@ -128,6 +165,16 @@ services:
       - PMA_HOSTS=mysql
       - PMA_USER=root
       - PMA_PASSWORD=root
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
+    depends_on:
+      mysql:
+        condition: service_healthy
     labels:
       - traefik.enable=true
       - traefik.http.routers.phpmyadmin.rule=Host(`phpmyadmin.test`)
@@ -142,6 +189,13 @@ services:
     restart: unless-stopped
     volumes:
       - lodev-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     labels:
       - traefik.enable=true
       - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.test`)
@@ -163,8 +217,11 @@ services:
     healthcheck:
       # mongosh ships with mongo 5+, the legacy mongo shell with 4.4 and older.
       test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping')\" || mongo --quiet --eval \"db.adminCommand('ping')\""]
-      interval: 5s
-      retries: 20
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     networks: [lodev]
 
   mongo-express:
@@ -176,6 +233,13 @@ services:
       - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
       - ME_CONFIG_BASICAUTH_ENABLED=false
       - ME_CONFIG_BASICAUTH=false
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 2m
+      start_interval: 1s
     depends_on:
       mongodb:
         condition: service_healthy
