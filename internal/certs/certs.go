@@ -15,8 +15,19 @@ import (
 	"lodev/internal/ui"
 )
 
-func dir() string   { return filepath.Join(config.Home(), "certs") }
-func caDir() string { return filepath.Join(config.Home(), "ca") }
+func dir() string { return filepath.Join(config.Home(), "certs") }
+
+// caDir holds lodev's own CA. Older lodev kept it in LODEV_HOME/ca: it is moved, so a CA the
+// user already trusts stays in use.
+func caDir() string {
+	d, old := filepath.Join(config.Home(), "rootCA"), filepath.Join(config.Home(), "ca")
+	if !exists(d) && exists(old) {
+		if err := os.Rename(old, d); err != nil {
+			return old
+		}
+	}
+	return d
+}
 
 func exists(path string) bool { _, err := os.Stat(path); return err == nil }
 

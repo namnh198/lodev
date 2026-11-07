@@ -65,7 +65,7 @@ func projectInput(webserver string) ProjectInput {
 	return ProjectInput{
 		Project:    shop(webserver),
 		ExtraHosts: []string{"en.test", "shop.test", "mailpit.test", "phpmyadmin.test"},
-		CAFile:     home + "/ca/rootCA.pem",
+		CAFile:     home + "/rootCA/rootCA.pem",
 		Image:      "lodev/shop-web",
 		User:       "kuroko", UID: 501, GID: 20,
 		HomeDir: home + "/data/home-shop",
@@ -311,7 +311,7 @@ func TestWebBuildDockerfileLegacyBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"FROM lodev/php:legacy-7.4\n", "php7.4-imagick"} {
+	for _, want := range []string{"FROM lodev/webserver:dev-legacy-7.4\n", "php7.4-imagick"} {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}

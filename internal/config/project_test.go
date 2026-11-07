@@ -248,7 +248,7 @@ func TestBundledPHPIsSupported(t *testing.T) {
 
 func TestPHPImage(t *testing.T) {
 	for ver, want := range map[string]string{
-		"8.2": "lodev/php", "8.5": "lodev/php", "7.4": "lodev/php:legacy-7.4", "8.1": "lodev/php:legacy-8.1",
+		"8.2": "lodev/webserver:dev", "8.5": "lodev/webserver:dev", "7.4": "lodev/webserver:dev-legacy-7.4", "8.1": "lodev/webserver:dev-legacy-8.1",
 	} {
 		if got := PHPImage(ver); got != want {
 			t.Errorf("PHPImage(%q) = %q, want %q", ver, got, want)
@@ -362,5 +362,16 @@ func TestValidateReservedDomains(t *testing.T) {
 	p := &Project{Name: "demo", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"mongo.test"}}
 	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), `domain "mongo.test" is reserved by lodev`) {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestPHPImageUsesImageTag(t *testing.T) {
+	defer func(old string) { ImageTag = old }(ImageTag)
+	ImageTag = "v0.1.0"
+	if got := PHPImage("8.3"); got != "lodev/webserver:v0.1.0" {
+		t.Errorf("PHPImage(8.3) = %q", got)
+	}
+	if got := PHPImage("7.4"); got != "lodev/webserver:v0.1.0-legacy-7.4" {
+		t.Errorf("PHPImage(7.4) = %q", got)
 	}
 }

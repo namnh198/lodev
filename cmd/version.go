@@ -14,7 +14,7 @@ import (
 // Version is set at build time: go build -ldflags "-X lodev/cmd.Version=v1.2.0".
 var Version = "dev"
 
-// Channel is "edge" for the pre-release built from main (-X lodev/cmd.Channel=edge), else "".
+// Channel is "nightly" for the pre-release built from main (-X lodev/cmd.Channel=nightly), else "".
 var Channel = ""
 
 // lodevVersion is Version, or "dev (<commit>[-dirty])" from the build info Go embeds.
@@ -88,6 +88,7 @@ func versionRows() [][]string {
 }
 
 func init() {
+	config.ImageTag = Version // web images are tagged with the lodev version, e.g. lodev/webserver:v0.1.0
 	rootCmd.Version = lodevVersion() // cobra adds -v/--version: "lodev version <v>"
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",

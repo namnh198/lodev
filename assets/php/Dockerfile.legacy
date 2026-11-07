@@ -1,3 +1,4 @@
-FROM lodev/php
+ARG BASE
+FROM ${BASE}
 ARG PHP_VERSION
 RUN lodev-install-php "$PHP_VERSION"

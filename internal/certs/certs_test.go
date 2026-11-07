@@ -28,10 +28,10 @@ func TestSyncTraefik(t *testing.T) {
 	}
 }
 
-// noMkcert hides a host mkcert so CAFile is LODEV_HOME/ca/rootCA.pem.
+// noMkcert hides a host mkcert so CAFile is LODEV_HOME/rootCA/rootCA.pem.
 func noMkcert(t *testing.T, home string) string {
 	t.Setenv("PATH", t.TempDir())
-	return filepath.Join(home, "ca", "rootCA.pem") + "\n"
+	return filepath.Join(home, "rootCA", "rootCA.pem") + "\n"
 }
 
 func TestEnsureSkipsWhenUnchanged(t *testing.T) {
@@ -142,5 +142,23 @@ func TestRunMkcertErrorIncludesOutput(t *testing.T) {
 	captureStd(t, func() { err = runMkcert("x") })
 	if err == nil || !strings.Contains(err.Error(), "ERROR: bad domain") {
 		t.Fatal(err)
+	}
+}
+
+func TestCAFileMovesOldCADir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	want := noMkcert(t, home)
+	os.MkdirAll(filepath.Join(home, "ca"), 0o755)
+	os.WriteFile(filepath.Join(home, "ca", "rootCA.pem"), []byte("trusted"), 0o644)
+	got, err := CAFile()
+	if err != nil || got+"\n" != want {
+		t.Fatalf("CAFile = %q, %v; want %q", got, err, want)
+	}
+	if b, _ := os.ReadFile(got); string(b) != "trusted" {
+		t.Fatalf("old CA not moved: %q", b)
+	}
+	if exists(filepath.Join(home, "ca")) {
+		t.Fatal("old ca dir still there")
 	}
 }

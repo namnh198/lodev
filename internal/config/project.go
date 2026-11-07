@@ -310,11 +310,16 @@ func SanitizeName(dir string) string {
 // ProjectImage is the per-project web image lodev builds.
 func ProjectImage(name string) string { return "lodev/" + name + "-web" }
 
+// ImageTag tags lodev's web images: the lodev version, set by cmd.
+var ImageTag = "dev"
+
+// WebserverImage is the base web image, with PHP 8.2-8.5.
+func WebserverImage() string { return "lodev/webserver:" + ImageTag }
+
 // PHPImage is the image a project on PHP ver runs.
 func PHPImage(ver string) string {
 	if slices.Contains(BundledPHP, ver) {
-		return "lodev/php"
+		return WebserverImage()
 	}
-	// legacy- keeps clear of the old per-version lodev/php:<ver> images.
-	return "lodev/php:legacy-" + ver
+	return WebserverImage() + "-legacy-" + ver
 }

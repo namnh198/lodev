@@ -45,7 +45,7 @@ func TestExecArgs(t *testing.T) {
 
 func TestPHPBuildArgs(t *testing.T) {
 	got := PHPBuildArgs([]string{"8.2", "8.3"}, "H", false, "/tmp/x")
-	want := []string{"build", "-t", "lodev/php", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3", "/tmp/x"}
+	want := []string{"build", "-t", "lodev/webserver:dev", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3", "/tmp/x"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got  %q\nwant %q", got, want)
 	}
@@ -56,7 +56,7 @@ func TestPHPBuildArgs(t *testing.T) {
 
 func TestLegacyBuildArgs(t *testing.T) {
 	check(t, LegacyBuildArgs("7.4", "sha256:B", false, "/tmp/x"),
-		"build -t lodev/php:legacy-7.4 --label lodev.base=sha256:B --build-arg PHP_VERSION=7.4 -f /tmp/x/Dockerfile.legacy /tmp/x")
+		"build -t lodev/webserver:dev-legacy-7.4 --label lodev.base=sha256:B --build-arg PHP_VERSION=7.4 --build-arg BASE=lodev/webserver:dev -f /tmp/x/Dockerfile.legacy /tmp/x")
 	if got := LegacyBuildArgs("7.4", "B", true, "/tmp/x"); got[1] != "--no-cache" {
 		t.Fatalf("rebuild must not use the cache: %q", got)
 	}
@@ -91,13 +91,13 @@ func TestEnsurePHPImage(t *testing.T) {
 		labels  map[string]string // tag → its lodev label; tag#id → image id
 		want    []string
 	}{
-		{"base current", "8.3", false, map[string]string{"lodev/php": "H"}, nil},
-		{"base missing", "8.3", false, map[string]string{}, []string{"lodev/php"}},
-		{"base stale", "8.3", false, map[string]string{"lodev/php": "OLD"}, []string{"lodev/php"}},
-		{"legacy current", "7.4", false, map[string]string{"lodev/php": "H", "lodev/php#id": "B", "lodev/php:legacy-7.4": "B"}, nil},
-		{"legacy missing", "7.4", false, map[string]string{"lodev/php": "H", "lodev/php#id": "B"}, []string{"lodev/php:legacy-7.4"}},
-		{"legacy on old base", "7.4", false, map[string]string{"lodev/php": "H", "lodev/php#id": "B", "lodev/php:legacy-7.4": "A"}, []string{"lodev/php:legacy-7.4"}},
-		{"rebuild", "7.4", true, map[string]string{"lodev/php": "H", "lodev/php#id": "B", "lodev/php:legacy-7.4": "B"}, []string{"lodev/php", "lodev/php:legacy-7.4"}},
+		{"base current", "8.3", false, map[string]string{"lodev/webserver:dev": "H"}, nil},
+		{"base missing", "8.3", false, map[string]string{}, []string{"lodev/webserver:dev"}},
+		{"base stale", "8.3", false, map[string]string{"lodev/webserver:dev": "OLD"}, []string{"lodev/webserver:dev"}},
+		{"legacy current", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, nil},
+		{"legacy missing", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B"}, []string{"lodev/webserver:dev-legacy-7.4"}},
+		{"legacy on old base", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "A"}, []string{"lodev/webserver:dev-legacy-7.4"}},
+		{"rebuild", "7.4", true, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, []string{"lodev/webserver:dev", "lodev/webserver:dev-legacy-7.4"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -203,8 +203,8 @@ func TestEnsureProjectImage(t *testing.T) {
 		wantCmds []string
 		wantCtx  string // build context dir under root
 	}{
-		{"not needed, no image", "", false, false, false, false, "lodev/php", nil, ""},
-		{"not needed, stale image", "", false, false, true, false, "lodev/php", nil, ""},
+		{"not needed, no image", "", false, false, false, false, "lodev/webserver:dev", nil, ""},
+		{"not needed, stale image", "", false, false, true, false, "lodev/webserver:dev", nil, ""},
 		{"needed, label matches", "20", false, false, true, true, "lodev/shop-web", nil, ""},
 		{"needed, label differs", "20", true, false, true, false, "lodev/shop-web", []string{"build"}, ".lodev/web-images"},
 		{"needed, no web-images", "20", false, false, false, false, "lodev/shop-web", []string{"build"}, ".lodev/web-build"},
@@ -217,7 +217,7 @@ func TestEnsureProjectImage(t *testing.T) {
 			if c.webImgs {
 				writeFiles(t, root, ".lodev/web-images/conf/a")
 			}
-			labels := map[string]string{"lodev/php#id": "BASE"}
+			labels := map[string]string{"lodev/webserver:dev#id": "BASE"}
 			fakeImages(t, labels)
 			var cmds []string
 			run = func(args ...string) error { cmds = append(cmds, strings.Join(args, " ")); return nil }
@@ -253,7 +253,7 @@ func TestEnsureProjectImage(t *testing.T) {
 				}
 			}
 			_, err = os.Stat(filepath.Join(root, ".lodev/web-build/Dockerfile"))
-			if (err == nil) != (c.wantTag != "lodev/php") {
+			if (err == nil) != (c.wantTag != "lodev/webserver:dev") {
 				t.Fatalf("web-build/Dockerfile presence wrong (err=%v)", err)
 			}
 		})

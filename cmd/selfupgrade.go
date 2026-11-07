@@ -38,8 +38,8 @@ var (
 	}
 )
 
-// edgeTag is the rolling pre-release rebuilt on every push to main.
-const edgeTag = "edge"
+// nightlyTag is the rolling pre-release rebuilt on every push to main.
+const nightlyTag = "nightly"
 
 var tagRe = regexp.MustCompile(`^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 
@@ -73,12 +73,12 @@ func newSelfUpgradeCmd() *cobra.Command {
 				return fmt.Errorf("lodev was installed by %s: %s", m.Name, m.Command)
 			}
 			tag, _ := c.Flags().GetString("version")
-			if tag == "" && Channel == edgeTag {
-				tag = edgeTag
+			if tag == "" && Channel == nightlyTag {
+				tag = nightlyTag
 			}
 			switch tag {
-			case edgeTag:
-				// edge is a moving tag: there is no version to compare, so always fetch it.
+			case nightlyTag:
+				// nightly is a moving tag: there is no version to compare, so always fetch it.
 			case "":
 				ctx, cancel := context.WithTimeout(c.Context(), 10*time.Second)
 				tag, err = latestVersion(ctx)
@@ -134,7 +134,7 @@ func newSelfUpgradeCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().String("version", "", "install this version instead of the latest, e.g. v1.2.0, or edge (built from main)")
+	c.Flags().String("version", "", "install this version instead of the latest, e.g. v1.2.0, or nightly (built from main)")
 	return c
 }
 

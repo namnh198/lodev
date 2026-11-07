@@ -51,7 +51,7 @@ func ExecArgs(project, file, service, user, workdir string, tty bool, cmd []stri
 
 // PHPBuildArgs builds the base image, labelled with the hash of the assets it came from.
 func PHPBuildArgs(versions []string, hash string, noCache bool, dir string) []string {
-	return buildArgs(noCache, "-t", "lodev/php", "--label", "lodev.hash="+hash,
+	return buildArgs(noCache, "-t", config.WebserverImage(), "--label", "lodev.hash="+hash,
 		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "),
 		dir)
 }
@@ -59,7 +59,7 @@ func PHPBuildArgs(versions []string, hash string, noCache bool, dir string) []st
 // LegacyBuildArgs builds a legacy image, labelled with the base image ID it was built on.
 func LegacyBuildArgs(ver, baseID string, noCache bool, dir string) []string {
 	return buildArgs(noCache, "-t", config.PHPImage(ver), "--label", "lodev.base="+baseID,
-		"--build-arg", "PHP_VERSION="+ver, "-f", filepath.Join(dir, "Dockerfile.legacy"), dir)
+		"--build-arg", "PHP_VERSION="+ver, "--build-arg", "BASE="+config.WebserverImage(), "-f", filepath.Join(dir, "Dockerfile.legacy"), dir)
 }
 
 // ProjectBuildArgs builds the per-project web image, labelled with its input hash.
@@ -181,8 +181,9 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 	if err != nil {
 		return err
 	}
-	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, "lodev/php") != hash {
-		ui.Info("Building lodev/php (PHP 8.2-8.5, about a minute the first time)...")
+	base := config.WebserverImage()
+	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, base) != hash {
+		ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
 		if err := build("php", func(dir string) []string {
 			return PHPBuildArgs(config.BundledPHP, hash, rebuild, dir)
 		}); err != nil {
@@ -190,15 +191,15 @@ func EnsurePHPImage(ver string, rebuild bool) error {
 		}
 	}
 	img := config.PHPImage(ver)
-	if img == "lodev/php" {
+	if img == base {
 		return nil
 	}
-	base := inspect("{{.Id}}", "lodev/php")
-	if !rebuild && inspect(`{{index .Config.Labels "lodev.base"}}`, img) == base {
+	baseID := inspect("{{.Id}}", base)
+	if !rebuild && inspect(`{{index .Config.Labels "lodev.base"}}`, img) == baseID {
 		return nil
 	}
 	ui.Info("Building %s...", img)
-	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, base, rebuild, dir) })
+	return build("php", func(dir string) []string { return LegacyBuildArgs(ver, baseID, rebuild, dir) })
 }
 
 // WebImageParts reads the top-level Dockerfile* files of .lodev/web-images, sorted, skipping *.example.

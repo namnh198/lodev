@@ -37,17 +37,17 @@ Homebrew and `lodev self-upgrade` never set it; only a browser download does. If
 unpacked an archive downloaded with a browser yourself, run
 `xattr -d com.apple.quarantine /path/to/lodev` once.
 
-### Pre-release (edge)
+### Pre-release (nightly)
 
-Every push to `main` rebuilds the `edge` pre-release. To try it:
+Every push to `main` rebuilds the `nightly` pre-release. To try it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | VERSION=edge sh
+curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | VERSION=nightly sh
 ```
 
-or `lodev self-upgrade --version edge`. An edge build reports its `git describe` version
-(e.g. `v0.1.1-3-g238f647`), shows no new-version notice, and `lodev self-upgrade` keeps it on edge.
-Go back to stable with `lodev self-upgrade --version v1.2.3`. Edge has archives only (no `.deb`,
+or `lodev self-upgrade --version nightly`. A nightly build reports its `git describe` version
+(e.g. `v0.1.1-3-g238f647`), shows no new-version notice, and `lodev self-upgrade` keeps it on nightly.
+Go back to stable with `lodev self-upgrade --version v1.2.3`. Nightly has archives only (no `.deb`,
 Homebrew or AUR).
 
 ### Homebrew (macOS, Linux)
@@ -109,8 +109,8 @@ like `v1.3.0-rc1`, is marked pre-release). Publishing is then manual: copy `lode
 `Formula/` in the `namnh198/homebrew-tap` repo, and `PKGBUILD` + `.SRCINFO` to the `lodev-bin`
 AUR repo; bump `version` in `flake.nix`.
 
-`.github/workflows/edge.yml` replaces the `edge` pre-release on every push to `main`
-(`make dist VER=edge CHANNEL=edge`); it is never marked latest, so stable users are not affected.
+`.github/workflows/nightly.yml` replaces the `nightly` pre-release on every push to `main`
+(`make dist VER=nightly CHANNEL=nightly`); it is never marked latest, so stable users are not affected.
 
 ## Quick start
 
@@ -136,16 +136,17 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 
 ## PHP image
 
-All projects share one image, `lodev/php`, with PHP 8.2–8.5; it is built on the first
-`lodev start` (about a minute). PHP 7.4, 8.0 and 8.1 add a small image
-(`lodev/php:legacy-<ver>`) on top of it the first time a project uses them.
+All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
+with PHP 8.2–8.5; it is built on the first `lodev start` (about a minute). PHP 7.4, 8.0 and 8.1
+add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first time a
+project uses them.
 
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
-- After upgrading lodev, `lodev start` rebuilds the images by itself when their files
-  changed. `lodev start --rebuild` forces a clean rebuild (fresh PHP packages).
-- Coming from an older lodev that built one image per version? Free the space with
-  `docker rmi lodev/php:7.4 lodev/php:8.0 lodev/php:8.1 lodev/php:8.2 lodev/php:8.3 lodev/php:8.4 lodev/php:8.5`
-  ("No such image" errors are fine).
+- After upgrading lodev, the first `lodev start` builds the images for the new version.
+  `lodev start --rebuild` forces a clean rebuild (fresh PHP packages).
+- Images of older lodev versions are kept. List them with `docker images lodev/webserver`
+  and free the space with `docker rmi lodev/webserver:<old version>`; lodev before
+  `lodev/webserver` used `lodev/php` (`docker rmi $(docker images -q lodev/php)`).
 
 ## Global config — `~/.lodev/config.yaml`
 
@@ -283,7 +284,7 @@ the name had to change. The user has passwordless `sudo`, the hostname is `<name
 workdir `/var/www/html`. nginx / apache / php-fpm workers run as that user too, so files PHP
 writes are owned by you on the host. `xdebug` toggling still runs as root.
 
-After upgrading, the first `lodev start` rebuilds `lodev/php` (the base image no longer bakes
+After upgrading, the first `lodev start` rebuilds `lodev/webserver` (the base image no longer bakes
 the host UID into `www-data`). Run `lodev restart` in every project that was running before the
 upgrade, or `ssh`/`exec` won't find your user.
 

@@ -39,7 +39,7 @@ services:
       - "phpmyadmin.test:172.30.0.2"
     volumes:
       - "/work/shop:/var/www/html"
-      - "/home/u/.lodev/ca/rootCA.pem:/etc/lodev/rootCA.pem:ro"
+      - "/home/u/.lodev/rootCA/rootCA.pem:/etc/lodev/rootCA.pem:ro"
       - "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
       - "/home/u/.lodev/data/home-shop:/home/kuroko"
       - "/work/shop/.lodev/nginx-webserver.conf:/etc/lodev/webserver.conf:ro"

@@ -282,26 +282,26 @@ func TestSelfUpgradeDownloadError(t *testing.T) {
 	}
 }
 
-func TestSelfUpgradeEdgeChannel(t *testing.T) {
+func TestSelfUpgradeNightlyChannel(t *testing.T) {
 	f := upgradeFixture(t)
 	defer func(c string) { Channel = c }(Channel)
-	Version, Channel = "v0.1.0-14-g238f647", "edge"
+	Version, Channel = "v0.1.0-14-g238f647", "nightly"
 	out, err := runUpgrade(t)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(f.tags, []string{"edge"}) || f.latest != 0 {
+	if !reflect.DeepEqual(f.tags, []string{"nightly"}) || f.latest != 0 {
 		t.Errorf("tags %v, latest calls %d", f.tags, f.latest)
 	}
-	mustContain(t, out, "Upgraded lodev v0.1.0-14-g238f647 → edge")
+	mustContain(t, out, "Upgraded lodev v0.1.0-14-g238f647 → nightly")
 }
 
-func TestSelfUpgradeVersionEdge(t *testing.T) {
+func TestSelfUpgradeVersionNightly(t *testing.T) {
 	f := upgradeFixture(t)
-	if _, err := runUpgrade(t, "--version", "edge"); err != nil {
+	if _, err := runUpgrade(t, "--version", "nightly"); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(f.tags, []string{"edge"}) || f.latest != 0 {
+	if !reflect.DeepEqual(f.tags, []string{"nightly"}) || f.latest != 0 {
 		t.Errorf("tags %v, latest calls %d", f.tags, f.latest)
 	}
 	if got := readFile(t, filepath.Join(f.prefix, "bin", "lodev")); got != "new" {
