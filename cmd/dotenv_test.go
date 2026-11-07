@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -31,6 +32,9 @@ func TestDotenvSet(t *testing.T) {
 	}
 	if fi, _ := os.Stat(filepath.Join(root, ".lodev", ".env")); fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode %v", fi.Mode().Perm())
+	}
+	if gi, _ := os.ReadFile(filepath.Join(root, ".lodev", ".gitignore")); !strings.Contains(string(gi), "\n/.env\n") {
+		t.Errorf(".lodev/.gitignore does not ignore .env: %q", gi)
 	}
 	if out != "Set APP_KEY, MAGE_RUN_CODE in .lodev/.env; run lodev restart to apply\n" {
 		t.Errorf("out: %q", out)

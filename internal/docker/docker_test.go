@@ -33,14 +33,14 @@ func check(t *testing.T, got []string, want string) {
 
 func TestComposeArgs(t *testing.T) {
 	check(t, ComposeArgs("lodev-shop", "/p/.lodev/compose.yaml", "up", "-d"),
-		"compose -p lodev-shop -f /p/.lodev/compose.yaml up -d")
+		"compose --env-file /dev/null -p lodev-shop -f /p/.lodev/compose.yaml up -d")
 }
 
 func TestExecArgs(t *testing.T) {
 	check(t, ExecArgs("P", "F", "web", "kuroko", "/var/www/html", true, []string{"php", "-v"}),
-		"compose -p P -f F exec -u kuroko -w /var/www/html web php -v")
+		"compose --env-file /dev/null -p P -f F exec -u kuroko -w /var/www/html web php -v")
 	check(t, ExecArgs("P", "F", "adminer", "", "", false, []string{"ls"}),
-		"compose -p P -f F exec -T adminer ls")
+		"compose --env-file /dev/null -p P -f F exec -T adminer ls")
 }
 
 func TestPHPBuildArgs(t *testing.T) {
@@ -262,5 +262,5 @@ func TestEnsureProjectImage(t *testing.T) {
 }
 
 func TestComposeConfigArgs(t *testing.T) {
-	check(t, ComposeConfigArgs("P", []string{"a.yml", "b.yaml"}), "compose -p P -f a.yml -f b.yaml config")
+	check(t, ComposeConfigArgs("P", []string{"a.yml", "b.yaml"}), "compose --env-file /dev/null -p P -f a.yml -f b.yaml config")
 }

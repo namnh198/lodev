@@ -310,8 +310,9 @@ func DetectType(root string) string {
 	return "php"
 }
 
+// grep -v exits 1 when it drops every line (the usual run): || true keeps supercronic from logging an error.
 var defaultCronJobs = map[string]string{
-	"magento":   `* * * * * php bin/magento cron:run 2>&1 | grep -v "Ran jobs by schedule" >> var/log/magento.cron.log`,
+	"magento":   `* * * * * php bin/magento cron:run 2>&1 | grep -v "Ran jobs by schedule" >> var/log/magento.cron.log || true`,
 	"laravel":   `* * * * * php artisan schedule:run >> storage/logs/schedule.log 2>&1`,
 	"wordpress": `* * * * * wp cron event run --due-now >> wp-content/cron.log 2>&1`,
 }

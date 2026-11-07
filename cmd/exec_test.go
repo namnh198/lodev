@@ -105,7 +105,7 @@ func TestShowLogs(t *testing.T) {
 	if err := showLogs("web"); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"compose", "-p", "lodev-shop", "-f", composeFile(p), "logs", "-f", "web"}; !slices.Equal(got, want) {
+	if want := []string{"compose", "--env-file", "/dev/null", "-p", "lodev-shop", "-f", composeFile(p), "logs", "-f", "web"}; !slices.Equal(got, want) {
 		t.Fatalf("got %v", got)
 	}
 	if err := showLogs(""); err != errServiceName {

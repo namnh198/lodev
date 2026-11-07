@@ -273,7 +273,7 @@ project type picks the job:
 
 | type | default job |
 |---|---|
-| magento | `* * * * * php bin/magento cron:run 2>&1 \| grep -v "Ran jobs by schedule" >> var/log/magento.cron.log` |
+| magento | `* * * * * php bin/magento cron:run 2>&1 \| grep -v "Ran jobs by schedule" >> var/log/magento.cron.log \|\| true` |
 | laravel | `* * * * * php artisan schedule:run >> storage/logs/schedule.log 2>&1` |
 | wordpress | `* * * * * wp cron event run --due-now >> wp-content/cron.log 2>&1` |
 | php | none: set `cron_jobs` |

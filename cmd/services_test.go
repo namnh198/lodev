@@ -145,7 +145,7 @@ func TestPoweroff(t *testing.T) {
 		"Stopping project a", "Stopping project b", "Stopping project x", "lodev is powered off",
 		"✔ Container lodev-a-web  Stopped", "✔ Container lodev-a-varnish  Stopped",
 		"✔ Container lodev-a-web  Removed", "✔ Container lodev-a-varnish  Removed")
-	// By label, not `compose -p … stop`: compose would read a docker-compose.yml in the cwd
+	// By label, not `compose --env-file /dev/null -p … stop`: compose would read a docker-compose.yml in the cwd
 	// and silently skip containers whose service is not in it.
 	// Containers (stopped ones too) and the project network are removed, like compose down:
 	// a stale network or container breaks the next start.
@@ -153,7 +153,7 @@ func TestPoweroff(t *testing.T) {
 		"quiet: stop lodev-a-web lodev-a-varnish", "quiet: rm lodev-a-web lodev-a-varnish", "quiet: network rm net-a",
 		"quiet: stop lodev-b-web lodev-b-varnish", "quiet: rm lodev-b-web lodev-b-varnish", "quiet: network rm net-b",
 		"quiet: stop lodev-x-web lodev-x-varnish", "quiet: rm lodev-x-web lodev-x-varnish", "quiet: network rm net-x",
-		"compose -p lodev-services -f " + servicesFile() + " down",
+		"compose --env-file /dev/null -p lodev-services -f " + servicesFile() + " down",
 	}
 	if !slices.Equal(*calls, want) {
 		t.Errorf("calls:\n%s", strings.Join(*calls, "\n"))
@@ -227,8 +227,8 @@ func TestServicesComposeFile(t *testing.T) {
 	os.WriteFile(servicesFullFile(), nil, 0o644)
 	servicesCompose("ps")
 	want := []string{
-		"compose -p lodev-services -f " + servicesFile() + " ps",
-		"compose -p lodev-services -f " + servicesFullFile() + " ps",
+		"compose --env-file /dev/null -p lodev-services -f " + servicesFile() + " ps",
+		"compose --env-file /dev/null -p lodev-services -f " + servicesFullFile() + " ps",
 	}
 	if !slices.Equal(*calls, want) {
 		t.Errorf("calls %v", *calls)

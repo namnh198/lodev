@@ -71,6 +71,10 @@ func newDotenvCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// An older .lodev/.gitignore may predate .env: keep secrets out of git before writing.
+			if err := writeLodevGitignore(p); err != nil {
+				return err
+			}
 			keys := make([]string, len(sets))
 			for i, s := range sets {
 				data = dotenv.Set(data, s.k, s.v)

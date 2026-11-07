@@ -21,12 +21,15 @@ import (
 )
 
 func ComposeArgs(project, file string, sub ...string) []string {
-	return append([]string{"compose", "-p", project, "-f", file}, sub...)
+	return append([]string{"compose", "--env-file", os.DevNull, "-p", project, "-f", file}, sub...)
 }
+
+// Both pass --env-file: compose would otherwise read .env next to the first file, which is
+// .lodev/.env, and fail on a value like pa${ss (lodev puts its values in the compose file).
 
 // ComposeConfigArgs merges compose files into one document on stdout.
 func ComposeConfigArgs(project string, files []string) []string {
-	args := []string{"compose", "-p", project}
+	args := []string{"compose", "--env-file", os.DevNull, "-p", project}
 	for _, f := range files {
 		args = append(args, "-f", f)
 	}
