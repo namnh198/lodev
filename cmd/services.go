@@ -80,13 +80,13 @@ func servicesUp() error {
 	if err := mergeServicesCompose(); err != nil {
 		return err
 	}
-	if err := certs.Ensure("lodev-services", config.ReservedDomains); err != nil {
+	if err := certs.Ensure("lodev-services", config.ReservedDomains()); err != nil {
 		return err
 	}
 	if err := certs.SyncTraefik(); err != nil {
 		return err
 	}
-	if err := hosts.Apply("lodev-services", config.ReservedDomains); err != nil {
+	if err := hosts.Apply("lodev-services", config.ReservedDomains()); err != nil {
 		return err
 	}
 	warnImageChange(g)

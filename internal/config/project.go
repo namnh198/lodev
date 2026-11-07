@@ -15,24 +15,22 @@ import (
 )
 
 var (
-	SupportedPHP    = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
-	BundledPHP      = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
-	Types           = []string{"laravel", "wordpress", "magento", "php"}
-	Webservers      = []string{"nginx", "apache", "none"}
-	SharedServices  = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb", "mongodb", "mongo-express"}
-	ReservedDomains = []string{"mailpit.test", "phpmyadmin.test", "rabbitmq.test", "mongo.test"}
+	SupportedPHP   = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
+	BundledPHP     = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
+	Types          = []string{"laravel", "wordpress", "magento", "php"}
+	Webservers     = []string{"nginx", "apache", "none"}
+	SharedServices = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb", "mongodb", "mongo-express"}
 	// DefaultOff lists shared services that stay off until enabled (or a project needs them).
 	DefaultOff = []string{"rabbitmq", "mariadb", "mongodb", "mongo-express"}
 )
 
 var (
-	nameRe   = regexp.MustCompile(`^[a-z0-9-]+$`)
-	domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+test$`)
-	nodeRe   = regexp.MustCompile(`^(lts|latest|current|[0-9]+(\.[0-9]+){0,2})$`)
-	extRe    = regexp.MustCompile(`^[a-z0-9_]+$`)
-	pkgRe    = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)
-	userRe   = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
-	nonUser  = regexp.MustCompile(`[^a-z0-9_-]`)
+	nameRe  = regexp.MustCompile(`^[a-z0-9-]+$`)
+	nodeRe  = regexp.MustCompile(`^(lts|latest|current|[0-9]+(\.[0-9]+){0,2})$`)
+	extRe   = regexp.MustCompile(`^[a-z0-9_]+$`)
+	pkgRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)
+	userRe  = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
+	nonUser = regexp.MustCompile(`[^a-z0-9_-]`)
 )
 
 // currentUsername is the host user; swapped in tests.
@@ -148,7 +146,7 @@ func (p *Project) ApplyDefaults() {
 		p.Webserver = "nginx"
 	}
 	if len(p.Domains) == 0 {
-		p.Domains = []string{p.Name + ".test"}
+		p.Domains = []string{p.Name + "." + TLD()}
 	}
 }
 
@@ -188,11 +186,12 @@ func (p *Project) Validate() error {
 			return fmt.Errorf("docroot %q must be a folder inside the project", d)
 		}
 	}
+	tld := TLD()
 	for _, d := range p.Domains {
-		if !domainRe.MatchString(d) {
-			return fmt.Errorf("domain %q is invalid (lowercase host name ending in .test)", d)
+		if err := checkDomain(d, tld); err != nil {
+			return err
 		}
-		if slices.Contains(ReservedDomains, d) {
+		if slices.Contains(ReservedDomains(), d) {
 			return fmt.Errorf("domain %q is reserved by lodev", d)
 		}
 	}
@@ -341,6 +340,24 @@ func CheckEnvKey(key string) error {
 		return fmt.Errorf("environment: %s is reserved for lodev", key)
 	}
 	return nil
+}
+
+// ReservedDomains are the shared services' domains, on the configured TLD.
+func ReservedDomains() []string {
+	t := "." + TLD()
+	return []string{"mailpit" + t, "phpmyadmin" + t, "rabbitmq" + t, "mongo" + t}
+}
+
+func checkDomain(d, tld string) error {
+	if regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+` + regexp.QuoteMeta(tld) + `$`).MatchString(d) {
+		return nil
+	}
+	err := fmt.Sprintf("domain %q is invalid (lowercase host name ending in .%s)", d, tld)
+	// On another TLD (e.g. tld edited by hand): say how to move the projects.
+	if i := strings.LastIndex(d, "."); i > 0 && CheckTLD(d[i+1:]) == nil {
+		err += fmt.Sprintf("; run lodev config-global --tld=%s --from-tld=%s to move every project", tld, d[i+1:])
+	}
+	return errors.New(err)
 }
 
 func DefaultDocroot(typ string) string {

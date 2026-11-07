@@ -93,7 +93,7 @@ func ask(r *bufio.Reader, w io.Writer, title, def string, opts []string, check f
 
 // settleAnswers makes values derived from earlier defaults follow the user's answers.
 func settleAnswers(p *config.Project, oldName, oldType string, docrootSet bool) {
-	if p.Name != oldName && slices.Equal(p.Domains, []string{oldName + ".test"}) {
+	if p.Name != oldName && slices.Equal(p.Domains, []string{oldName + "." + config.TLD()}) {
 		p.Domains = nil
 	}
 	if p.Type != oldType {

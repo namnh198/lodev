@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -247,7 +248,7 @@ func TestGlobalMongoDBDefaults(t *testing.T) {
 	if g.Versions["mongodb"] != "8" || g.Image("mongodb") != "mongo:8" || g.Ports.MongoDB != "" {
 		t.Errorf("version %q image %q port %q", g.Versions["mongodb"], g.Image("mongodb"), g.Ports.MongoDB)
 	}
-	if !slices.Contains(ReservedDomains, "mongo.test") {
+	if !slices.Contains(ReservedDomains(), "mongo.test") {
 		t.Error("mongo.test is not reserved")
 	}
 	g, _ = ParseGlobal([]byte("versions:\n  mongodb: \"7\"\n"))
@@ -376,5 +377,49 @@ func TestGlobalContainerTimeout(t *testing.T) {
 		if err := g.Validate(); err == nil || !strings.Contains(err.Error(), "container_timeout") {
 			t.Errorf("%q: %v", bad, err)
 		}
+	}
+}
+
+func TestGlobalTLD(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || g.TLD != "test" {
+		t.Fatalf("default: %q %v", g.TLD, err)
+	}
+	if g, err := ParseGlobal([]byte("tld: local\n")); err != nil || g.TLD != "local" {
+		t.Fatalf("local: %q %v", g.TLD, err)
+	}
+	for _, bad := range []string{"Local", "-x", "a.b", "", "1x", "x-"} {
+		g.TLD = bad
+		want := fmt.Sprintf("tld %q is not a DNS label like test or local", bad)
+		if err := g.Validate(); err == nil || err.Error() != want {
+			t.Errorf("%q: %v", bad, err)
+		}
+	}
+	for _, ok := range []string{"localhost", "dev", "x"} {
+		g.TLD = ok
+		if err := g.Validate(); err != nil {
+			t.Errorf("%q: %v", ok, err)
+		}
+	}
+}
+
+func TestTLDDomains(t *testing.T) {
+	writeGlobal(t, "tld: local\n")
+	if got := ReservedDomains(); !slices.Equal(got, []string{"mailpit.local", "phpmyadmin.local", "rabbitmq.local", "mongo.local"}) {
+		t.Errorf("reserved %q", got)
+	}
+	p := &Project{Name: "shop", Type: "php", PHP: "8.3"}
+	p.ApplyDefaults()
+	if !slices.Equal(p.Domains, []string{"shop.local"}) {
+		t.Errorf("default %q", p.Domains)
+	}
+	p.Domains = []string{"shop.test"}
+	want := `domain "shop.test" is invalid (lowercase host name ending in .local); run lodev config-global --tld=local --from-tld=test to move every project`
+	if err := p.Validate(); err == nil || err.Error() != want {
+		t.Errorf("err = %v", err)
+	}
+	p.Domains = []string{"a.shop.local"}
+	if err := p.Validate(); err != nil {
+		t.Errorf("a.shop.local: %v", err)
 	}
 }

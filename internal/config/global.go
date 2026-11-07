@@ -34,6 +34,8 @@ type Global struct {
 	NodeVersion string `yaml:"node_version"`
 	// ContainerTimeout is how long lodev waits for a container to turn healthy (a Go duration).
 	ContainerTimeout string `yaml:"container_timeout"`
+	// TLD ends every project and shared-service domain (shop.<tld>); change it with config-global --tld.
+	TLD string `yaml:"tld"`
 	// Run the system docker compose / docker build instead of lodev's pinned binaries.
 	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
@@ -112,6 +114,7 @@ func defaultGlobal() *Global {
 	g.UpdateCheck = true
 	g.NodeVersion = DefaultNodeVersion
 	g.ContainerTimeout = "120s"
+	g.TLD = "test" // a config.yaml written before tld existed keeps .test; first run writes the OS default
 	for _, s := range SharedServices {
 		g.Services[s] = !slices.Contains(DefaultOff, s)
 	}
@@ -232,6 +235,9 @@ func (g *Global) Validate() error {
 			}
 		}
 	}
+	if err := CheckTLD(g.TLD); err != nil {
+		return err
+	}
 	if d, err := time.ParseDuration(g.ContainerTimeout); err != nil || d <= 0 {
 		return fmt.Errorf("container_timeout %q is not a duration like 120s or 3m", g.ContainerTimeout)
 	}
@@ -270,6 +276,24 @@ func (g *Global) EnabledServices() []string {
 		}
 	}
 	return out
+}
+
+var tldRe = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?$`)
+
+// CheckTLD accepts one lowercase DNS label.
+func CheckTLD(tld string) error {
+	if !tldRe.MatchString(tld) {
+		return fmt.Errorf("tld %q is not a DNS label like test or local", tld)
+	}
+	return nil
+}
+
+// TLD is the configured TLD, or test when the global config does not load.
+func TLD() string {
+	if g, err := LoadGlobal(); err == nil {
+		return g.TLD
+	}
+	return "test"
 }
 
 // ContainerWait is container_timeout as a duration (Validate has checked it).
