@@ -278,7 +278,7 @@ var (
 )
 
 // ensureServices brings the shared services up unless traefik, every enabled service and every
-// service p needs already run; `lodev services up` is the way to apply config changes to them.
+// service p needs already run; `lodev service start` is the way to apply config changes to them.
 func ensureServices(p *config.Project) error {
 	g, err := config.LoadGlobal()
 	if err != nil {
@@ -296,7 +296,7 @@ func ensureServices(p *config.Project) error {
 			if err := startService(svc); err != nil {
 				return err
 			}
-			ui.Info("hint: %s is disabled globally; started it for now. Run `lodev services enable %s` to keep it on.", svc, svc)
+			ui.Info("hint: %s is disabled globally; started it for now. Run `lodev service enable %s` to keep it on.", svc, svc)
 		}
 	}
 	return nil

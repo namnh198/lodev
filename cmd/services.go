@@ -122,7 +122,7 @@ func printServiceURLs() error {
 	return nil
 }
 
-const servicesExample = `# Rename to <name>.compose.yml to merge it into the shared services; run lodev services up after editing.
+const servicesExample = `# Rename to <name>.compose.yml to merge it into the shared services; run lodev service start after editing.
 # services:
 #   opensearch:
 #     mem_limit: 3g
@@ -210,9 +210,10 @@ func prepareServiceData(g *config.Global, svcs []string) error {
 }
 
 // checkDisable refuses to disable mongodb while mongo-express is on: compose would start it again (depends_on).
-func checkDisable(svc string, g *config.Global) error {
-	if svc == "mongodb" && g.Services["mongo-express"] {
-		return errors.New("mongo-express needs mongodb: run `lodev services disable mongo-express` first")
+// checkDisable refuses to turn off a service that one staying on needs.
+func checkDisable(svcs []string, g *config.Global) error {
+	if slices.Contains(svcs, "mongodb") && g.Services["mongo-express"] && !slices.Contains(svcs, "mongo-express") {
+		return errors.New("mongo-express needs mongodb: run `lodev service disable mongo-express` first")
 	}
 	return nil
 }
@@ -295,29 +296,42 @@ func poweroff() error {
 	return nil
 }
 
-func sharedServiceArg(args []string) (string, error) {
-	if !slices.Contains(config.SharedServices, args[0]) {
-		return "", fmt.Errorf("unknown service %q (allowed: %s)", args[0], strings.Join(config.SharedServices, ", "))
+// sharedServiceArgs checks every name before anything changes; repeats are dropped.
+func sharedServiceArgs(args []string) ([]string, error) {
+	var out []string
+	for _, a := range args {
+		if !slices.Contains(config.SharedServices, a) {
+			return nil, fmt.Errorf("unknown service %q (allowed: %s)", a, strings.Join(config.SharedServices, ", "))
+		}
+		if !slices.Contains(out, a) {
+			out = append(out, a)
+		}
 	}
-	return args[0], nil
+	return out, nil
 }
 
-func setService(svc string, on bool) error {
+// setServices turns svcs on or off in one config write.
+func setServices(svcs []string, on bool) error {
 	old, err := loadGlobalForEdit()
 	if err != nil {
 		return err
 	}
-	_, _, err = applyGlobalConfig(old, []change{{key: []string{"services", svc}, value: on}})
+	changes := make([]change, len(svcs))
+	for i, s := range svcs {
+		changes[i] = change{key: []string{"services", s}, value: on}
+	}
+	_, _, err = applyGlobalConfig(old, changes)
 	return err
 }
 
 func init() {
-	servicesCmd := &cobra.Command{Use: "services", Aliases: []string{"service", "svc"}, Short: "Manage the shared services stack"}
+	servicesCmd := &cobra.Command{Use: "service", Aliases: []string{"services", "svc"}, Short: "Manage the shared services stack"}
 
 	up := &cobra.Command{
-		Use:   "up",
-		Short: "Start Traefik and all enabled shared services",
-		Args:  cobra.NoArgs,
+		Use:     "start",
+		Aliases: []string{"up"},
+		Short:   "Start Traefik and all enabled shared services",
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			if err := withLock(servicesUp); err != nil {
 				return err
@@ -328,9 +342,10 @@ func init() {
 
 	var volumes, yes bool
 	down := &cobra.Command{
-		Use:   "down",
-		Short: "Stop the shared services (data volumes are kept unless --volumes)",
-		Args:  cobra.NoArgs,
+		Use:     "stop",
+		Aliases: []string{"down"},
+		Short:   "Stop the shared services (data volumes are kept unless --volumes)",
+		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			running, err := runningProjects()
 			if err != nil {
@@ -369,16 +384,16 @@ func init() {
 	}
 
 	enable := &cobra.Command{
-		Use:   "enable <service>",
-		Short: "Enable a shared service and start it",
-		Args:  cobra.ExactArgs(1),
+		Use:   "enable <service>...",
+		Short: "Enable shared services and start them",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			svc, err := sharedServiceArg(args)
+			svcs, err := sharedServiceArgs(args)
 			if err != nil {
 				return err
 			}
 			return withLock(func() error {
-				if err := setService(svc, true); err != nil {
+				if err := setServices(svcs, true); err != nil {
 					return err
 				}
 				return servicesUp()
@@ -387,11 +402,11 @@ func init() {
 	}
 
 	disable := &cobra.Command{
-		Use:   "disable <service>",
-		Short: "Disable a shared service and remove its container (data is kept)",
-		Args:  cobra.ExactArgs(1),
+		Use:   "disable <service>...",
+		Short: "Disable shared services and remove their containers (data is kept)",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			svc, err := sharedServiceArg(args)
+			svcs, err := sharedServiceArgs(args)
 			if err != nil {
 				return err
 			}
@@ -399,22 +414,27 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if err := checkDisable(svc, g); err != nil {
+			if err := checkDisable(svcs, g); err != nil {
 				return err
 			}
-			if err := withLock(func() error { return setService(svc, false) }); err != nil {
+			if err := withLock(func() error { return setServices(svcs, false) }); err != nil {
 				return err
 			}
-			if err := servicesCompose("rm", "-sf", svc); err != nil {
+			if err := servicesCompose(append([]string{"rm", "-sf"}, svcs...)...); err != nil {
 				return err
 			}
 			// phpMyAdmin's server list (PMA_HOSTS) follows the enabled databases.
-			if svc == "mysql" || svc == "mariadb" {
+			if slices.Contains(svcs, "mysql") || slices.Contains(svcs, "mariadb") {
 				if err := withLock(servicesUp); err != nil {
 					return err
 				}
 			}
-			return warnProjectsUsing(svc)
+			for _, svc := range svcs {
+				if err := warnProjectsUsing(svc); err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}
 

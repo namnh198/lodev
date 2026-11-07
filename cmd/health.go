@@ -92,7 +92,7 @@ func waitServicesHealthy(services []string, timeout time.Duration) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs[i] = waitHealthy("lodev-"+svc, timeout, "lodev services logs "+svc)
+			errs[i] = waitHealthy("lodev-"+svc, timeout, "lodev service logs "+svc)
 		}()
 	}
 	wg.Wait()
@@ -106,5 +106,5 @@ func waitWeb(p *config.Project, g *config.Global) error {
 
 // waitDB waits for the shared database a project uses.
 func waitDB(db string, g *config.Global) error {
-	return waitHealthyFn("lodev-"+db, g.ContainerWait(), "lodev services logs "+db)
+	return waitHealthyFn("lodev-"+db, g.ContainerWait(), "lodev service logs "+db)
 }

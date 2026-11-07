@@ -29,7 +29,7 @@ func TestCommandAliases(t *testing.T) {
 		"remove": "remove", "down": "remove",
 		"start": "start", "up": "start",
 		"list": "list", "ps": "list",
-		"services": "services", "service": "services", "svc": "services",
+		"service": "service", "services": "service", "svc": "service",
 	}
 	for in, want := range cases {
 		c, _, err := rootCmd.Find([]string{in})
@@ -40,7 +40,9 @@ func TestCommandAliases(t *testing.T) {
 	if c, _, err := rootCmd.Find([]string{"delete"}); err == nil && c.Name() == "remove" {
 		t.Error("delete must not resolve to remove")
 	}
-	if c, _, _ := rootCmd.Find([]string{"services", "down"}); c.Parent().Name() != "services" {
-		t.Errorf("services down → %s", c.CommandPath())
+	for sub, want := range map[string]string{"start": "start", "up": "start", "stop": "stop", "down": "stop"} {
+		if c, _, _ := rootCmd.Find([]string{"services", sub}); c.CommandPath() != "lodev service "+want {
+			t.Errorf("services %s → %s", sub, c.CommandPath())
+		}
 	}
 }

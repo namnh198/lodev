@@ -164,7 +164,7 @@ func TestDBErrors(t *testing.T) {
 		t.Errorf("no file: %v", err)
 	}
 	containerRunning = func(string) bool { return false }
-	if _, _, err := runConfig(t, newDBExportCmd, "-s", "mariadb"); err == nil || err.Error() != "lodev-mariadb is not running (lodev services enable mariadb)" {
+	if _, _, err := runConfig(t, newDBExportCmd, "-s", "mariadb"); err == nil || err.Error() != "lodev-mariadb is not running (lodev service enable mariadb)" {
 		t.Errorf("not running: %v", err)
 	}
 }

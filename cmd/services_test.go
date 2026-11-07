@@ -269,7 +269,7 @@ func TestSetServiceKeepsComments(t *testing.T) {
 	t.Setenv("LODEV_HOME", home)
 	path := filepath.Join(home, "config.yaml")
 	os.WriteFile(path, []byte("# mine\nservices:\n  redis: true\n"), 0o644)
-	if err := setService("rabbitmq", true); err != nil {
+	if err := setServices([]string{"rabbitmq"}, true); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(path)
@@ -283,17 +283,20 @@ func TestCheckDisable(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	g, _ := config.LoadGlobal()
 	g.Services["mongo-express"] = true
-	err := checkDisable("mongodb", g)
-	if err == nil || err.Error() != "mongo-express needs mongodb: run `lodev services disable mongo-express` first" {
+	err := checkDisable([]string{"mongodb"}, g)
+	if err == nil || err.Error() != "mongo-express needs mongodb: run `lodev service disable mongo-express` first" {
 		t.Errorf("err = %v", err)
 	}
 	for _, svc := range []string{"mongo-express", "redis"} {
-		if err := checkDisable(svc, g); err != nil {
+		if err := checkDisable([]string{svc}, g); err != nil {
 			t.Errorf("%s: %v", svc, err)
 		}
 	}
+	if err := checkDisable([]string{"mongodb", "mongo-express"}, g); err != nil {
+		t.Errorf("both at once: %v", err)
+	}
 	g.Services["mongo-express"] = false
-	if err := checkDisable("mongodb", g); err != nil {
+	if err := checkDisable([]string{"mongodb"}, g); err != nil {
 		t.Errorf("mongodb with mongo-express off: %v", err)
 	}
 }
@@ -466,5 +469,26 @@ func TestPrepareServiceDataUnreadableFolder(t *testing.T) {
 	}
 	if fi, _ := os.Stat(g.MountPath("opensearch")); fi.Mode().Perm() != 0o700 {
 		t.Errorf("existing opensearch folder re-chmodded: %v", fi.Mode())
+	}
+}
+
+func TestSharedServiceArgs(t *testing.T) {
+	got, err := sharedServiceArgs([]string{"redis", "rabbitmq", "redis"})
+	if err != nil || !slices.Equal(got, []string{"redis", "rabbitmq"}) {
+		t.Errorf("got %q, %v", got, err)
+	}
+	if _, err := sharedServiceArgs([]string{"redis", "postgres"}); err == nil || !strings.HasPrefix(err.Error(), `unknown service "postgres"`) {
+		t.Errorf("unknown: %v", err)
+	}
+}
+
+func TestSetServices(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	if err := setServices([]string{"rabbitmq", "mongodb"}, true); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := config.LoadGlobal()
+	if !g.Services["rabbitmq"] || !g.Services["mongodb"] {
+		t.Errorf("services %v", g.Services)
 	}
 }

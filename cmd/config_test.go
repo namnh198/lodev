@@ -277,7 +277,7 @@ func TestConfigGlobalCreatesFile(t *testing.T) {
 	if got := readGlobal(t); got != "versions:\n  mysql: \"8.4\"\n" {
 		t.Fatalf("%q", got)
 	}
-	mustContain(t, out, "versions.mysql: 8.0 → 8.4", "Run: lodev services up to apply")
+	mustContain(t, out, "versions.mysql: 8.0 → 8.4", "Run: lodev service start to apply")
 }
 
 func TestConfigGlobalCreatesHome(t *testing.T) {
@@ -488,7 +488,7 @@ func TestConfigGlobalMountPathMoveWarns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, errOut, "mysql data folder changed: move "+old+" to /srv/m before `lodev services up`, or mysql starts from its old Docker volume")
+	mustContain(t, errOut, "mysql data folder changed: move "+old+" to /srv/m before `lodev service start`, or mysql starts from its old Docker volume")
 	// Turning mount_volume on for the first time is the wanted copy, not a move.
 	newGlobalHome(t, "")
 	if _, errOut, _ = runConfig(t, newConfigGlobalCmd, "--mount-volume=true"); strings.Contains(errOut, "data folder changed") {

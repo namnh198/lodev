@@ -129,7 +129,7 @@ Commands that need Docker (`start`, `stop`, `ssh`, `services …`, the shortcuts
 error when it is not running.
 
 ```bash
-lodev services up          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin
+lodev service start          # Traefik, MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin
 cd ~/Sites/myshop
 lodev create                 # detects Laravel / WordPress / Magento / plain PHP
 lodev start                # → https://myshop.test
@@ -169,7 +169,7 @@ time a project uses them.
 ## Global config — `~/.lodev/config.yaml`
 
 All keys optional; defaults shown. Change them with `lodev config-global` (e.g. `--mysql-version=8.4`,
-`--enable-services=rabbitmq`) or edit the file. Run `lodev services up` after editing: `lodev start` leaves
+`--enable-services=rabbitmq`) or edit the file. Run `lodev service start` after editing: `lodev start` leaves
 the shared services alone while everything it needs is running, so it does not apply these changes.
 
 ```yaml
@@ -186,9 +186,9 @@ services:           # traefik is always on
   opensearch: true
   mailpit: true
   phpmyadmin: true
-  mariadb: false     # opt-in: `lodev services enable mariadb`, or `services: [mariadb]` in a project
-  rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
-  mongodb: false     # opt-in: `lodev services enable mongodb`, or `services: [mongodb]` in a project
+  mariadb: false     # opt-in: `lodev service enable mariadb`, or `services: [mariadb]` in a project
+  rabbitmq: false    # opt-in: `lodev service enable rabbitmq`, or `services: [rabbitmq]` in a project
+  mongodb: false     # opt-in: `lodev service enable mongodb`, or `services: [mongodb]` in a project
   mongo-express: false # opt-in web UI at https://mongo.test; also starts mongodb
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
@@ -202,7 +202,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
 node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
                     # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
 tld: test                     # domains end in .<tld>; first run writes local on Linux, test elsewhere
-container_timeout: 120s       # how long start / services up wait for containers to turn healthy
+container_timeout: 120s       # how long start / service start wait for containers to turn healthy
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
@@ -222,8 +222,8 @@ anything else in the home survive container re-creates. lodev creates the folder
 changing `data_dir` (`lodev config-global --data-dir=<path>`) moves nothing.
 
 `lodev config-global --mount-volume=true` (and optionally `--mysql-mount-path=<path>`, likewise
-for the other data services) then `lodev services up` keeps the shared services' data in folders.
-On that first `services up`, a service whose folder is empty gets its old `lodev-<service>` volume
+for the other data services) then `lodev service start` keeps the shared services' data in folders.
+On that first `service start`, a service whose folder is empty gets its old `lodev-<service>` volume
 copied in once (the service is stopped first; the volume is kept as a backup). If a copy fails,
 empty the folder before retrying. Turning `mount_volume` off goes back to the volumes; data
 written to the folders meanwhile is not copied back. OpenSearch's folder is made world-writable
@@ -240,7 +240,7 @@ changes. If the download fails, lodev warns and uses the system plugin. Set
 `lodev version` shows which one runs.
 
 Changing a MySQL/MariaDB version recreates its container on the existing data volume;
-`lodev services up` warns when the image changes. Dump your databases first: a major
+`lodev service start` warns when the image changes. Dump your databases first: a major
 downgrade (or skipping majors) may not read the old data.
 
 Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …; folders with
@@ -328,7 +328,7 @@ lodev config-global --tld=local
 ```
 
 It rewrites each project's `domains` in `.lodev/config.yaml` (shop.test → shop.local, comments
-kept) and `projects.json`, replaces lodev's blocks in `/etc/hosts`, then runs `services up` and
+kept) and `projects.json`, replaces lodev's blocks in `/etc/hosts`, then runs `service start` and
 restarts the projects that are running; stopped ones pick the new domains up on their next start.
 Nothing is written if any project cannot move. On macOS `.local` goes through mDNS (slow, may skip
 `/etc/hosts`), so `test` or `localhost` work better there. After editing `tld` in the file by hand,
@@ -403,10 +403,10 @@ it is ambiguous); `web` works only on the project's `default` network. `lodev cr
 
 ## Customizing the shared services
 
-Put compose files in `~/.lodev/services/` named `*.compose.yml` (or `.yaml`); `lodev services up`
+Put compose files in `~/.lodev/services/` named `*.compose.yml` (or `.yaml`); `lodev service start`
 merges them, in name order, over the generated `compose.yaml` into `compose-full.yaml`, which
-every `lodev services` command then uses. A file that does not merge makes `services up` fail
-and keeps the last good `compose-full.yaml`. `services up` writes `example.compose.yml.example`
+every `lodev service` command then uses. A file that does not merge makes `service start` fail
+and keeps the last good `compose-full.yaml`. `service start` writes `example.compose.yml.example`
 there (never overwritten). For example, `~/.lodev/services/opensearch.compose.yml`:
 
 ```yaml
@@ -441,7 +441,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 
 ## Health checks
 
-Every container has a Docker healthcheck, and `lodev start` / `lodev services up` wait for it (up to
+Every container has a Docker healthcheck, and `lodev start` / `lodev service start` wait for it (up to
 `container_timeout`, default 120s). They stop at once when a container exits, keeps restarting or turns
 unhealthy, and print the last check and where to look:
 
@@ -463,12 +463,12 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 
 | Command | What it does |
 |---|---|
-| `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack (aliases `service`, `svc`). `down --volumes` deletes all data (asks first) |
-| `lodev services enable\|disable <svc>` | Turn a shared service on/off (data is kept) |
+| `lodev service start\|stop\|status\|logs [svc]` | Manage the shared stack (aliases `services`, `svc`; `up`/`down` for start/stop). `stop --volumes` deletes all data (asks first) |
+| `lodev service enable\|disable <svc>...` | Turn shared services on/off, several at once (data is kept) |
 | `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
 | `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; apply with `lodev restart` |
-| `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`); apply with `lodev services up` |
+| `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`); apply with `lodev service start` |
 | `lodev start [--rebuild \| --rebuild-base \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder |
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |

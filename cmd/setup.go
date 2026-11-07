@@ -95,7 +95,7 @@ var needsDocker = map[string]bool{
 	"lodev ssh": true, "lodev exec": true, "lodev logs": true, "lodev xdebug": true,
 	"lodev php": true, "lodev composer": true, "lodev npm": true, "lodev node": true,
 	"lodev artisan": true, "lodev wp": true, "lodev magento": true, "lodev n98": true,
-	"lodev services up": true, "lodev services down": true, "lodev services status": true,
-	"lodev services logs": true, "lodev services enable": true, "lodev services disable": true,
+	"lodev service start": true, "lodev service stop": true, "lodev service status": true,
+	"lodev service logs": true, "lodev service enable": true, "lodev service disable": true,
 	"lodev poweroff": true, "lodev db-export": true, "lodev db-import": true,
 }

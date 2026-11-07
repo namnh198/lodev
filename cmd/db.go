@@ -104,7 +104,7 @@ func dbFlags(c *cobra.Command, args []string) (dbTarget, bool, error) {
 		return dbTarget{}, false, err
 	}
 	if !containerRunning("lodev-" + t.service) {
-		return dbTarget{}, false, fmt.Errorf("lodev-%s is not running (lodev services enable %s)", t.service, t.service)
+		return dbTarget{}, false, fmt.Errorf("lodev-%s is not running (lodev service enable %s)", t.service, t.service)
 	}
 	return t, compress == "gz", nil
 }

@@ -79,7 +79,7 @@ func TestWaitAllHealthyListsEveryFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("no error")
 	}
-	for _, want := range []string{"lodev-mysql exited", "lodev-opensearch exited", "lodev services logs mysql", "lodev services logs opensearch"} {
+	for _, want := range []string{"lodev-mysql exited", "lodev-opensearch exited", "lodev service logs mysql", "lodev service logs opensearch"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("missing %q in:\n%s", want, err)
 		}
@@ -104,7 +104,7 @@ func TestWaitWebUsesContainerTimeout(t *testing.T) {
 	if err := waitDB("mariadb", g); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"lodev-shop-web 1m30s lodev logs -s web", "lodev-mariadb 1m30s lodev services logs mariadb"}
+	want := []string{"lodev-shop-web 1m30s lodev logs -s web", "lodev-mariadb 1m30s lodev service logs mariadb"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
 	}

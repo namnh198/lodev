@@ -1,5 +1,5 @@
 # lodev global config, written on the first run with the defaults. All keys are optional.
-# Change them here or with `lodev config-global`; run `lodev services up` to apply.
+# Change them here or with `lodev config-global`; run `lodev service start` to apply.
 ports:
   http: 80
   https: 443
@@ -13,9 +13,9 @@ services:           # traefik is always on
   opensearch: true
   mailpit: true
   phpmyadmin: true
-  mariadb: false     # opt-in: `lodev services enable mariadb`, or `services: [mariadb]` in a project
-  rabbitmq: false    # opt-in: `lodev services enable rabbitmq`, or `services: [rabbitmq]` in a project
-  mongodb: false     # opt-in: `lodev services enable mongodb`, or `services: [mongodb]` in a project
+  mariadb: false     # opt-in: `lodev service enable mariadb`, or `services: [mariadb]` in a project
+  rabbitmq: false    # opt-in: `lodev service enable rabbitmq`, or `services: [rabbitmq]` in a project
+  mongodb: false     # opt-in: `lodev service enable mongodb`, or `services: [mongodb]` in a project
   mongo-express: false # opt-in web UI at https://mongo.<tld>; also starts mongodb
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
@@ -29,7 +29,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
 node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
                     # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
 tld: test                     # domains end in .<tld>: shop.test; change with `lodev config-global --tld=...`
-container_timeout: 120s       # how long start / services up wait for containers to turn healthy
+container_timeout: 120s       # how long start / service start wait for containers to turn healthy
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
