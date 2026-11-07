@@ -15,6 +15,7 @@ RUN test -n "$PHP_VERSIONS" \
     && . /etc/os-release \
     && printf 'Types: deb\nURIs: https://packages.sury.org/php/\nSuites: %s\nComponents: main\nSigned-By: /usr/share/keyrings/deb.sury.org-php.gpg\n' \
        "$VERSION_CODENAME" > /etc/apt/sources.list.d/php.sources \
+    && update-alternatives --install /usr/bin/vim vim /usr/bin/vim.tiny 10 \
     && rm -f /etc/nginx/sites-enabled/default \
     && a2dismod -f mpm_prefork \
     && a2enmod mpm_event proxy_fcgi rewrite headers setenvif \
