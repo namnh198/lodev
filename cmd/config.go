@@ -494,40 +494,34 @@ func newConfigGlobalCmd() *cobra.Command {
 				printTable(c.OutOrStdout(), []string{"KEY", "VALUE"}, valueRows(globalValues(g)))
 				return nil
 			}
+			fl := c.Flags()
+			if fl.Changed("from-tld") && !fl.Changed("tld") {
+				return errors.New("--from-tld needs --tld")
+			}
 			changes, err := globalChanges(c)
 			if err != nil {
 				return err
 			}
 			return withLock(func() error {
-				old, err := loadGlobalForEdit()
-				if err != nil {
-					return err
-				}
-				diff, g, err := applyGlobalConfig(old, changes)
-				if err != nil {
-					return err
-				}
-				if g != nil && g.DataPath() != old.DataPath() {
-					ui.Warn("data_dir changed: existing data stays in %s", old.DataPath())
-				}
-				// The new folder is empty, so services up would copy the stale Docker volume into it.
-				for _, svc := range config.DataServices {
-					if g != nil && old.MountVolume && g.MountVolume && old.MountPath(svc) != g.MountPath(svc) {
-						ui.Warn("%s data folder changed: move %s to %s before `lodev services up`, or %s starts from its old Docker volume",
-							svc, old.MountPath(svc), g.MountPath(svc), svc)
-					}
-				}
-				printDiff(c.OutOrStdout(), diff, "Run: lodev services up to apply")
-				if len(diff) == 0 {
-					return nil
-				}
-				off, _ := c.Flags().GetStringSlice("disable-services")
-				for _, s := range off {
-					if err := warnProjectsUsing(s); err != nil {
+				if len(changes) > 0 {
+					if err := saveGlobalChanges(c, changes); err != nil {
 						return err
 					}
 				}
-				return nil
+				if !fl.Changed("tld") {
+					return nil
+				}
+				// The TLD moves every project, /etc/hosts and running containers, not just the key.
+				newTLD, _ := fl.GetString("tld")
+				oldTLD, _ := fl.GetString("from-tld")
+				if oldTLD == "" {
+					g, err := loadGlobalForEdit()
+					if err != nil {
+						return err
+					}
+					oldTLD = g.TLD
+				}
+				return retargetTLD(oldTLD, newTLD, c.OutOrStdout())
 			})
 		},
 	}
@@ -554,7 +548,42 @@ func newConfigGlobalCmd() *cobra.Command {
 	}
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
+	f.String("tld", "", `TLD for every domain, e.g. test or local; moves all projects, /etc/hosts and running containers`)
+	f.String("from-tld", "", "with --tld: the TLD the projects are on now (after editing tld in the file by hand)")
 	return c
+}
+
+// saveGlobalChanges applies the flags other than --tld to ~/.lodev/config.yaml and reports them.
+func saveGlobalChanges(c *cobra.Command, changes []change) error {
+	old, err := loadGlobalForEdit()
+	if err != nil {
+		return err
+	}
+	diff, g, err := applyGlobalConfig(old, changes)
+	if err != nil {
+		return err
+	}
+	if g != nil && g.DataPath() != old.DataPath() {
+		ui.Warn("data_dir changed: existing data stays in %s", old.DataPath())
+	}
+	// The new folder is empty, so services up would copy the stale Docker volume into it.
+	for _, svc := range config.DataServices {
+		if g != nil && old.MountVolume && g.MountVolume && old.MountPath(svc) != g.MountPath(svc) {
+			ui.Warn("%s data folder changed: move %s to %s before `lodev services up`, or %s starts from its old Docker volume",
+				svc, old.MountPath(svc), g.MountPath(svc), svc)
+		}
+	}
+	printDiff(c.OutOrStdout(), diff, "Run: lodev services up to apply")
+	if len(diff) == 0 {
+		return nil
+	}
+	off, _ := c.Flags().GetStringSlice("disable-services")
+	for _, s := range off {
+		if err := warnProjectsUsing(s); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func init() {

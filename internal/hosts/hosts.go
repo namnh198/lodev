@@ -2,6 +2,7 @@
 package hosts
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +13,8 @@ import (
 	"lodev/internal/ui"
 )
 
-var File = "/etc/hosts"
+// File is the hosts file lodev edits; LODEV_HOSTS_FILE points it elsewhere (tests, dry runs).
+var File = cmp.Or(os.Getenv("LODEV_HOSTS_FILE"), "/etc/hosts")
 
 // runSudo runs sudo with the terminal attached, so it can ask for the password; swapped in tests.
 var runSudo = func(args ...string) error {

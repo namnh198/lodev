@@ -168,7 +168,10 @@ func CheckName(name string) error {
 	return nil
 }
 
-func (p *Project) Validate() error {
+func (p *Project) Validate() error { return p.ValidateTLD(TLD()) }
+
+// ValidateTLD validates p as if tld were configured (config-global --tld checks a move with it).
+func (p *Project) ValidateTLD(tld string) error {
 	if err := CheckName(p.Name); err != nil {
 		return err
 	}
@@ -186,12 +189,11 @@ func (p *Project) Validate() error {
 			return fmt.Errorf("docroot %q must be a folder inside the project", d)
 		}
 	}
-	tld := TLD()
 	for _, d := range p.Domains {
 		if err := checkDomain(d, tld); err != nil {
 			return err
 		}
-		if slices.Contains(ReservedDomains(), d) {
+		if slices.Contains(reservedDomains(tld), d) {
 			return fmt.Errorf("domain %q is reserved by lodev", d)
 		}
 	}
@@ -343,8 +345,10 @@ func CheckEnvKey(key string) error {
 }
 
 // ReservedDomains are the shared services' domains, on the configured TLD.
-func ReservedDomains() []string {
-	t := "." + TLD()
+func ReservedDomains() []string { return reservedDomains(TLD()) }
+
+func reservedDomains(tld string) []string {
+	t := "." + tld
 	return []string{"mailpit" + t, "phpmyadmin" + t, "rabbitmq" + t, "mongo" + t}
 }
 

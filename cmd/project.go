@@ -520,6 +520,14 @@ var errNameWithAll = errors.New("cannot use a project name with --all")
 // startFn is start, swappable in tests of the --all paths.
 var startFn = start
 
+// restartFn stops and starts p; swapped in tests.
+var restartFn = func(p *config.Project) error {
+	if err := projectCompose(p, "stop"); err != nil {
+		return err
+	}
+	return startFn(p, rebuildOpts{})
+}
+
 // forAll runs fn on every registry project; one failure does not stop the rest.
 func forAll(fn func(*config.Project) error) error {
 	reg, err := registry.Load()
@@ -656,12 +664,7 @@ func init() {
 	}
 
 	var restartAll bool
-	restart := func(p *config.Project) error {
-		if err := projectCompose(p, "stop"); err != nil {
-			return err
-		}
-		return startFn(p, rebuildOpts{})
-	}
+	restart := func(p *config.Project) error { return restartFn(p) }
 	restartCmd := &cobra.Command{
 		Use:   "restart [name]",
 		Short: "Stop and start the project (current folder or [name]), or every project with --all",
