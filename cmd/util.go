@@ -19,6 +19,9 @@ func servicesFullFile() string { return filepath.Join(config.Home(), "services",
 // dockerRun is docker.Run, swappable in tests.
 var dockerRun = docker.Run
 
+// dockerPipe runs docker from | docker to; swapped in tests.
+var dockerPipe = docker.Pipe
+
 // servicesCompose runs on the merged file; stacks generated before custom files existed have only the base.
 func servicesCompose(sub ...string) error {
 	file := servicesFullFile()

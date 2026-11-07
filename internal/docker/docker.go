@@ -99,6 +99,31 @@ func Run(args ...string) error {
 	return c.Run()
 }
 
+// Pipe runs docker from | docker to, the terminal on to's stdout and both stderrs.
+func Pipe(from, to []string) error {
+	a, err := command(from)
+	if err != nil {
+		return err
+	}
+	b, err := command(to)
+	if err != nil {
+		return err
+	}
+	ui.Debug("$ %s %s | %s %s", filepath.Base(a.Path), joinArgs(a.Args[1:]), filepath.Base(b.Path), joinArgs(b.Args[1:]))
+	if b.Stdin, err = a.StdoutPipe(); err != nil {
+		return err
+	}
+	a.Stderr, b.Stdout, b.Stderr = os.Stderr, os.Stdout, os.Stderr
+	if err := b.Start(); err != nil {
+		return err
+	}
+	errA := a.Run()
+	if errB := b.Wait(); errB != nil {
+		return errB
+	}
+	return errA
+}
+
 // Output runs docker and returns trimmed stdout; stderr is included in the error.
 func Output(args ...string) (string, error) {
 	c, err := command(args)

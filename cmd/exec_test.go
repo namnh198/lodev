@@ -112,3 +112,25 @@ func TestShowLogs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestShowLogsJSON(t *testing.T) {
+	old := dockerPipe
+	t.Cleanup(func() { dockerPipe = old })
+	var from, to []string
+	dockerPipe = func(a, b []string) error { from, to = a, b; return nil }
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
+	config.SaveProject(p)
+	t.Chdir(p.Root)
+	if err := showLogsJSON("web"); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"compose", "--env-file", "/dev/null", "-p", "lodev-shop", "-f", composeFile(p), "logs", "-f", "--no-log-prefix", "web"}; !slices.Equal(from, want) {
+		t.Errorf("from %v", from)
+	}
+	if want := []string{"exec", "-i", "lodev-shop-web", "jq", "-R", "-r", "--unbuffered", "fromjson? // ."}; !slices.Equal(to, want) {
+		t.Errorf("to %v", to)
+	}
+	if err := showLogsJSON("mysql"); err == nil || err.Error() != "--json works only with the web service" {
+		t.Errorf("mysql: %v", err)
+	}
+}

@@ -79,6 +79,20 @@ func runInService(service, user string, cmd []string) error {
 }
 
 // showLogs follows a service's logs: shared services (and traefik) by container, others via the project's compose.
+// showLogsJSON follows the web logs through jq in the web container: JSON lines come out
+// pretty, other lines as they are.
+func showLogsJSON(service string) error {
+	if service != "web" {
+		return errors.New("--json works only with the web service")
+	}
+	p, err := currentProject()
+	if err != nil {
+		return err
+	}
+	return dockerPipe(docker.ComposeArgs(composeProject(p), composeFile(p), "logs", "-f", "--no-log-prefix", "web"),
+		[]string{"exec", "-i", "lodev-" + p.Name + "-web", "jq", "-R", "-r", "--unbuffered", "fromjson? // ."})
+}
+
 func showLogs(service string) error {
 	if service == "" {
 		return errServiceName
@@ -136,13 +150,20 @@ func init() {
 	sshCmd.Flags().StringVarP(&sshService, "service", "s", "web", "service to open a shell in")
 
 	var logsService string
+	var logsJSON bool
 	logsCmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Follow the logs of a service (default web; shared services like mysql too)",
 		Args:  cobra.NoArgs,
-		RunE:  func(*cobra.Command, []string) error { return showLogs(logsService) },
+		RunE: func(*cobra.Command, []string) error {
+			if logsJSON {
+				return showLogsJSON(logsService)
+			}
+			return showLogs(logsService)
+		},
 	}
 	logsCmd.Flags().StringVarP(&logsService, "service", "s", "web", "service to show the logs of")
+	logsCmd.Flags().BoolVarP(&logsJSON, "json", "j", false, "pretty-print JSON log lines with jq (web only)")
 
 	execCmd := &cobra.Command{
 		Use:                "exec [-s service] <command...>",

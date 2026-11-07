@@ -411,6 +411,26 @@ lodev no longer writes your project's root `.gitignore`; old `.lodev/compose.yam
 **Upgrading from an older lodev:** run `lodev start` once in each project before `stop`, `exec`
 or `ssh` (they use the generated `lodev.compose-full.yml`).
 
+## Health checks
+
+Every container has a Docker healthcheck, and `lodev start` / `lodev services up` wait for it (up to
+`container_timeout`, default 120s). They stop at once when a container exits, keeps restarting or turns
+unhealthy, and print the last check and where to look:
+
+```
+lodev-shop-web is unhealthy: /var/www/html:OK nginx:OK php-fpm:FAILED phpstatus:FAILED
+Check:
+  lodev logs -s web
+  docker logs lodev-shop-web
+  docker inspect --format "{{ json .State.Health }}" lodev-shop-web
+```
+
+The web container's `lodev-healthcheck` checks the project mount (`.lodev/config.yaml` readable), the
+webserver and php-fpm, and PHP through the webserver (`curl http://127.0.0.1/phpstatus`, served on
+127.0.0.1 whatever the project's webserver config; other paths on 127.0.0.1 still reach the project).
+With `webserver: none` it checks the mount and the PHP CLI. Shared services use their own check
+(`SHOW DATABASES`, `redis-cli ping`, OpenSearch `_cluster/health`, `mailpit readyz`, …).
+
 ## Commands
 
 | Command | What it does |
@@ -426,6 +446,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
+| `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
