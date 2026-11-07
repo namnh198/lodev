@@ -191,6 +191,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   mongodb: "8"      # mongo:<v>
 node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
                     # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
+container_timeout: 120s       # how long start / services up wait for containers to turn healthy
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one

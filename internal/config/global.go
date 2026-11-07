@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -31,6 +32,8 @@ type Global struct {
 	UpdateCheck bool `yaml:"update_check"`
 	// NodeVersion is the Node.js the web image installs with n; a project's nodejs overrides it.
 	NodeVersion string `yaml:"node_version"`
+	// ContainerTimeout is how long lodev waits for a container to turn healthy (a Go duration).
+	ContainerTimeout string `yaml:"container_timeout"`
 	// Run the system docker compose / docker build instead of lodev's pinned binaries.
 	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
@@ -108,6 +111,7 @@ func defaultGlobal() *Global {
 	g.Memory.OpenSearch = "2g"
 	g.UpdateCheck = true
 	g.NodeVersion = "24"
+	g.ContainerTimeout = "120s"
 	for _, s := range SharedServices {
 		g.Services[s] = !slices.Contains(DefaultOff, s)
 	}
@@ -228,6 +232,9 @@ func (g *Global) Validate() error {
 			}
 		}
 	}
+	if d, err := time.ParseDuration(g.ContainerTimeout); err != nil || d <= 0 {
+		return fmt.Errorf("container_timeout %q is not a duration like 120s or 3m", g.ContainerTimeout)
+	}
 	if !nodeRe.MatchString(g.NodeVersion) {
 		return fmt.Errorf("node_version %q is invalid (allowed: lts, latest, current, or a version like 24 or 22.11.0)", g.NodeVersion)
 	}
@@ -263,6 +270,12 @@ func (g *Global) EnabledServices() []string {
 		}
 	}
 	return out
+}
+
+// ContainerWait is container_timeout as a duration (Validate has checked it).
+func (g *Global) ContainerWait() time.Duration {
+	d, _ := time.ParseDuration(g.ContainerTimeout)
+	return d
 }
 
 // HeapSize returns the OpenSearch JVM heap (half of the container limit).

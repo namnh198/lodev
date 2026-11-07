@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeGlobal(t *testing.T, content string) {
@@ -357,6 +358,23 @@ func TestGlobalNodeVersion(t *testing.T) {
 		g.NodeVersion = in
 		if (g.Validate() == nil) != ok {
 			t.Errorf("node_version %q: ok=%v, err=%v", in, ok, g.Validate())
+		}
+	}
+}
+
+func TestGlobalContainerTimeout(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || g.ContainerTimeout != "120s" || g.ContainerWait() != 120*time.Second {
+		t.Fatalf("default: %q %v %v", g.ContainerTimeout, g.ContainerWait(), err)
+	}
+	g, err = ParseGlobal([]byte("container_timeout: 3m\n"))
+	if err != nil || g.ContainerWait() != 3*time.Minute {
+		t.Fatalf("3m: %v %v", g.ContainerWait(), err)
+	}
+	for _, bad := range []string{"0s", "-5s", "abc", "120"} {
+		g.ContainerTimeout = bad
+		if err := g.Validate(); err == nil || !strings.Contains(err.Error(), "container_timeout") {
+			t.Errorf("%q: %v", bad, err)
 		}
 	}
 }

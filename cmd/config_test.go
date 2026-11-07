@@ -530,3 +530,18 @@ func TestConfigCron(t *testing.T) {
 		t.Errorf("cron key left:\n%s", got)
 	}
 }
+
+func TestConfigGlobalContainerTimeout(t *testing.T) {
+	newGlobalHome(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--container-timeout=3m"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "container_timeout: 3m\n" {
+		t.Errorf("file: %q", got)
+	}
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--container-timeout=soon"); err == nil || !strings.Contains(err.Error(), `container_timeout "soon"`) {
+		t.Errorf("err = %v", err)
+	}
+	out, _, _ := runConfig(t, newConfigGlobalCmd)
+	mustContain(t, out, "container_timeout", "3m")
+}
