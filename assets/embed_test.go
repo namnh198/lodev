@@ -14,8 +14,10 @@ func TestExtract(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(d, "Dockerfile")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(d, "supervisor", "nginx.conf")); err != nil {
-		t.Fatal(err)
+	for _, f := range []string{"nginx.conf", "cron.conf"} {
+		if _, err := os.Stat(filepath.Join(d, "supervisor", f)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for _, f := range []string{"entrypoint.sh", "install-php.sh"} {
 		fi, err := os.Stat(filepath.Join(d, f))

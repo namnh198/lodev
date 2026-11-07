@@ -77,5 +77,8 @@ case "${LODEV_WEBSERVER:-nginx}" in
     exit 1
     ;;
 esac
+if [ "${LODEV_CRON:-}" = 1 ]; then
+  cp /etc/lodev/supervisor/cron.conf /etc/supervisor/conf.d/
+fi
 
 exec supervisord -n -c /etc/supervisor/supervisord.conf

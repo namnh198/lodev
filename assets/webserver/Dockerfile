@@ -36,6 +36,17 @@ RUN curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/bui
     && curl -fsSL -o /usr/local/bin/n98-magerun2 https://files.magerun.net/n98-magerun2.phar \
     && chmod +x /usr/local/bin/wp /usr/local/bin/n98-magerun2
 
+# supercronic runs the project's cron jobs (cron: true): as the project user, with the container env.
+ARG SUPERCRONIC=v0.2.51
+RUN arch=$(dpkg --print-architecture) && case $arch in \
+      amd64) sum=cc232108374e8e2b537045f2d5eaa1229f619db314c3ba6a14d38b35dc0aa123 ;; \
+      arm64) sum=4ae22576a78223d8ccdf5f3b3660a5cbb5288416bf0ca96afc4a36d195932b94 ;; \
+      *) echo "no supercronic for $arch" >&2; exit 1 ;; esac \
+    && curl -fsSL -o /usr/local/bin/supercronic \
+       "https://github.com/aptible/supercronic/releases/download/$SUPERCRONIC/supercronic-linux-$arch" \
+    && echo "$sum  /usr/local/bin/supercronic" | sha256sum -c - \
+    && chmod +x /usr/local/bin/supercronic
+
 # Node.js via n, into /usr/local like a project's nodejs: (which reinstalls over it).
 ARG NODE_VERSION=24
 RUN curl -fsSL -o /usr/local/bin/n https://raw.githubusercontent.com/tj/n/v10.1.0/bin/n \
