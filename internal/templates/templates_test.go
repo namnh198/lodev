@@ -510,3 +510,10 @@ func TestProjectComposeWebUsesHostUserns(t *testing.T) {
 		t.Fatalf("web service has no userns_mode: host:\n%s", web)
 	}
 }
+
+func TestProjectComposeWebAllowsLowPorts(t *testing.T) {
+	b, err := ProjectCompose(projectInput("nginx"))
+	if !strings.Contains(string(must(t)(b, err)), "\n    sysctls:\n      net.ipv4.ip_unprivileged_port_start: 0\n") {
+		t.Fatalf("web service lets no user bind ports below 1024:\n%s", b)
+	}
+}

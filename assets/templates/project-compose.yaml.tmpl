@@ -13,6 +13,9 @@ services:
     # dockerd userns-remap would shift the container user's UID off the host's, so it could
     # not write the bind-mounted project and home; a no-op without remapping.
     userns_mode: host
+    # Any user may bind :80/:443 (nginx, apache2 run by hand); scoped to the container's network.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
 {{- if .P.Varnish}}
     # Varnish waits for this: a backend that refuses its first probe starts sick (503s).
