@@ -253,12 +253,48 @@ packages: [ffmpeg]           # optional: extra apt packages
 user: kuroko                 # optional: shell user in the web container; default = your host username
 varnish: true                # optional: Varnish in front of the web server (default false)
 varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
+cron: true                   # optional: run cron jobs in the web container (default false)
+cron_jobs:                   # optional: empty = the type's default job (see Cron)
+  - '*/5 * * * * php bin/magento indexer:reindex >> var/log/reindex.log 2>&1'
+environment:                 # optional: variables for the web container (see Environment variables)
+  MAGE_RUN_CODE: default
 ```
 
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`
 make lodev build a project image `lodev/<name>-web` on top of the PHP image. Projects without
 any of them use the shared PHP image and build nothing. The image is rebuilt on the next
 `lodev start` / `lodev restart` after one of them changes; `lodev start --rebuild` forces it.
+
+## Cron
+
+`cron: true` runs cron jobs in the web container with [supercronic](https://github.com/aptible/supercronic),
+as your user, in `/var/www/html`, with the container's environment. Without `cron_jobs` the
+project type picks the job:
+
+| type | default job |
+|---|---|
+| magento | `* * * * * php bin/magento cron:run 2>&1 \| grep -v "Ran jobs by schedule" >> var/log/magento.cron.log` |
+| laravel | `* * * * * php artisan schedule:run >> storage/logs/schedule.log 2>&1` |
+| wordpress | `* * * * * wp cron event run --due-now >> wp-content/cron.log 2>&1` |
+| php | none: set `cron_jobs` |
+
+Turn it on with `lodev config --cron=true` (edit `cron_jobs` in the file), then `lodev restart`.
+`lodev start` writes the jobs to `.lodev/crontab` (generated, git-ignored); `lodev logs` shows
+when each job runs.
+
+## Environment variables
+
+The web container gets lodev's variables (`DB_HOST`, `REDIS_HOST`, …), then `environment:` from
+`.lodev/config.yaml`, then `.lodev/.env`; a later one wins, so either can override `DB_HOST`.
+`LODEV_*` names are reserved. `.lodev/.env` is local (git-ignored, mode 0600), for secrets:
+
+```bash
+lodev dotenv set --app-key=abc --mage-run-code=default   # APP_KEY=abc, MAGE_RUN_CODE=default
+lodev dotenv get --app-key                                # abc
+```
+
+It is a plain `KEY=value` file (comments, quotes and `export` allowed) you can also edit by hand.
+Changes apply on `lodev restart`; cron jobs, `lodev ssh` and `lodev exec` see them too.
 
 ## Varnish
 
@@ -372,6 +408,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev services up\|down\|status\|logs [svc]` | Manage the shared stack (aliases `service`, `svc`). `down --volumes` deletes all data (asks first) |
 | `lodev services enable\|disable <svc>` | Turn a shared service on/off (data is kept) |
 | `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root |
+| `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; apply with `lodev restart` |
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`); apply with `lodev services up` |
 | `lodev start [--rebuild \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the PHP image(s) and the project image; `--all` starts every known project from any folder |

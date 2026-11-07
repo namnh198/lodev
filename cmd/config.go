@@ -88,6 +88,7 @@ func projectValues(p *config.Project, list func([]string) string) [][2]string {
 		{"nodejs", p.NodeJS}, {"php_extensions", list(p.PHPExtensions)},
 		{"packages", list(p.Packages)}, {"user", p.User},
 		{"varnish", strconv.FormatBool(p.Varnish)}, {"varnish_version", p.VarnishVersion},
+		{"cron", strconv.FormatBool(p.Cron)},
 	}
 }
 
@@ -150,16 +151,19 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 			out = append(out, change{key: []string{s.key}, value: v})
 		}
 	}
-	if fl.Changed("varnish") {
-		v, _ := fl.GetString("varnish")
+	for _, k := range []string{"varnish", "cron"} {
+		if !fl.Changed(k) {
+			continue
+		}
+		v, _ := fl.GetString(k)
 		on, err := strconv.ParseBool(v)
 		if v != "" && err != nil {
-			return nil, fmt.Errorf("--varnish %q is not true or false", v)
+			return nil, fmt.Errorf("--%s %q is not true or false", k, v)
 		}
 		if on {
-			out = append(out, change{key: []string{"varnish"}, value: true})
+			out = append(out, change{key: []string{k}, value: true})
 		} else {
-			out = append(out, change{key: []string{"varnish"}, del: true})
+			out = append(out, change{key: []string{k}, del: true})
 		}
 	}
 	for _, l := range []struct {
@@ -295,6 +299,7 @@ func newConfigCmd() *cobra.Command {
 	f.String("nodejs-version", "", `Node.js version: lts | latest | current | 20 | 20.11 ("" removes Node.js)`)
 	f.String("user", "", `shell user in the web container ("" = your host username)`)
 	f.String("varnish", "", `put Varnish in front of the web server: true | false ("" = false)`)
+	f.String("cron", "", `run cron_jobs (or the type's default job) in the web container: true | false ("" = false)`)
 	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
 	for _, l := range []struct{ name, what string }{
 		{"domains", "domains (.test)"}, {"services", "shared services"},

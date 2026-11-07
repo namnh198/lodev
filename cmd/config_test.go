@@ -510,3 +510,23 @@ func TestConfigGlobalNodeVersion(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestConfigCron(t *testing.T) {
+	root := newShop(t)
+	if _, _, err := runConfig(t, newConfigCmd, "--cron=true"); err == nil || !strings.Contains(err.Error(), "cron needs cron_jobs (type php has no default job)") {
+		t.Errorf("php without jobs: %v", err)
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--type=magento", "--cron=true"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readShop(t, root), "cron: true")
+	if _, _, err := runConfig(t, newConfigCmd, "--cron=maybe"); err == nil || err.Error() != `--cron "maybe" is not true or false` {
+		t.Errorf("err = %v", err)
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--cron="); err != nil {
+		t.Fatal(err)
+	}
+	if got := readShop(t, root); strings.Contains(got, "cron") {
+		t.Errorf("cron key left:\n%s", got)
+	}
+}
