@@ -68,7 +68,8 @@ func runMkcert(args ...string) error {
 			return err
 		}
 	}
-	run := append([]string{"run", "--rm", "-e", "CAROOT=/ca", "-v", caDir() + ":/ca", "-v", dir() + ":/certs", "-w", "/certs", "lodev/mkcert"}, args...)
+	// --hostname: mkcert names the CA "mkcert <user>@<hostname>"; a container ID would say nothing.
+	run := append([]string{"run", "--rm", "--hostname", "lodev-mkcert", "-e", "CAROOT=/ca", "-v", caDir() + ":/ca", "-v", dir() + ":/certs", "-w", "/certs", "lodev/mkcert"}, args...)
 	out, err := docker.Output(run...)
 	ui.Debug("%s", out)
 	if err != nil {
