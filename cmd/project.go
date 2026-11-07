@@ -317,7 +317,11 @@ func start(p *config.Project, rebuild bool) error {
 	if err := ensureServices(p); err != nil {
 		return err
 	}
-	if err := docker.EnsurePHPImage(p.PHP, rebuild); err != nil {
+	g, err := config.LoadGlobal()
+	if err != nil {
+		return err
+	}
+	if err := docker.EnsurePHPImage(p.PHP, g.NodeVersion, rebuild); err != nil {
 		return err
 	}
 	img, err := docker.EnsureProjectImage(p, rebuild)
@@ -387,10 +391,6 @@ func start(p *config.Project, rebuild bool) error {
 		return err
 	}
 	ca, err := certs.CAFile()
-	if err != nil {
-		return err
-	}
-	g, err := config.LoadGlobal()
 	if err != nil {
 		return err
 	}

@@ -50,9 +50,9 @@ func ExecArgs(project, file, service, user, workdir string, tty bool, cmd []stri
 }
 
 // PHPBuildArgs builds the base image, labelled with the hash of the assets it came from.
-func PHPBuildArgs(versions []string, hash string, noCache bool, dir string) []string {
+func PHPBuildArgs(versions []string, node, hash string, noCache bool, dir string) []string {
 	return buildArgs(noCache, "-t", config.WebserverImage(), "--label", "lodev.hash="+hash,
-		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "),
+		"--build-arg", "PHP_VERSIONS="+strings.Join(versions, " "), "--build-arg", "NODE_VERSION="+node,
 		dir)
 }
 
@@ -175,17 +175,18 @@ var (
 
 // EnsurePHPImage (re)builds the base image when missing, built from other
 // assets (e.g. after upgrading lodev) or rebuild, and likewise the legacy
-// image for ver when it is missing or sits on an older base.
-func EnsurePHPImage(ver string, rebuild bool) error {
+// image for ver when it is missing or sits on an older base. node is the Node.js it installs.
+func EnsurePHPImage(ver, node string, rebuild bool) error {
 	hash, err := phpHash()
 	if err != nil {
 		return err
 	}
+	hash += "+node" + node // a new node_version rebuilds the image too
 	base := config.WebserverImage()
 	if rebuild || inspect(`{{index .Config.Labels "lodev.hash"}}`, base) != hash {
 		ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
 		if err := build("php", func(dir string) []string {
-			return PHPBuildArgs(config.BundledPHP, hash, rebuild, dir)
+			return PHPBuildArgs(config.BundledPHP, node, hash, rebuild, dir)
 		}); err != nil {
 			return err
 		}

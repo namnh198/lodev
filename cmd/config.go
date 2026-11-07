@@ -321,6 +321,7 @@ func globalValues(g *config.Global) [][2]string {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
 	rows = append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
+		[2]string{"node_version", g.NodeVersion},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
 	rows = append(rows, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
@@ -431,6 +432,10 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 			set([]string{"mount_paths", s}, flag, v)
 		}
 	}
+	if fl.Changed("node-version") {
+		v, _ := fl.GetString("node-version")
+		set([]string{"node_version"}, "node-version", v)
+	}
 	if fl.Changed("opensearch-memory") {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
@@ -527,6 +532,7 @@ func newConfigGlobalCmd() *cobra.Command {
 	for _, s := range config.VersionedServices {
 		f.String(s+"-version", "", fmt.Sprintf(`%s version, e.g. %s ("" = default)`, s, config.DefaultVersions[s]))
 	}
+	f.String("node-version", "", `Node.js in the web image: lts | latest | current | 24 | 22.11 ("" = 24)`)
 	f.String("opensearch-memory", "", `OpenSearch memory limit: 1g | 2g | 3g | 4g ("" = 2g)`)
 	f.String("update-check", "", `check for new lodev versions: true | false ("" = true)`)
 	f.String("use-docker-compose-system", "", `run the system docker compose instead of lodev's pinned one: true | false ("" = false)`)

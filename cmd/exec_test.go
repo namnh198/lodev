@@ -37,7 +37,7 @@ func TestCheckWebUser(t *testing.T) {
 func TestShortcutCmd(t *testing.T) {
 	cases := map[string]string{
 		"php": "php", "composer": "composer", "npm": "npm", "node": "node",
-		"artisan": "php artisan", "wp": "wp", "magento": "php bin/magento",
+		"artisan": "php artisan", "wp": "wp", "magento": "php bin/magento", "n98": "n98-magerun2",
 	}
 	for name, want := range cases {
 		if got := shortcutCmd(name); !slices.Equal(got, strings.Fields(want)) {

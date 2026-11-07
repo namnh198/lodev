@@ -495,3 +495,18 @@ func TestConfigGlobalMountPathMoveWarns(t *testing.T) {
 		t.Errorf("warned on first enable: %s", errOut)
 	}
 }
+
+func TestConfigGlobalNodeVersion(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--node-version=22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "node_version: \"22\"\n" {
+		t.Errorf("file: %q", got)
+	}
+	mustContain(t, out, "node_version: 24 → 22")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--node-version=bad!"); err == nil || !strings.Contains(err.Error(), `node_version "bad!" is invalid`) {
+		t.Errorf("err = %v", err)
+	}
+}

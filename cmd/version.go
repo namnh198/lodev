@@ -88,7 +88,8 @@ func versionRows() [][]string {
 }
 
 func init() {
-	config.ImageTag = Version // web images are tagged with the lodev version, e.g. lodev/webserver:v0.1.0
+	// Web images are tagged with the lodev version, e.g. lodev/webserver:v0.1.0.
+	config.ImageTag = Version
 	rootCmd.Version = lodevVersion() // cobra adds -v/--version: "lodev version <v>"
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",

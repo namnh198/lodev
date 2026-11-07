@@ -29,6 +29,8 @@ type Global struct {
 		OpenSearch string `yaml:"opensearch"`
 	} `yaml:"memory"`
 	UpdateCheck bool `yaml:"update_check"`
+	// NodeVersion is the Node.js the web image installs with n; a project's nodejs overrides it.
+	NodeVersion string `yaml:"node_version"`
 	// Run the system docker compose / docker build instead of lodev's pinned binaries.
 	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
@@ -105,6 +107,7 @@ func defaultGlobal() *Global {
 	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 8080
 	g.Memory.OpenSearch = "2g"
 	g.UpdateCheck = true
+	g.NodeVersion = "24"
 	for _, s := range SharedServices {
 		g.Services[s] = !slices.Contains(DefaultOff, s)
 	}
@@ -224,6 +227,9 @@ func (g *Global) Validate() error {
 				return fmt.Errorf("mount_paths: %s and %s would share data (%s, %s)", a, b, pa, pb)
 			}
 		}
+	}
+	if !nodeRe.MatchString(g.NodeVersion) {
+		return fmt.Errorf("node_version %q is invalid (allowed: lts, latest, current, or a version like 24 or 22.11.0)", g.NodeVersion)
 	}
 	_, err := HeapSize(g.Memory.OpenSearch)
 	return err

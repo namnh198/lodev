@@ -21,6 +21,8 @@ func shortcutCmd(name string) []string {
 		return []string{"php", "artisan"}
 	case "magento":
 		return []string{"php", "bin/magento"}
+	case "n98":
+		return []string{"n98-magerun2"}
 	}
 	return []string{name}
 }
@@ -159,7 +161,7 @@ func init() {
 	}
 	rootCmd.AddCommand(sshCmd, execCmd, logsCmd)
 
-	for _, name := range []string{"php", "composer", "npm", "node", "artisan", "wp", "magento"} {
+	for _, name := range []string{"php", "composer", "npm", "node", "artisan", "wp", "magento", "n98"} {
 		name := name
 		rootCmd.AddCommand(&cobra.Command{
 			Use:                name + " [args...]",

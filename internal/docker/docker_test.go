@@ -44,12 +44,12 @@ func TestExecArgs(t *testing.T) {
 }
 
 func TestPHPBuildArgs(t *testing.T) {
-	got := PHPBuildArgs([]string{"8.2", "8.3"}, "H", false, "/tmp/x")
-	want := []string{"build", "-t", "lodev/webserver:dev", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3", "/tmp/x"}
+	got := PHPBuildArgs([]string{"8.2", "8.3"}, "22", "H", false, "/tmp/x")
+	want := []string{"build", "-t", "lodev/webserver:dev", "--label", "lodev.hash=H", "--build-arg", "PHP_VERSIONS=8.2 8.3", "--build-arg", "NODE_VERSION=22", "/tmp/x"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got  %q\nwant %q", got, want)
 	}
-	if got := PHPBuildArgs([]string{"8.2"}, "H", true, "/tmp/x"); got[1] != "--no-cache" {
+	if got := PHPBuildArgs([]string{"8.2"}, "24", "H", true, "/tmp/x"); got[1] != "--no-cache" {
 		t.Fatalf("rebuild must not use the cache: %q", got)
 	}
 }
@@ -91,18 +91,19 @@ func TestEnsurePHPImage(t *testing.T) {
 		labels  map[string]string // tag → its lodev label; tag#id → image id
 		want    []string
 	}{
-		{"base current", "8.3", false, map[string]string{"lodev/webserver:dev": "H"}, nil},
+		{"base current", "8.3", false, map[string]string{"lodev/webserver:dev": "H+node24"}, nil},
 		{"base missing", "8.3", false, map[string]string{}, []string{"lodev/webserver:dev"}},
 		{"base stale", "8.3", false, map[string]string{"lodev/webserver:dev": "OLD"}, []string{"lodev/webserver:dev"}},
-		{"legacy current", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, nil},
-		{"legacy missing", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B"}, []string{"lodev/webserver:dev-legacy-7.4"}},
-		{"legacy on old base", "7.4", false, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "A"}, []string{"lodev/webserver:dev-legacy-7.4"}},
-		{"rebuild", "7.4", true, map[string]string{"lodev/webserver:dev": "H", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, []string{"lodev/webserver:dev", "lodev/webserver:dev-legacy-7.4"}},
+		{"node_version changed", "8.3", false, map[string]string{"lodev/webserver:dev": "H+node22"}, []string{"lodev/webserver:dev"}},
+		{"legacy current", "7.4", false, map[string]string{"lodev/webserver:dev": "H+node24", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, nil},
+		{"legacy missing", "7.4", false, map[string]string{"lodev/webserver:dev": "H+node24", "lodev/webserver:dev#id": "B"}, []string{"lodev/webserver:dev-legacy-7.4"}},
+		{"legacy on old base", "7.4", false, map[string]string{"lodev/webserver:dev": "H+node24", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "A"}, []string{"lodev/webserver:dev-legacy-7.4"}},
+		{"rebuild", "7.4", true, map[string]string{"lodev/webserver:dev": "H+node24", "lodev/webserver:dev#id": "B", "lodev/webserver:dev-legacy-7.4": "B"}, []string{"lodev/webserver:dev", "lodev/webserver:dev-legacy-7.4"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			built := fakeImages(t, c.labels)
-			if err := EnsurePHPImage(c.ver, c.rebuild); err != nil {
+			if err := EnsurePHPImage(c.ver, "24", c.rebuild); err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(*built, c.want) {

@@ -137,9 +137,10 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 ## PHP image
 
 All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
-with PHP 8.2–8.5; it is built on the first `lodev start` (about a minute). PHP 7.4, 8.0 and 8.1
-add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first time a
-project uses them.
+with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24), wp-cli, n98-magerun2, nano,
+vim-tiny and sqlite3; it is built on the first `lodev start` (about a minute). PHP 7.4, 8.0 and
+8.1 add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first
+time a project uses them.
 
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, the first `lodev start` builds the images for the new version.
@@ -181,6 +182,8 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   opensearch: "2"
   rabbitmq: "4"     # rabbitmq:<v>-management
   mongodb: "8"      # mongo:<v>
+node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;
+                    # a project's nodejs: overrides it. Changing it rebuilds the image on the next start
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
@@ -377,7 +380,7 @@ or `ssh` (they use the generated `lodev.compose-full.yml`).
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
 | `lodev ssh [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
-| `lodev php\|composer\|npm\|node\|artisan\|wp\|magento ...` | Shortcuts |
+| `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev self-upgrade [--version vX.Y.Z]` | Replace lodev (and the completions installed next to it) with the latest release, or the given one; checks the sha256 and asks for your sudo password when the folder needs root. Homebrew, apt, AUR and Nix installs are upgraded with their package manager instead |

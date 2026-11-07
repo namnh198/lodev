@@ -1,4 +1,3 @@
-FROM node:24-slim AS node
 FROM debian:trixie-slim
 
 ARG PHP_VERSIONS
@@ -10,6 +9,7 @@ RUN test -n "$PHP_VERSIONS" \
     && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
+       nano vim-tiny sqlite3 \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
     && dpkg -i /tmp/sury-keyring.deb \
     && . /etc/os-release \
@@ -32,14 +32,14 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 # Mailpit's binary doubles as a sendmail replacement for PHP mail().
 COPY --from=axllent/mailpit /mailpit /usr/local/bin/mailpit
 RUN curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
-    && chmod +x /usr/local/bin/wp
+    && curl -fsSL -o /usr/local/bin/n98-magerun2 https://files.magerun.net/n98-magerun2.phar \
+    && chmod +x /usr/local/bin/wp /usr/local/bin/n98-magerun2
 
-COPY --from=node /usr/local/bin/node /usr/local/bin/node
-COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
-RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+# Node.js via n, into /usr/local like a project's nodejs: (which reinstalls over it).
+ARG NODE_VERSION=24
 RUN curl -fsSL -o /usr/local/bin/n https://raw.githubusercontent.com/tj/n/v10.1.0/bin/n \
-    && chmod +x /usr/local/bin/n
+    && chmod +x /usr/local/bin/n \
+    && N_PREFIX=/usr/local n install --cleanup "$NODE_VERSION"
 
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/

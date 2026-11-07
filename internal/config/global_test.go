@@ -347,3 +347,16 @@ func TestValidateSharedMountPaths(t *testing.T) {
 		t.Errorf("distinct paths: %v", err)
 	}
 }
+
+func TestGlobalNodeVersion(t *testing.T) {
+	g, err := ParseGlobal(nil)
+	if err != nil || g.NodeVersion != "24" {
+		t.Fatalf("default: %q, %v", g.NodeVersion, err)
+	}
+	for in, ok := range map[string]bool{"lts": true, "22": true, "18.19.0": true, "22; rm": false, "": false} {
+		g.NodeVersion = in
+		if (g.Validate() == nil) != ok {
+			t.Errorf("node_version %q: ok=%v, err=%v", in, ok, g.Validate())
+		}
+	}
+}
