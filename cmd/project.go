@@ -166,7 +166,7 @@ func waitForUser(p *config.Project, user string, timeout time.Duration) error {
 }
 
 func projectCompose(p *config.Project, sub ...string) error {
-	return docker.Run(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
+	return dockerRun(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
 }
 
 // dbExec runs sql as root in the shared database db ("mysql" or "mariadb"; MariaDB 11 has no mysql client).

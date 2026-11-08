@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"testing"
 
 	"lodev/internal/config"
-	"lodev/internal/registry"
 	"lodev/internal/ui"
 )
 
@@ -129,46 +129,70 @@ func stubDocker(t *testing.T, running string) *[]string {
 	return &calls
 }
 
+// stubPoweroff answers poweroff's docker queries: running maps each running web container to its
+// project root ("" = no folder any more); runs records the docker commands that do the work.
+func stubPoweroff(t *testing.T, running map[string]string) *[]string {
+	t.Helper()
+	oldRun, oldOut := dockerRun, dockerOutput
+	t.Cleanup(func() { dockerRun, dockerOutput = oldRun, oldOut })
+	var runs []string
+	dockerRun = func(a ...string) error { runs = append(runs, strings.Join(a, " ")); return nil }
+	dockerOutput = func(a ...string) (string, error) {
+		switch {
+		case a[0] == "ps" && slices.Contains(a, "name=^lodev-.*-web$"):
+			names := slices.Sorted(maps.Keys(running))
+			return strings.Join(names, "\n"), nil
+		case a[0] == "inspect":
+			root := running[a[len(a)-1]]
+			if root == "" {
+				return "/gone/.lodev", nil
+			}
+			return filepath.Join(root, ".lodev"), nil
+		case a[0] == "ps" && slices.Contains(a, "-aq"):
+			return "id1\nid2", nil
+		}
+		t.Fatalf("unexpected docker %q", a)
+		return "", nil
+	}
+	return &runs
+}
+
 func TestPoweroff(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
-	registry.Registry{"a": {Path: t.TempDir()}, "b": {Path: t.TempDir()}}.Save()
 	os.MkdirAll(filepath.Dir(servicesFile()), 0o755)
 	os.WriteFile(servicesFile(), nil, 0o644)
-	calls := stubDocker(t, "lodev-b-web\nlodev-x-web")
+	a, _ := newProjectConfig(t.TempDir(), "a", "php", "", "", "")
+	config.SaveProject(a)
+	runs := stubPoweroff(t, map[string]string{"lodev-a-web": a.Root, "lodev-gone-web": ""})
 	out, _, restore := ui.Capture(false)
 	defer restore()
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	// Stopping prints nothing else, so say what is happening.
-	mustContain(t, out.String(), "Powering off lodev: stopping all projects and shared services",
-		"Stopping project a", "Stopping project b", "Stopping project x", "lodev is powered off",
-		"✔ Container lodev-a-web  Stopped", "✔ Container lodev-a-varnish  Stopped",
-		"✔ Container lodev-a-web  Removed", "✔ Container lodev-a-varnish  Removed")
-	// By label, not `compose --env-file /dev/null -p … stop`: compose would read a docker-compose.yml in the cwd
-	// and silently skip containers whose service is not in it.
-	// Containers (stopped ones too) and the project network are removed, like compose down:
-	// a stale network or container breaks the next start.
+	mustContain(t, out.String(), "Powering off lodev", "Stopping project a", "Stopping project gone", "lodev is powered off")
+	if strings.Contains(out.String(), "✔ Container") {
+		t.Errorf("lodev printed its own container lines:\n%s", out.String())
+	}
 	want := []string{
-		"quiet: stop lodev-a-web lodev-a-varnish", "quiet: rm lodev-a-web lodev-a-varnish", "quiet: network rm net-a",
-		"quiet: stop lodev-b-web lodev-b-varnish", "quiet: rm lodev-b-web lodev-b-varnish", "quiet: network rm net-b",
-		"quiet: stop lodev-x-web lodev-x-varnish", "quiet: rm lodev-x-web lodev-x-varnish", "quiet: network rm net-x",
+		// compose itself stops and removes the project and reports each container.
+		"compose --env-file /dev/null -p lodev-a -f " + composeFile(a) + " down",
+		// No folder, no compose file: remove its containers by compose's project label.
+		"rm -f id1 id2",
 		"compose --env-file /dev/null -p lodev-services -f " + servicesFile() + " down",
 	}
-	if !slices.Equal(*calls, want) {
-		t.Errorf("calls:\n%s", strings.Join(*calls, "\n"))
+	if !slices.Equal(*runs, want) {
+		t.Errorf("runs:\n%s", strings.Join(*runs, "\n"))
 	}
 }
 
 func TestPoweroffNoServicesFile(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
-	registry.Registry{"b": {Path: t.TempDir()}}.Save()
-	calls := stubDocker(t, "")
+	runs := stubPoweroff(t, nil)
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(*calls, []string{"quiet: stop lodev-b-web lodev-b-varnish", "quiet: rm lodev-b-web lodev-b-varnish", "quiet: network rm net-b"}) {
-		t.Errorf("calls: %v", *calls)
+	if len(*runs) != 0 {
+		t.Errorf("runs: %v", *runs)
 	}
 }
 

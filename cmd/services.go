@@ -20,7 +20,6 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/hosts"
-	"lodev/internal/registry"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
 )
@@ -275,51 +274,35 @@ func runningProjects() ([]string, error) {
 	return strings.Fields(out), nil
 }
 
-// poweroff stops every project (known or still running) and takes the shared services down.
+// poweroff takes every running project down with its own compose file, then the shared services.
 func poweroff() error {
-	// The stops below print nothing, so say up front what is happening.
 	ui.Info("Powering off lodev: stopping all projects and shared services")
-	reg, err := registry.Load()
-	if err != nil {
-		return err
-	}
 	running, err := runningProjects()
 	if err != nil {
 		return err
 	}
-	names := reg.Names()
 	for _, c := range running {
-		names = append(names, strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web"))
-	}
-	slices.Sort(names)
-	// What `compose down` does, but by label: compose reads any docker-compose.yml in the cwd
-	// and then silently skips the project's containers that file does not name.
-	for _, name := range slices.Compact(names) {
-		label := "label=com.docker.compose.project=lodev-" + name
-		out, err := dockerOutput("ps", "-a", "--format", "{{.Names}}", "--filter", label)
+		name := strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web")
+		ui.Info("Stopping project %s", name)
+		// compose labels each container with the folder of its compose file: <root>/.lodev.
+		dir, err := dockerOutput("inspect", "-f", `{{index .Config.Labels "com.docker.compose.project.working_dir"}}`, c)
 		if err != nil {
 			return err
 		}
-		if containers := strings.Fields(out); len(containers) > 0 {
-			ui.Info("Stopping project %s", name)
-			for _, step := range [][2]string{{"stop", "Stopped"}, {"rm", "Removed"}} {
-				// Output, not Run: docker prints every name it stops or removes; list them like compose does.
-				if _, err := dockerOutput(append([]string{step[0]}, containers...)...); err != nil {
-					return err
-				}
-				for _, c := range containers {
-					ui.Success("✔ Container %s  %s", c, step[1])
-				}
-			}
-		}
-		nets, err := dockerOutput("network", "ls", "-q", "--filter", label)
-		if err != nil {
-			return err
-		}
-		if nets != "" {
-			if _, err := dockerOutput(append([]string{"network", "rm"}, strings.Fields(nets)...)...); err != nil {
+		if p, err := config.LoadProject(filepath.Dir(dir)); err == nil {
+			// down, not stop: service stop below removes the lodev network these containers use.
+			if err := projectCompose(p, "down"); err != nil {
 				return err
 			}
+			continue
+		}
+		// The project folder is gone, and its compose file with it: remove by compose's label.
+		ids, err := dockerOutput("ps", "-aq", "--filter", "label=com.docker.compose.project=lodev-"+name)
+		if err != nil {
+			return err
+		}
+		if err := dockerRun(append([]string{"rm", "-f"}, strings.Fields(ids)...)...); err != nil {
+			return err
 		}
 	}
 	if _, err := os.Stat(servicesFile()); err == nil {
