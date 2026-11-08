@@ -186,7 +186,7 @@ func newProjectConfig(root, name, typ, php, webserver, docroot string) (*config.
 		typ = config.DetectType(root)
 	}
 	if php == "" {
-		php = "8.3"
+		php = "8.4"
 	}
 	switch docroot {
 	case "":
@@ -615,7 +615,7 @@ func init() {
 	}
 	createCmd.Flags().StringVar(&name, "name", "", "project name (default: folder name)")
 	createCmd.Flags().StringVar(&typ, "type", "", "laravel | wordpress | magento | php (default: detected)")
-	createCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.3)")
+	createCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.4)")
 	createCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")

@@ -132,7 +132,7 @@ func TestNewProjectConfigDetects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "my-shop-v2" || p.Type != "magento" || p.Docroot != "pub" || p.PHP != "8.3" ||
+	if p.Name != "my-shop-v2" || p.Type != "magento" || p.Docroot != "pub" || p.PHP != "8.4" ||
 		p.Webserver != "nginx" || !slices.Equal(p.Services, []string{"mysql", "redis", "opensearch"}) || p.Root != root {
 		t.Fatalf("%+v", p)
 	}
@@ -356,7 +356,7 @@ func TestCreateNoAsk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Type != "laravel" || p.Docroot != "" || p.PHP != "8.3" || p.Webserver != "nginx" {
+	if p.Type != "laravel" || p.Docroot != "" || p.PHP != "8.4" || p.Webserver != "nginx" {
 		t.Fatalf("got %+v", p)
 	}
 	for _, f := range []string{".gitignore", "web-images/Dockerfile.example"} {

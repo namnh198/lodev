@@ -259,7 +259,7 @@ saves nothing when the result is invalid. `lodev config` alone prints the curren
 ```yaml
 name: myshop                 # a-z 0-9 -; database name uses _ instead of -
 type: magento                # laravel | wordpress | magento | php
-php: "8.3"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
+php: "8.4"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
 webserver: nginx             # nginx | apache | none (CLI-only, no domain)
 docroot: pub
 domains:                     # default <name>.<tld>; all must end in .<tld> (tld in the global config)

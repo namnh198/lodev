@@ -30,7 +30,7 @@ func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]b
 	}
 	for _, s := range steps {
 		if !set[s.flag] {
-			v, err := ask(r, out, s.title, *s.val, s.opts, s.check)
+			v, err := choose(in, r, out, s.flag, s.title, *s.val, s.opts, s.check)
 			if err != nil {
 				return err
 			}
@@ -50,7 +50,7 @@ func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]b
 		p.Docroot = v
 	}
 	if !set["webserver"] {
-		v, err := ask(r, out, "Webserver", p.Webserver, config.Webservers, nil)
+		v, err := choose(in, r, out, "webserver", "Webserver", p.Webserver, config.Webservers, nil)
 		if err != nil {
 			return err
 		}
@@ -59,6 +59,16 @@ func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]b
 	settleAnswers(p, p.Name, p.Type, true)
 	p.ApplyDefaults()
 	return p.Validate()
+}
+
+// selectFlags are asked with an arrow-key list on a terminal, by line otherwise.
+var selectFlags = []string{"type", "webserver"}
+
+func choose(in io.Reader, r *bufio.Reader, w io.Writer, flag, title, def string, opts []string, check func(string) error) (string, error) {
+	if slices.Contains(selectFlags, flag) && useSelect(in) {
+		return selectFn(in, w, title, opts, def)
+	}
+	return ask(r, w, title, def, opts, check)
 }
 
 // ask prints "title [opts] (def): " and reads one answer; Enter keeps def, a bad answer asks again.

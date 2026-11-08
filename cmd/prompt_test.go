@@ -23,13 +23,13 @@ func TestAskProjectDefaults(t *testing.T) {
 	if err := askProject(strings.NewReader("\n\n\n\n\n"), &out, p, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
-	if p.Name != "shop" || p.Type != "laravel" || p.PHP != "8.3" || p.Docroot != "public" || p.Webserver != "nginx" {
+	if p.Name != "shop" || p.Type != "laravel" || p.PHP != "8.4" || p.Docroot != "public" || p.Webserver != "nginx" {
 		t.Fatalf("%+v", p)
 	}
 	mustContain(t, out.String(),
 		"Project name (shop): ",
 		"Project type [laravel, wordpress, magento, php] (laravel): ",
-		"PHP version [7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5] (8.3): ",
+		"PHP version [7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5] (8.4): ",
 		`Document root, relative to the project; "." for the project root (public): `,
 		"Webserver [nginx, apache, none] (nginx): ")
 }
@@ -89,5 +89,58 @@ func TestAskProjectRootDocrootShowsDot(t *testing.T) {
 	mustContain(t, out.String(), `project root (.): `)
 	if p.Docroot != "" {
 		t.Fatalf("docroot %q", p.Docroot)
+	}
+}
+
+func TestAskProjectSelectsTypeAndWebserver(t *testing.T) {
+	oldUse, oldSel := useSelect, selectFn
+	t.Cleanup(func() { useSelect, selectFn = oldUse, oldSel })
+	useSelect = func(io.Reader) bool { return true }
+	var asked []string
+	selectFn = func(_ io.Reader, _ io.Writer, title string, opts []string, def string) (string, error) {
+		asked = append(asked, title+"|"+strings.Join(opts, ",")+"|"+def)
+		if title == "Project type" {
+			return "magento", nil
+		}
+		return "apache", nil
+	}
+	p := newAskProject(t)
+	var out bytes.Buffer
+	// name, php and docroot still read lines
+	if err := askProject(strings.NewReader("\n\n\n"), &out, p, map[string]bool{}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Project type|laravel,wordpress,magento,php|laravel", "Webserver|nginx,apache,none|nginx"}
+	if strings.Join(asked, " ") != strings.Join(want, " ") {
+		t.Errorf("selects %q", asked)
+	}
+	if p.Type != "magento" || p.Webserver != "apache" || p.Docroot != "pub" {
+		t.Errorf("%+v", p)
+	}
+	if strings.Contains(out.String(), "Project type [") {
+		t.Errorf("type also asked as a line:\n%s", out.String())
+	}
+}
+
+func TestSelectModel(t *testing.T) {
+	m := newSelectModel("Webserver", []string{"nginx", "apache", "none"}, "apache")
+	if m.cursor != 1 {
+		t.Fatalf("cursor starts at the default: %d", m.cursor)
+	}
+	for _, k := range []string{"down", "down", "j", "up"} { // down stops at the last option, up comes back
+		m = m.press(k)
+	}
+	if m.cursor != 1 {
+		t.Errorf("cursor %d", m.cursor)
+	}
+	m = m.press("enter")
+	if !m.done || m.choice != "apache" || m.view() != "" {
+		t.Errorf("enter: %+v %q", m, m.view())
+	}
+	if c := newSelectModel("T", []string{"a", "b"}, "a").press("ctrl+c"); !c.aborted {
+		t.Error("ctrl+c does not abort")
+	}
+	if v := newSelectModel("T", []string{"a", "b"}, "a").view(); !strings.Contains(v, "> a") || !strings.Contains(v, "  b") {
+		t.Errorf("view %q", v)
 	}
 }
