@@ -73,7 +73,7 @@ services:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
       - "/ssd/mysql:/var/lib/mysql"
-      - "/home/u/.lodev/mysql/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"
+      - "/home/u/.lodev/services/mysql/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"
     healthcheck:
       # Over TCP: the temporary server MySQL runs while initializing listens on the socket only.
       test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" -e 'SHOW DATABASES;' >/dev/null"]
@@ -92,7 +92,7 @@ services:
       - MARIADB_ROOT_PASSWORD=root
     volumes:
       - "/data dir/mariadb:/var/lib/mysql"
-      - "/home/u/.lodev/mariadb/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"
+      - "/home/u/.lodev/services/mariadb/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 30s

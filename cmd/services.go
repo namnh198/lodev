@@ -55,20 +55,26 @@ func checkPort(p int) error {
 	return fmt.Errorf("port %d is in use:\n%s", p, owner)
 }
 
-// ensureDBConfig writes the default ~/.lodev/<db>/lodev.cnf for mysql and mariadb when missing;
-// the user's edits are kept. Created here, not by Docker, which would make a root-owned folder.
+// ensureDBConfig writes the default ~/.lodev/services/<db>/lodev.cnf for mysql and mariadb when
+// missing; the user's edits are kept (and moved from the older ~/.lodev/<db>/). Created here, not
+// by Docker, which would make a root-owned folder.
 func ensureDBConfig() error {
 	data, err := assets.FS.ReadFile("templates/db.cnf")
 	if err != nil {
 		return err
 	}
 	for _, db := range []string{"mysql", "mariadb"} {
-		f := filepath.Join(config.Home(), db, "lodev.cnf")
+		f := filepath.Join(config.Home(), "services", db, "lodev.cnf")
 		if _, err := os.Stat(f); err == nil {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
 			return err
+		}
+		oldDir := filepath.Join(config.Home(), db)
+		if err := os.Rename(filepath.Join(oldDir, "lodev.cnf"), f); err == nil {
+			os.Remove(oldDir) // only when now empty
+			continue
 		}
 		if err := os.WriteFile(f, data, 0o644); err != nil {
 			return err
@@ -99,6 +105,9 @@ func servicesUp() error {
 	}
 	if err := os.WriteFile(servicesFile(), data, 0o644); err != nil {
 		return err
+	}
+	for _, old := range []string{"compose.yaml", "compose-full.yaml"} { // names before services.compose-*.yaml
+		os.Remove(filepath.Join(filepath.Dir(servicesFile()), old))
 	}
 	if err := mergeServicesCompose(); err != nil {
 		return err
@@ -157,7 +166,7 @@ const servicesExample = `# Rename to <name>.compose.yml to merge it into the sha
 #     networks: [lodev]
 `
 
-// mergeServicesCompose merges ~/.lodev/services/*.compose.{yml,yaml} over the generated compose.yaml.
+// mergeServicesCompose merges ~/.lodev/services/*.compose.{yml,yaml} over the generated services.compose-base.yaml.
 func mergeServicesCompose() error {
 	dir := filepath.Dir(servicesFile())
 	example := filepath.Join(dir, "example.compose.yml.example")

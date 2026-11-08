@@ -500,18 +500,42 @@ func TestEnsureDBConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, db := range []string{"mysql", "mariadb"} {
-		b, err := os.ReadFile(filepath.Join(home, db, "lodev.cnf"))
+		b, err := os.ReadFile(filepath.Join(home, "services", db, "lodev.cnf"))
 		if err != nil || !strings.HasPrefix(string(b), "# ") || !strings.Contains(string(b), "[mysqld]\n") ||
 			!strings.Contains(string(b), "max_allowed_packet=500M") || !strings.Contains(string(b), "loose-default_authentication_plugin=mysql_native_password") {
 			t.Fatalf("%s: %q %v", db, b, err)
 		}
 	}
-	mine := filepath.Join(home, "mysql", "lodev.cnf")
+	mine := filepath.Join(home, "services", "mysql", "lodev.cnf")
 	os.WriteFile(mine, []byte("[mysqld]\nmax_connections=500\n"), 0o644)
 	if err := ensureDBConfig(); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(mine); string(b) != "[mysqld]\nmax_connections=500\n" {
 		t.Errorf("user's config overwritten: %q", b)
+	}
+}
+
+func TestEnsureDBConfigMovesOldFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	old := filepath.Join(home, "mariadb", "lodev.cnf")
+	os.MkdirAll(filepath.Dir(old), 0o755)
+	os.WriteFile(old, []byte("[mysqld]\nmine=1\n"), 0o644)
+	if err := ensureDBConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, "services", "mariadb", "lodev.cnf")); string(b) != "[mysqld]\nmine=1\n" {
+		t.Errorf("old config not moved: %q", b)
+	}
+	if _, err := os.Stat(filepath.Join(home, "mariadb")); err == nil {
+		t.Error("old folder left behind")
+	}
+}
+
+func TestServicesComposeFileNames(t *testing.T) {
+	t.Setenv("LODEV_HOME", "/h")
+	if servicesFile() != "/h/services/services.compose-base.yaml" || servicesFullFile() != "/h/services/services.compose-full.yaml" {
+		t.Errorf("%s %s", servicesFile(), servicesFullFile())
 	}
 }

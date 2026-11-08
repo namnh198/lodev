@@ -672,7 +672,7 @@ func TestSharedComposeDBConfigMounts(t *testing.T) {
 	b, err := SharedCompose(g, home)
 	out := string(must(t)(b, err))
 	for _, db := range []string{"mysql", "mariadb"} {
-		if want := `- "` + home + `/` + db + `/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"`; !strings.Contains(out, want) {
+		if want := `- "` + home + `/services/` + db + `/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro"`; !strings.Contains(out, want) {
 			t.Errorf("%s config not mounted (%s)", db, want)
 		}
 	}
