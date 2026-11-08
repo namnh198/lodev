@@ -683,6 +683,7 @@ func TestSharedComposeOpenSearchPlugins(t *testing.T) {
 	var doc struct {
 		Services map[string]struct {
 			Image string `yaml:"image"`
+			PullPolicy string `yaml:"pull_policy"`
 			Build struct {
 				DockerfileInline string `yaml:"dockerfile_inline"`
 			} `yaml:"build"`
@@ -692,7 +693,7 @@ func TestSharedComposeOpenSearchPlugins(t *testing.T) {
 		t.Fatal(err)
 	}
 	os := doc.Services["opensearch"]
-	if os.Image != "lodev/opensearch:2" ||
+	if os.Image != "lodev/opensearch:2" || os.PullPolicy != "never" ||
 		!strings.Contains(os.Build.DockerfileInline, "FROM opensearchproject/opensearch:2\n") ||
 		!strings.Contains(os.Build.DockerfileInline, "for plugin in analysis-icu analysis-phonetic; do opensearch-plugin install --batch $$plugin; done") {
 		t.Errorf("opensearch %+v", os)

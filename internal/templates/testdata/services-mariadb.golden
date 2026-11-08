@@ -124,6 +124,8 @@ services:
     # With analysis-icu and analysis-phonetic (Magento's Smile ElasticSuite needs them): they only add
     # analyzers, so projects that do not use them see no change. Built once per version by compose up.
     image: lodev/opensearch:2
+    # Built here, never on a registry: without this compose tries Docker Hub first and warns.
+    pull_policy: never
     build:
       dockerfile_inline: |
         FROM opensearchproject/opensearch:2
