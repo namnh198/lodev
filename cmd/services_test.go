@@ -563,3 +563,36 @@ func TestServicesComposeFileNames(t *testing.T) {
 		t.Errorf("%s %s", servicesFile(), servicesFullFile())
 	}
 }
+
+// Before the first `service start` of a lodev that renamed the compose files, only the old names
+// exist: poweroff and service stop must still reach the running services.
+func TestPoweroffOldServicesFiles(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	dir := filepath.Dir(servicesFile())
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "compose.yaml"), nil, 0o644)
+	os.WriteFile(filepath.Join(dir, "compose-full.yaml"), nil, 0o644)
+	runs := stubPoweroff(t, nil)
+	if err := poweroff(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"compose --env-file /dev/null -p lodev-services -f " + filepath.Join(dir, "compose-full.yaml") + " down"}
+	if !slices.Equal(*runs, want) {
+		t.Errorf("runs %q, want %q", *runs, want)
+	}
+}
+
+func TestServicesComposeFileOrder(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	dir := filepath.Dir(servicesFile())
+	os.MkdirAll(dir, 0o755)
+	if got := servicesComposeFile(); got != "" {
+		t.Errorf("none: %q", got)
+	}
+	for _, n := range []string{"compose.yaml", "compose-full.yaml", "services.compose-base.yaml", "services.compose-full.yaml"} {
+		os.WriteFile(filepath.Join(dir, n), nil, 0o644)
+		if got := servicesComposeFile(); got != filepath.Join(dir, n) {
+			t.Errorf("after %s: %q", n, got)
+		}
+	}
+}

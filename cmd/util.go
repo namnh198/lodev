@@ -30,10 +30,24 @@ var dockerPipe = docker.Pipe
 var dockerStream = docker.Stream
 
 // servicesCompose runs on the merged file; stacks generated before custom files existed have only the base.
+// servicesComposeFile is the compose file the shared services run from: the merged one, else the
+// generated one; the pre-rename names count until the next `service start` writes the new ones.
+// "" when there is none.
+func servicesComposeFile() string {
+	dir := filepath.Dir(servicesFile())
+	for _, f := range []string{servicesFullFile(), servicesFile(),
+		filepath.Join(dir, "compose-full.yaml"), filepath.Join(dir, "compose.yaml")} {
+		if _, err := os.Stat(f); err == nil {
+			return f
+		}
+	}
+	return ""
+}
+
 func servicesCompose(sub ...string) error {
-	file := servicesFullFile()
-	if _, err := os.Stat(file); err != nil {
-		file = servicesFile()
+	file := servicesComposeFile()
+	if file == "" {
+		file = servicesFile() // compose reports the missing file
 	}
 	return dockerRun(docker.ComposeArgs("lodev-services", file, sub...)...)
 }

@@ -305,7 +305,7 @@ func poweroff() error {
 			return err
 		}
 	}
-	if _, err := os.Stat(servicesFile()); err == nil {
+	if servicesComposeFile() != "" {
 		if err := servicesCompose("down"); err != nil {
 			return err
 		}
