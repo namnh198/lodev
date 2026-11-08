@@ -677,3 +677,24 @@ func TestSharedComposeDBConfigMounts(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedComposeOpenSearchPlugins(t *testing.T) {
+	b, err := SharedCompose(defaultGlobal(t), home)
+	var doc struct {
+		Services map[string]struct {
+			Image string `yaml:"image"`
+			Build struct {
+				DockerfileInline string `yaml:"dockerfile_inline"`
+			} `yaml:"build"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(must(t)(b, err), &doc); err != nil {
+		t.Fatal(err)
+	}
+	os := doc.Services["opensearch"]
+	if os.Image != "lodev/opensearch:2" ||
+		!strings.Contains(os.Build.DockerfileInline, "FROM opensearchproject/opensearch:2\n") ||
+		!strings.Contains(os.Build.DockerfileInline, "for plugin in analysis-icu analysis-phonetic; do opensearch-plugin install --batch $$plugin; done") {
+		t.Errorf("opensearch %+v", os)
+	}
+}

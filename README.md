@@ -196,7 +196,7 @@ versions:           # 8 | 8.0 | 8.0.36; only these keys
   mysql: "8.0"
   mariadb: "11.4"
   redis: "7"        # redis:<v>-alpine
-  opensearch: "2"
+  opensearch: "2"     # built as lodev/opensearch:<v> with analysis-icu and analysis-phonetic (Smile ElasticSuite)
   rabbitmq: "4"     # rabbitmq:<v>-management
   mongodb: "8"      # mongo:<v>
 node_version: "24"  # Node.js in the web image, installed with n: lts | latest | current | 24 | 22.11;

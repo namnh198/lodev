@@ -127,7 +127,13 @@ services:
     networks: [lodev]
 
   opensearch:
-    image: {{.G.Image "opensearch"}}
+    # With analysis-icu and analysis-phonetic (Magento's Smile ElasticSuite needs them): they only add
+    # analyzers, so projects that do not use them see no change. Built once per version by compose up.
+    image: lodev/opensearch:{{index .G.Versions "opensearch"}}
+    build:
+      dockerfile_inline: |
+        FROM {{.G.Image "opensearch"}}
+        RUN for plugin in analysis-icu analysis-phonetic; do opensearch-plugin install --batch $$plugin; done
     container_name: lodev-opensearch
     restart: unless-stopped
     environment:
