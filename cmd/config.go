@@ -534,7 +534,7 @@ func newConfigGlobalCmd() *cobra.Command {
 	f := c.Flags()
 	f.String("http-port", "", `host HTTP port ("" = 80)`)
 	f.String("https-port", "", `host HTTPS port ("" = 443)`)
-	f.String("dashboard-port", "", `Traefik dashboard port ("" = 8080)`)
+	f.String("dashboard-port", "", `Traefik dashboard port ("" = 10999)`)
 	f.String("mysql-port", "", `publish MySQL on this host port ("" = not published)`)
 	f.String("mariadb-port", "", `publish MariaDB on this host port ("" = not published)`)
 	f.String("mongodb-port", "", `publish MongoDB on this host port ("" = not published)`)

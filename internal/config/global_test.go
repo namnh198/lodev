@@ -26,7 +26,7 @@ func TestGlobalDefaultsWhenMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Ports.HTTP != 80 || g.Ports.HTTPS != 443 || g.Ports.Dashboard != 8080 || g.Ports.MySQL != "" {
+	if g.Ports.HTTP != 80 || g.Ports.HTTPS != 443 || g.Ports.Dashboard != 10999 || g.Ports.MySQL != "" {
 		t.Fatalf("%+v", g.Ports)
 	}
 	for _, s := range SharedServices {
@@ -128,7 +128,7 @@ func TestGlobalValidate(t *testing.T) {
 func TestGlobalVersions(t *testing.T) {
 	writeGlobal(t, "")
 	g, _ := LoadGlobal()
-	for svc, want := range map[string]string{"mysql": "mysql:8.0", "redis": "redis:7-alpine", "rabbitmq": "rabbitmq:4-management", "opensearch": "opensearchproject/opensearch:2"} {
+	for svc, want := range map[string]string{"mysql": "mysql:8.4", "redis": "redis:7-alpine", "rabbitmq": "rabbitmq:4-management", "opensearch": "opensearchproject/opensearch:2"} {
 		if got := g.Image(svc); got != want {
 			t.Errorf("%s: %s", svc, got)
 		}
@@ -191,7 +191,7 @@ func TestGlobalEmptyBlocksKeepDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.Image("mysql") != "mysql:8.0" || !g.Services["mysql"] || g.Services["rabbitmq"] {
+	if g.Image("mysql") != "mysql:8.4" || !g.Services["mysql"] || g.Services["rabbitmq"] {
 		t.Fatalf("versions %v, services %v", g.Versions, g.Services)
 	}
 }
@@ -203,7 +203,7 @@ func TestGlobalPortRules(t *testing.T) {
 	}{
 		{func(g *Global) { g.Ports.HTTP = 0 }, "ports.http 0 is not a valid port"},
 		{func(g *Global) { g.Ports.Dashboard = 70000 }, "ports.dashboard 70000 is not a valid port"},
-		{func(g *Global) { g.Ports.HTTPS = 8080 }, "ports.https and ports.dashboard are both 8080"},
+		{func(g *Global) { g.Ports.HTTPS = 10999 }, "ports.https and ports.dashboard are both 10999"},
 		{func(g *Global) { g.Ports.MySQL = "443" }, "ports.https and ports.mysql are both 443"},
 		{func(g *Global) { g.Ports.MySQL, g.Ports.MariaDB = "3306", "3306" }, "ports.mariadb must differ from ports.mysql"},
 	}
@@ -221,7 +221,7 @@ func TestGlobalPortRules(t *testing.T) {
 
 func TestParseGlobalEmpty(t *testing.T) {
 	g, err := ParseGlobal(nil)
-	if err != nil || g.Ports.HTTP != 80 || g.Versions["mysql"] != "8.0" {
+	if err != nil || g.Ports.HTTP != 80 || g.Versions["mysql"] != "8.4" {
 		t.Fatalf("%+v %v", g, err)
 	}
 }

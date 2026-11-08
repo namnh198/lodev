@@ -51,7 +51,7 @@ func TestDescribeRows(t *testing.T) {
 	}
 	db := rowNamed(t, rows, "mysql")
 	if !strings.Contains(db[2], "InDocker: mysql:3306") || !strings.Contains(db[2], "Host: 127.0.0.1:3306") ||
-		!strings.Contains(db[3], "mysql:8.0") || !strings.Contains(db[3], "Database: laravel") {
+		!strings.Contains(db[3], "mysql:8.4") || !strings.Contains(db[3], "Database: laravel") {
 		t.Errorf("mysql %q", db)
 	}
 

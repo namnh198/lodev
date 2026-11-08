@@ -139,7 +139,7 @@ lodev magento setup:upgrade
 
 `start` asks for your password once to add `.test` names to `/etc/hosts`.
 
-Shared tools: Traefik dashboard <http://localhost:8080>, <https://phpmyadmin.test>,
+Shared tools: Traefik dashboard <http://localhost:10999>, <https://phpmyadmin.test>,
 <https://mailpit.test>, <https://rabbitmq.test> (guest/guest) once RabbitMQ is enabled, and
 <https://mongo.test> once Mongo Express is enabled (MongoDB is `root/root`; web containers get `MONGODB_URI`).
 All ports listen on `127.0.0.1` only.
@@ -176,7 +176,7 @@ the shared services alone while everything it needs is running, so it does not a
 ports:
   http: 80
   https: 443
-  dashboard: 8080   # Traefik dashboard
+  dashboard: 10999  # Traefik dashboard
   mysql: ""         # e.g. 3306 to reach MySQL from TablePlus etc.
   mariadb: ""       # e.g. 3307; must differ from mysql
   mongodb: ""       # e.g. 27017 to reach MongoDB from MongoDB Compass etc.
@@ -193,7 +193,7 @@ services:           # traefik is always on
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 versions:           # 8 | 8.0 | 8.0.36; only these keys
-  mysql: "8.0"
+  mysql: "8.4"
   mariadb: "11.4"
   redis: "7"        # redis:<v>-alpine
   opensearch: "2"     # built as lodev/opensearch:<v> with analysis-icu and analysis-phonetic (Smile ElasticSuite)

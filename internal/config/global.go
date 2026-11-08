@@ -47,7 +47,7 @@ type Global struct {
 
 var (
 	VersionedServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
-	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
+	DefaultVersions   = map[string]string{"mysql": "8.4", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
 	// DataServices keep data in a volume (or, with mount_volume, a folder).
 	DataServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
 	versionRe    = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
@@ -109,7 +109,7 @@ func GlobalPath() string { return filepath.Join(Home(), "config.yaml") }
 
 func defaultGlobal() *Global {
 	g := &Global{Services: map[string]bool{}, Versions: maps.Clone(DefaultVersions)}
-	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 8080
+	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 10999
 	g.Memory.OpenSearch = "2g"
 	g.UpdateCheck = true
 	g.NodeVersion = DefaultNodeVersion

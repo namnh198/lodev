@@ -7,3 +7,7 @@ loose-default_authentication_plugin=mysql_native_password
 max_allowed_packet=500M
 wait_timeout=28800
 interactive_timeout=28800
+# Binary logs: rotate at 100M, keep 10 days. binlog_expire_logs_seconds, not expire_logs_days:
+# MySQL 8.4 removed that one and refuses to start on it; MySQL 8.0+ and MariaDB read this one.
+binlog_expire_logs_seconds=864000
+max_binlog_size=100M

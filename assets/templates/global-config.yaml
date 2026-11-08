@@ -3,7 +3,7 @@
 ports:
   http: 80
   https: 443
-  dashboard: 8080   # Traefik dashboard
+  dashboard: 10999  # Traefik dashboard
   mysql: ""         # e.g. 3306 to reach MySQL from TablePlus etc.
   mariadb: ""       # e.g. 3307; must differ from mysql
   mongodb: ""       # e.g. 27017 to reach MongoDB from MongoDB Compass etc.
@@ -20,7 +20,7 @@ services:           # traefik is always on
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 versions:           # 8 | 8.0 | 8.0.36; only these keys
-  mysql: "8.0"
+  mysql: "8.4"
   mariadb: "11.4"
   redis: "7"        # redis:<v>-alpine
   opensearch: "2"

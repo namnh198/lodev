@@ -50,7 +50,7 @@ services:
     ports:
       - "127.0.0.1:80:80"
       - "127.0.0.1:443:443"
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:10999:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - "/home/u/.lodev/certs:/certs:ro"
@@ -66,7 +66,7 @@ services:
         ipv4_address: 172.30.0.2
 
   mysql:
-    image: mysql:8.0
+    image: mysql:8.4
     container_name: lodev-mysql
     restart: unless-stopped
     environment:
