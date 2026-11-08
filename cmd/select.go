@@ -51,13 +51,13 @@ func (m selectModel) view() string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(m.title + " (↑/↓, enter):\n")
+	fmt.Fprintf(&b, "%s (↑/↓, enter):\n", m.title)
 	for i, o := range m.opts {
+		mark := "  "
 		if i == m.cursor {
-			b.WriteString("> " + o + "\n")
-		} else {
-			b.WriteString("  " + o + "\n")
+			mark = "> "
 		}
+		fmt.Fprintf(&b, "%s%s\n", mark, o)
 	}
 	return b.String()
 }
