@@ -215,12 +215,11 @@ func newSnapshotCmd() *cobra.Command {
 			if len(args) > 0 {
 				i = slices.IndexFunc(snaps, func(s snapshotEntry) bool { return s.name == args[0] })
 			}
-			if i < 0 || len(snaps) == 0 {
-				name := "any"
-				if len(args) > 0 {
-					name = args[0]
-				}
-				return fmt.Errorf("no snapshot %s for %s", name, p.Name)
+			if len(snaps) == 0 {
+				return fmt.Errorf("no snapshots for %s", p.Name)
+			}
+			if i < 0 {
+				return fmt.Errorf("no snapshot %s for %s", args[0], p.Name)
 			}
 			s := snaps[i]
 			var over []string

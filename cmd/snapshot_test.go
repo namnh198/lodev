@@ -155,3 +155,10 @@ func TestSnapshotDelete(t *testing.T) {
 		t.Errorf("unknown: %v", err)
 	}
 }
+
+func TestSnapshotRestoreNone(t *testing.T) {
+	snapshotShop(t, "mysql", "")
+	if _, _, err := runConfig(t, newSnapshotCmd, "restore", "--yes"); err == nil || err.Error() != "no snapshots for shop" {
+		t.Errorf("err = %v", err)
+	}
+}
