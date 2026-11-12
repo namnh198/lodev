@@ -6,7 +6,8 @@ check() { # name, command...
   name=$1; shift
   if "$@" >/dev/null 2>&1; then printf '%s:OK ' "$name"; else printf '%s:FAILED ' "$name"; rc=1; fi
 }
-running() { supervisorctl status "$1" | grep -q RUNNING; }
+# -c: run from /var/www/html, supervisorctl would read a project's own supervisord.conf first.
+running() { supervisorctl -c /etc/supervisor/supervisord.conf status "$1" | grep -q RUNNING; }
 
 # The project folder itself, not just any mount: its .lodev/config.yaml must be readable.
 check /var/www/html test -r /var/www/html/.lodev/config.yaml

@@ -121,7 +121,7 @@ func checkWebUser(p *config.Project, user string) error {
 	return fmt.Errorf("user %q does not exist in the web container", user)
 }
 
-const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl restart php-fpm >/dev/null; } && echo "xdebug `
+const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl -c /etc/supervisor/supervisord.conf restart php-fpm >/dev/null; } && echo "xdebug `
 
 // xdebugScript returns the root shell script for a `lodev xdebug` action, or "" if unknown.
 func xdebugScript(action string) string {
