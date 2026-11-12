@@ -312,7 +312,7 @@ func TestScaffold(t *testing.T) {
 		if err := scaffold(root, ws); err != nil {
 			t.Fatal(err)
 		}
-		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/php/prepend.php", ".lodev/example.compose.yml.example"}
+		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/php/prepend.php", ".lodev/example.compose.yml.example", ".lodev/hooks/post-start.d/example.sh.example"}
 		if dir != "" {
 			files = append(files, ".lodev/"+dir+"/example.conf.example")
 		}

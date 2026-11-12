@@ -62,7 +62,9 @@ type Project struct {
 	CronJobs []string `yaml:"cron_jobs,omitempty"`
 	// Environment is set in the web container; .lodev/.env overrides it.
 	Environment map[string]string `yaml:"environment,omitempty"`
-	Root        string            `yaml:"-"`
+	// Hooks are steps run in the web container on start, stop, db-import and snapshot restore.
+	Hooks map[string][]HookStep `yaml:"hooks,omitempty"`
+	Root  string                `yaml:"-"`
 }
 
 // DefaultVarnishVersion is the Varnish a project runs when varnish_version is unset (Magento 2.4.8's).
@@ -184,10 +186,11 @@ func (p *Project) ValidateTLD(tld string) error {
 	if err := oneOf("webserver", p.Webserver, Webservers); err != nil {
 		return err
 	}
-	if d := p.Docroot; d != "" {
-		if c := filepath.Clean(d); filepath.IsAbs(d) || c == ".." || strings.HasPrefix(c, "../") {
-			return fmt.Errorf("docroot %q must be a folder inside the project", d)
-		}
+	if d := p.Docroot; d != "" && !insideProject(d) {
+		return fmt.Errorf("docroot %q must be a folder inside the project", d)
+	}
+	if err := validateHooks(p.Hooks); err != nil {
+		return err
 	}
 	domainRe := domainRegexp(tld)
 	for _, d := range p.Domains {

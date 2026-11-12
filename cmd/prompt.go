@@ -123,8 +123,9 @@ func scaffold(root, webserver string) error {
 		"web-images/Dockerfile.example": "# Rename to Dockerfile to extend the web image.\nRUN apt-get update && apt-get install -y --no-install-recommends imagemagick\n",
 		"php/example.ini.example":       "; Rename to <name>.ini to apply PHP settings.\n; memory_limit = 4G\n",
 		// zz-lodev.ini sets it as auto_prepend_file: it must exist or every PHP script fails.
-		"php/prepend.php":             "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n",
-		"example.compose.yml.example": "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
+		"php/prepend.php":                       "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n",
+		"hooks/post-start.d/example.sh.example": "#!/bin/sh\n# Rename to <name>.sh (chmod +x) to run it after lodev start, in the web container.\n# composer install\n",
+		"example.compose.yml.example":           "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
 	}
 	if webserver == "nginx" || webserver == "apache" {
 		files[webserver+"/example.conf.example"] = "# Rename to <name>.conf to extend the " + webserver + " config.\n# location /api { ... }\n"
