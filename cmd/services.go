@@ -82,6 +82,9 @@ func ensureDBConfig() error {
 	return nil
 }
 
+// portCheck is checkPort for lodev doctor; swapped in tests.
+var portCheck = checkPort
+
 func servicesUp() error {
 	if err := docker.Ping(); err != nil {
 		return err

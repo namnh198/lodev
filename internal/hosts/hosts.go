@@ -105,3 +105,24 @@ func ApplyAll(blocks []Block) error {
 	}
 	return nil
 }
+
+// Domains is every domain inside lodev's blocks of content (the text of File).
+func Domains(content string) map[string]bool {
+	out := map[string]bool{}
+	inBlock := false
+	for _, line := range strings.Split(content, "\n") {
+		switch {
+		case strings.HasPrefix(line, "# lodev:") && strings.HasSuffix(line, " begin"):
+			inBlock = true
+		case strings.HasPrefix(line, "# lodev:") && strings.HasSuffix(line, " end"):
+			inBlock = false
+		case inBlock:
+			if f := strings.Fields(line); len(f) > 1 {
+				for _, d := range f[1:] {
+					out[d] = true
+				}
+			}
+		}
+	}
+	return out
+}

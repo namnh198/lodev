@@ -83,3 +83,16 @@ func TestApplyAll(t *testing.T) {
 		t.Errorf("hosts:\n%s", got)
 	}
 }
+
+func TestHostsDomains(t *testing.T) {
+	content := "127.0.0.1 localhost\n# lodev:shop begin\n127.0.0.1 shop.test en.test\n# lodev:shop end\n# lodev:lodev-services begin\n127.0.0.1 mailpit.test\n# lodev:lodev-services end\n10.0.0.1 other.test\n"
+	got := Domains(content)
+	for _, d := range []string{"shop.test", "en.test", "mailpit.test"} {
+		if !got[d] {
+			t.Errorf("%s missing: %v", d, got)
+		}
+	}
+	if got["localhost"] || got["other.test"] {
+		t.Errorf("lines outside the blocks counted: %v", got)
+	}
+}

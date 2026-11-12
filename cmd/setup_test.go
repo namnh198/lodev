@@ -111,7 +111,7 @@ func TestNeedsDockerCoversEveryCommand(t *testing.T) {
 	noDocker := map[string]bool{
 		"lodev create": true, "lodev list": true, "lodev describe": true, "lodev config": true, "lodev config-global": true,
 		"lodev dotenv set": true, "lodev dotenv get": true, "lodev version": true, "lodev self-upgrade": true,
-		"lodev open": true, "lodev snapshot list": true, "lodev snapshot delete": true,
+		"lodev open": true, "lodev snapshot list": true, "lodev snapshot delete": true, "lodev doctor": true,
 	}
 	var unknown []string
 	var walk func(c *cobra.Command)
