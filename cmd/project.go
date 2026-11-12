@@ -305,10 +305,10 @@ func ensureServices(p *config.Project) error {
 	return nil
 }
 
-// rebuildOpts picks the images start rebuilds without the layer cache.
-type rebuildOpts struct{ project, base bool }
+// startOpts picks the images start rebuilds without the layer cache, and whether hooks run.
+type startOpts struct{ project, base, noHooks bool }
 
-func start(p *config.Project, rebuild rebuildOpts) error {
+func start(p *config.Project, rebuild startOpts) error {
 	user, from := p.ContainerUser()
 	if w := userWarning(user, from); w != "" {
 		ui.Warn("%s", w)
@@ -452,7 +452,10 @@ func start(p *config.Project, rebuild rebuildOpts) error {
 		ui.Warn("could not remove the old project image: %v", err)
 	}
 	announceStarted(p)
-	return nil
+	if rebuild.noHooks {
+		return nil
+	}
+	return runHooks(p, "post-start")
 }
 
 func announceStarted(p *config.Project) {
@@ -523,12 +526,19 @@ var errNameWithAll = errors.New("cannot use a project name with --all")
 // startFn is start, swappable in tests of the --all paths.
 var startFn = start
 
-// restartFn stops and starts p; swapped in tests.
-var restartFn = func(p *config.Project) error {
+// restartFn stops and starts p with its hooks; swapped in tests.
+var restartFn = func(p *config.Project) error { return restartProject(p, startOpts{}) }
+
+func restartProject(p *config.Project, o startOpts) error {
+	if !o.noHooks {
+		if err := runHooks(p, "pre-stop"); err != nil {
+			return fmt.Errorf("%w (lodev restart --no-hooks restarts anyway)", err)
+		}
+	}
 	if err := projectCompose(p, "stop"); err != nil {
 		return err
 	}
-	return startFn(p, rebuildOpts{})
+	return startFn(p, o)
 }
 
 // forAll runs fn on every registry project; one failure does not stop the rest.
@@ -623,7 +633,7 @@ func init() {
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 
-	var rebuild, rebuildBase, startAll bool
+	var rebuild, rebuildBase, startAll, startNoHooks bool
 	startCmd := &cobra.Command{
 		Use:     "start [name]",
 		Aliases: []string{"up"},
@@ -635,7 +645,7 @@ func init() {
 					return errNameWithAll
 				}
 				return withLock(func() error {
-					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, rebuildOpts{}) })
+					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, startOpts{noHooks: startNoHooks}) })
 				})
 			}
 			p, err := projectArg(args)
@@ -643,16 +653,18 @@ func init() {
 				return err
 			}
 			// --rebuild-base cleans the project image too: it is built on the base.
-			opts := rebuildOpts{project: rebuild || rebuildBase, base: rebuildBase}
+			opts := startOpts{project: rebuild || rebuildBase, base: rebuildBase, noHooks: startNoHooks}
 			return withLock(func() error { return startFn(p, opts) })
 		},
 	}
 	startCmd.Flags().BoolVar(&rebuild, "rebuild", false, "rebuild the project image without the build cache")
 	startCmd.Flags().BoolVar(&rebuildBase, "rebuild-base", false, "also rebuild the shared PHP image(s) without the cache (fresh PHP packages; slow)")
 	startCmd.Flags().BoolVar(&startAll, "all", false, "start every project lodev knows")
+	startCmd.Flags().BoolVar(&startNoHooks, "no-hooks", false, "do not run the post-start hooks")
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild")
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild-base")
 
+	var stopNoHooks bool
 	stopCmd := &cobra.Command{
 		Use:   "stop [name]",
 		Short: "Stop the project container (current folder or [name])",
@@ -662,12 +674,25 @@ func init() {
 			if err != nil {
 				return err
 			}
+			if !stopNoHooks {
+				// Nothing is stopped yet: a failing pre-stop hook keeps the project running.
+				if err := runHooks(p, "pre-stop"); err != nil {
+					return fmt.Errorf("%w (lodev stop --no-hooks stops anyway)", err)
+				}
+			}
 			return projectCompose(p, "stop")
 		},
 	}
+	stopCmd.Flags().BoolVar(&stopNoHooks, "no-hooks", false, "do not run the pre-stop hooks")
 
 	var restartAll bool
-	restart := func(p *config.Project) error { return restartFn(p) }
+	var restartNoHooks bool
+	restart := func(p *config.Project) error {
+		if restartNoHooks {
+			return restartProject(p, startOpts{noHooks: true})
+		}
+		return restartFn(p)
+	}
 	restartCmd := &cobra.Command{
 		Use:   "restart [name]",
 		Short: "Stop and start the project (current folder or [name]), or every project with --all",
@@ -687,6 +712,7 @@ func init() {
 		},
 	}
 	restartCmd.Flags().BoolVar(&restartAll, "all", false, "restart every project lodev knows")
+	restartCmd.Flags().BoolVar(&restartNoHooks, "no-hooks", false, "do not run the pre-stop and post-start hooks")
 
 	var dropDB, yes bool
 	removeCmd := &cobra.Command{

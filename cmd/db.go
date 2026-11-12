@@ -171,7 +171,7 @@ func newDBExportCmd() *cobra.Command {
 }
 
 func newDBImportCmd() *cobra.Command {
-	return dbCmd("db-import", "Load a dump (plain or gzip) into a database of the shared mysql, mariadb or mongodb",
+	c := dbCmd("db-import", "Load a dump (plain or gzip) into a database of the shared mysql, mariadb or mongodb",
 		func(c *cobra.Command, t dbTarget, _ bool, file string) error {
 			var r io.Reader
 			switch file {
@@ -207,8 +207,14 @@ func newDBImportCmd() *cobra.Command {
 				return fmt.Errorf("import into %s on %s: %w", t.db, t.service, err)
 			}
 			fmt.Fprintf(c.ErrOrStderr(), "Imported into %s (%s)\n", t.db, t.service)
-			return nil
+			p, _ := currentProject()
+			if noHooks, _ := c.Flags().GetBool("no-hooks"); p == nil || noHooks || !isProjectDB(p, t) {
+				return nil
+			}
+			return runHooks(p, "post-db-import")
 		})
+	c.Flags().Bool("no-hooks", false, "do not run the post-db-import hooks")
+	return c
 }
 
 func init() { rootCmd.AddCommand(newDBExportCmd(), newDBImportCmd()) }

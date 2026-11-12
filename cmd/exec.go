@@ -61,6 +61,18 @@ func runInService(service, user string, cmd []string) error {
 
 // runInProject runs cmd in service of p (web: as the project user, in /var/www/html).
 func runInProject(p *config.Project, service, user string, cmd []string) error {
+	err := execIn(p, service, user, cmd)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		os.Exit(exitErr.ExitCode())
+	}
+	return err
+}
+
+// execInWeb runs cmd in p's web container like `lodev exec`, returning its exit status as an error.
+func execInWeb(p *config.Project, cmd []string) error { return execIn(p, "web", "", cmd) }
+
+func execIn(p *config.Project, service, user string, cmd []string) error {
 	workdir := ""
 	if service == "web" {
 		workdir = "/var/www/html"
@@ -75,12 +87,7 @@ func runInProject(p *config.Project, service, user string, cmd []string) error {
 			return err
 		}
 	}
-	err := dockerRun(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		os.Exit(exitErr.ExitCode())
-	}
-	return err
+	return dockerRun(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
 }
 
 // showLogs follows a service's logs: shared services (and traefik) by container, others via the project's compose.

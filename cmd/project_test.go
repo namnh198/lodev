@@ -503,9 +503,9 @@ func TestStartAllOutsideProject(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	saveProjects(t, []string{"a"}, nil)
-	defer func(o func(*config.Project, rebuildOpts) error) { startFn = o }(startFn)
+	defer func(o func(*config.Project, startOpts) error) { startFn = o }(startFn)
 	var started []string
-	startFn = func(p *config.Project, _ rebuildOpts) error { started = append(started, p.Name); return nil }
+	startFn = func(p *config.Project, _ startOpts) error { started = append(started, p.Name); return nil }
 	start, _, _ := rootCmd.Find([]string{"start"})
 	defer func() {
 		start.Flags().Set("all", "false")
@@ -698,9 +698,9 @@ func TestStartNameWithAll(t *testing.T) {
 
 func TestStartRebuildFlags(t *testing.T) {
 	newShop(t)
-	defer func(o func(*config.Project, rebuildOpts) error) { startFn = o }(startFn)
-	var got []rebuildOpts
-	startFn = func(_ *config.Project, r rebuildOpts) error { got = append(got, r); return nil }
+	defer func(o func(*config.Project, startOpts) error) { startFn = o }(startFn)
+	var got []startOpts
+	startFn = func(_ *config.Project, r startOpts) error { got = append(got, r); return nil }
 	start, _, _ := rootCmd.Find([]string{"start"})
 	reset := func() {
 		start.Flags().VisitAll(func(f *pflag.Flag) { f.Value.Set(f.DefValue); f.Changed = false })
@@ -713,7 +713,7 @@ func TestStartRebuildFlags(t *testing.T) {
 			t.Fatalf("%v: %v", args, err)
 		}
 	}
-	want := []rebuildOpts{{}, {project: true}, {project: true, base: true}}
+	want := []startOpts{{}, {project: true}, {project: true, base: true}}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
