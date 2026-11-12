@@ -92,6 +92,39 @@ func dbDefaultFile(t dbTarget, gz bool, now time.Time) string {
 	return t.db + "-" + now.Format("20060102-150405") + ext
 }
 
+// dumpTo streams t's dump to w, gzipped when gz. Shared by db-export and snapshot.
+func dumpTo(t dbTarget, w io.Writer, gz bool) error {
+	if !gz {
+		return dockerStream(dbDumpArgs(t), nil, w)
+	}
+	zw := gzip.NewWriter(w)
+	if err := dockerStream(dbDumpArgs(t), nil, zw); err != nil {
+		return err
+	}
+	return zw.Close()
+}
+
+// restoreFrom loads a plain or gzipped dump into t, creating the SQL database first. Shared by
+// db-import and snapshot.
+func restoreFrom(t dbTarget, r io.Reader) error {
+	br := bufio.NewReader(r)
+	r = br
+	if magic, _ := br.Peek(2); len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
+		zr, err := gzip.NewReader(br)
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+		r = zr
+	}
+	if t.service != "mongodb" {
+		if err := dbExec(t.service, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", t.db)); err != nil {
+			return err
+		}
+	}
+	return dockerStream(dbRestoreArgs(t), r, nil)
+}
+
 // dbFlags reads -s and -c and resolves the target, checking its container runs.
 func dbFlags(c *cobra.Command, args []string) (dbTarget, bool, error) {
 	service, _ := c.Flags().GetString("service")
@@ -145,15 +178,7 @@ func newDBExportCmd() *cobra.Command {
 				defer f.Close()
 				w = f
 			}
-			var zw *gzip.Writer
-			if gz {
-				zw = gzip.NewWriter(w)
-				w = zw
-			}
-			err := dockerStream(dbDumpArgs(t), nil, w)
-			if err == nil && zw != nil {
-				err = zw.Close()
-			}
+			err := dumpTo(t, w, gz)
 			if err == nil && f != nil {
 				err = f.Close()
 			}
@@ -187,23 +212,7 @@ func newDBImportCmd() *cobra.Command {
 				defer f.Close()
 				r = f
 			}
-			br := bufio.NewReader(r)
-			if magic, _ := br.Peek(2); len(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b {
-				zr, err := gzip.NewReader(br)
-				if err != nil {
-					return err
-				}
-				defer zr.Close()
-				r = zr
-			} else {
-				r = br
-			}
-			if t.service != "mongodb" {
-				if err := dbExec(t.service, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", t.db)); err != nil {
-					return err
-				}
-			}
-			if err := dockerStream(dbRestoreArgs(t), r, nil); err != nil {
+			if err := restoreFrom(t, r); err != nil {
 				return fmt.Errorf("import into %s on %s: %w", t.db, t.service, err)
 			}
 			fmt.Fprintf(c.ErrOrStderr(), "Imported into %s (%s)\n", t.db, t.service)
