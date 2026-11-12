@@ -26,6 +26,9 @@ apt-get install -y --no-install-recommends "${pkgs[@]}"
 for v in "$@"; do
   phpdismod -v "$v" -s ALL xdebug
   sed -i 's|^listen = .*|listen = 127.0.0.1:9000|' "/etc/php/$v/fpm/pool.d/www.conf"
+  # ondemand: no idle workers; up to 20 for the parallel requests of an admin or a GraphQL page.
+  sed -i -e 's|^pm = .*|pm = ondemand|' -e 's|^pm.max_children = .*|pm.max_children = 20|' \
+    -e 's|^;*pm.process_idle_timeout = .*|pm.process_idle_timeout = 10s|' "/etc/php/$v/fpm/pool.d/www.conf"
   # pm.status_path: the healthcheck's /phpstatus (served on 127.0.0.1 only, see *-status.conf).
   printf 'clear_env = no\ncatch_workers_output = yes\npm.status_path = /phpstatus\n' >> "/etc/php/$v/fpm/pool.d/www.conf"
   sed -i 's|^error_log = .*|error_log = /proc/self/fd/2|' "/etc/php/$v/fpm/php-fpm.conf"

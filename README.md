@@ -451,7 +451,7 @@ services:
 
 | Path | Effect |
 |---|---|
-| `.lodev/php/*.ini` | Extra php.ini settings, over lodev's defaults: errors shown (`display_errors=On`, `E_ALL`), `memory_limit=-1`, `max_execution_time=360`, `post_max_size`/`upload_max_filesize=1024M`, `max_input_vars=100000`, no output buffering |
+| `.lodev/php/*.ini` | Extra php.ini settings, over lodev's defaults: errors shown (`display_errors=On`, `E_ALL`), `memory_limit=-1`, `max_execution_time=360`, `post_max_size`/`upload_max_filesize=1024M`, `max_input_vars=100000`, no output buffering, OPcache sized for Magento (512M, 130000 files) and a 10M realpath cache; php-fpm runs `ondemand` with up to 20 workers |
 | `.lodev/php/prepend.php` | PHP `auto_prepend_file` for web and CLI (e.g. set `$_SERVER['MAGE_RUN_CODE']`); created by `lodev start` |
 | `.lodev/nginx/*.conf` or `.lodev/apache/*.conf` | Snippets included in the server / vhost block |
 | `.lodev/nginx-webserver.conf`, `.lodev/apache-webserver.conf` | The whole webserver config (generated, one file per webserver) |

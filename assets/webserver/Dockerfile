@@ -16,6 +16,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
        nano vim-tiny sqlite3 jq \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && echo "7511384559c9ddf1d5ce5f60be429ae9d4e7d01d9480d6f1b7a30c0810cf8b60  /tmp/sury-keyring.deb" | sha256sum -c - \
     && dpkg -i /tmp/sury-keyring.deb \
     && . /etc/os-release \
     && printf 'Types: deb\nURIs: https://packages.sury.org/php/\nSuites: %s\nComponents: main\nSigned-By: /usr/share/keyrings/deb.sury.org-php.gpg\n' \
@@ -29,11 +30,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
 COPY install-php.sh /usr/local/bin/lodev-install-php
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt/lists,sharing=locked lodev-install-php $PHP_VERSIONS
 
-COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+# Every tool is pinned and checked (assets/pins_test.go keeps it so): bump the version and its sha256 together.
+COPY --from=composer:2.11.2 /usr/bin/composer /usr/local/bin/composer
 # Mailpit's binary doubles as a sendmail replacement for PHP mail().
-COPY --from=axllent/mailpit /mailpit /usr/local/bin/mailpit
-RUN curl -fsSL -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
-    && curl -fsSL -o /usr/local/bin/n98-magerun2 https://files.magerun.net/n98-magerun2.phar \
+COPY --from=axllent/mailpit:v1.33.1 /mailpit /usr/local/bin/mailpit
+RUN curl -fsSL -o /usr/local/bin/wp https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar \
+    && echo "ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c  /usr/local/bin/wp" | sha256sum -c - \
+    && curl -fsSL -o /usr/local/bin/n98-magerun2 https://files.magerun.net/n98-magerun2-10.1.0.phar \
+    && echo "76c931312f3ab6a5a5e1dbd40544cf43f9ecab176bca6a3597ebf4a3413fe270  /usr/local/bin/n98-magerun2" | sha256sum -c - \
     && chmod +x /usr/local/bin/wp /usr/local/bin/n98-magerun2
 
 # supercronic runs the project's cron jobs (cron: true): as the project user, with the container env.
@@ -52,8 +56,10 @@ RUN arch=$(dpkg --print-architecture) && case $arch in \
 ARG NODE_VERSION=24
 RUN --mount=type=cache,target=/usr/local/n,sharing=locked \
     curl -fsSL -o /usr/local/bin/n https://raw.githubusercontent.com/tj/n/v10.1.0/bin/n \
+    && echo "a09599719bd38af5054f87b8f8d3e45150f00b7b5675323aa36b36d324d087b9  /usr/local/bin/n" | sha256sum -c - \
     && chmod +x /usr/local/bin/n \
-    && N_PREFIX=/usr/local n install "$NODE_VERSION"
+    && N_PREFIX=/usr/local n install "$NODE_VERSION" \
+    && rm -rf /usr/local/include/node /usr/local/share/doc/node /usr/local/share/man/man1/node.1 /usr/local/share/systemtap
 
 # Late on purpose: the PHP install only symlinks to zz-lodev.ini, so editing it reruns just these layers.
 COPY zz-lodev.ini /etc/lodev/zz-lodev.ini
