@@ -213,3 +213,26 @@ func TestDBImportPostHook(t *testing.T) {
 		t.Errorf("--no-hooks: %q %v", *ran, err)
 	}
 }
+
+// A stopped project has nothing to prepare: stop and restart skip pre-stop instead of failing.
+func TestPreStopSkippedWhenStopped(t *testing.T) {
+	hooks := "hooks:\n  pre-stop: [\"php bin/console down\"]\n"
+	root := newShop(t)
+	writeShop(t, root, shopConf+hooks)
+	oldRun, oldUp, oldStart := dockerRun, containerRunning, startFn
+	t.Cleanup(func() { dockerRun, containerRunning, startFn = oldRun, oldUp, oldStart })
+	containerRunning = func(string) bool { return false }
+	var calls []string
+	dockerRun = func(a ...string) error { calls = append(calls, a[len(a)-1]); return nil }
+	startFn = func(*config.Project, startOpts) error { calls = append(calls, "start"); return nil }
+	p, _ := currentProject()
+	if err := restartProject(p, startOpts{}); err != nil || !slices.Equal(calls, []string{"stop", "start"}) {
+		t.Errorf("restart a stopped project: %q %v", calls, err)
+	}
+	calls = nil
+	rootCmd.SetArgs([]string{"stop"})
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+	if err := rootCmd.Execute(); err != nil || !slices.Equal(calls, []string{"stop"}) {
+		t.Errorf("stop a stopped project: %q %v", calls, err)
+	}
+}

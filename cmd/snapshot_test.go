@@ -162,3 +162,34 @@ func TestSnapshotRestoreNone(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestSnapshotDotNamesRejected(t *testing.T) {
+	snapshotShop(t, "mysql", "")
+	for _, n := range []string{".", "..", ".hidden"} {
+		if _, _, err := runConfig(t, newSnapshotCmd, "create", n, "--force"); err == nil || !strings.Contains(err.Error(), "snapshot name") {
+			t.Errorf("create %q: %v", n, err)
+		}
+		if _, _, err := runConfig(t, newSnapshotCmd, "delete", n); err == nil {
+			t.Errorf("delete %q accepted", n)
+		}
+	}
+}
+
+// Restore gives back the snapshot's database: tables added since then must go, so it drops first.
+func TestSnapshotRestoreDropsFirst(t *testing.T) {
+	root, _ := snapshotShop(t, "mysql, mongodb", "")
+	writeShop(t, root, strings.Replace(shopConf, "services: [mysql]", "services: [mysql, mongodb]", 1))
+	writeSnapshot(t, "both", time.Now(), "mysql", "mongodb")
+	var out []string
+	dockerOutput = func(a ...string) (string, error) { out = append(out, strings.Join(a, " ")); return "", nil }
+	if _, _, err := runConfig(t, newSnapshotCmd, "restore", "both", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(out, "\n")
+	if !strings.Contains(all, "DROP DATABASE IF EXISTS `shop`") || !strings.Contains(all, "db.getSiblingDB('shop').dropDatabase()") {
+		t.Errorf("no drops:\n%s", all)
+	}
+	if i, j := strings.Index(all, "DROP DATABASE"), strings.Index(all, "CREATE DATABASE"); i < 0 || j < i {
+		t.Errorf("drop must come before create:\n%s", all)
+	}
+}

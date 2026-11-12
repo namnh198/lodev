@@ -107,3 +107,25 @@ func TestDBImportMagento(t *testing.T) {
 		}
 	}
 }
+
+// lodev's PHP shows errors on stdout; a missing env.php must not end up as the "prefix".
+func TestMagentoPrefixReadSendsErrorsToStderr(t *testing.T) {
+	oldOut, oldUp, oldRun, oldReady := dockerOutput, containerRunning, dockerRun, userReady
+	t.Cleanup(func() { dockerOutput, containerRunning, dockerRun, userReady = oldOut, oldUp, oldRun, oldReady })
+	userReady = func(*config.Project, string) bool { return true }
+	containerRunning = func(string) bool { return true }
+	dockerRun = func(...string) error { return nil }
+	var phpArgs []string
+	dockerOutput = func(a ...string) (string, error) {
+		if slices.Contains(a, "-r") {
+			phpArgs = a
+		}
+		return "", nil
+	}
+	if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(phpArgs, "display_errors=stderr") {
+		t.Errorf("php args %q", phpArgs)
+	}
+}

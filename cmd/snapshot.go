@@ -18,7 +18,8 @@ import (
 	"lodev/internal/ui"
 )
 
-var snapshotNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// A letter or digit first: "." and ".." would point at the project's or every project's folder.
+var snapshotNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 type snapshotMeta struct {
 	Created  time.Time `json:"created"`
@@ -152,6 +153,16 @@ func snapshotCreate(c *cobra.Command, args []string) error {
 	return nil
 }
 
+// dropDB removes t's database, so tables or collections created after the snapshot go too.
+func dropDB(t dbTarget) error {
+	if t.service == "mongodb" {
+		_, err := dockerOutput(dbExecArgs(t, "mongosh", mongoURI[len("--uri="):], "--quiet", "--eval",
+			fmt.Sprintf("db.getSiblingDB('%s').dropDatabase()", t.db))...)
+		return err
+	}
+	return dbExec(t.service, fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", t.db))
+}
+
 func dumpFile(t dbTarget, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -235,7 +246,10 @@ func newSnapshotCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				err = restoreFrom(t, f)
+				err = dropDB(t) // a restore gives back the snapshot's database, not a merge with it
+				if err == nil {
+					err = restoreFrom(t, f)
+				}
 				f.Close()
 				if err != nil {
 					return fmt.Errorf("restore %s: %s: %w", s.name, svc, err)

@@ -530,7 +530,8 @@ var startFn = start
 var restartFn = func(p *config.Project) error { return restartProject(p, startOpts{}) }
 
 func restartProject(p *config.Project, o startOpts) error {
-	if !o.noHooks {
+	// A stopped project has nothing to prepare for its stop.
+	if !o.noHooks && containerRunning("lodev-"+p.Name+"-web") {
 		if err := runHooks(p, "pre-stop"); err != nil {
 			return fmt.Errorf("%w (lodev restart --no-hooks restarts anyway)", err)
 		}
@@ -674,7 +675,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if !stopNoHooks {
+			if !stopNoHooks && containerRunning("lodev-"+p.Name+"-web") {
 				// Nothing is stopped yet: a failing pre-stop hook keeps the project running.
 				if err := runHooks(p, "pre-stop"); err != nil {
 					return fmt.Errorf("%w (lodev stop --no-hooks stops anyway)", err)
