@@ -208,12 +208,21 @@ func newDBImportCmd() *cobra.Command {
 			}
 			fmt.Fprintf(c.ErrOrStderr(), "Imported into %s (%s)\n", t.db, t.service)
 			p, _ := currentProject()
-			if noHooks, _ := c.Flags().GetBool("no-hooks"); p == nil || noHooks || !isProjectDB(p, t) {
+			if p == nil || !isProjectDB(p, t) {
+				return nil
+			}
+			if noMagento, _ := c.Flags().GetBool("no-magento"); p.Type == "magento" && t.service != "mongodb" && !noMagento {
+				if err := magentoAfterImport(p, t); err != nil {
+					return err
+				}
+			}
+			if noHooks, _ := c.Flags().GetBool("no-hooks"); noHooks {
 				return nil
 			}
 			return runHooks(p, "post-db-import")
 		})
 	c.Flags().Bool("no-hooks", false, "do not run the post-db-import hooks")
+	c.Flags().Bool("no-magento", false, "Magento: keep the dump's base URLs and cookie domain")
 	return c
 }
 
