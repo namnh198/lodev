@@ -37,6 +37,12 @@ if [ -n "${LODEV_USER:-}" ]; then
   if [ -z "$group" ]; then
     groupadd -g "$LODEV_GID" "$LODEV_USER"
     group=$LODEV_USER
+  elif [ "$group" != "$LODEV_USER" ] && [ "$group" != root ] && [ "$group" != www-data ] &&
+    ! getent group "$LODEV_USER" >/dev/null; then
+    # The host GID names another group here (macOS staff is 20, Debian's dialout): show the user's
+    # name instead. Only the name changes; files and permissions go by the number.
+    groupmod -n "$LODEV_USER" "$group"
+    group=$LODEV_USER
   fi
   by_name=$(getent passwd "$LODEV_USER" | cut -d: -f3)
   by_uid=$(getent passwd "$LODEV_UID" | cut -d: -f1)
