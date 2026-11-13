@@ -97,10 +97,10 @@ func waitServicesHealthy(services []string, timeout time.Duration) error {
 	var groups []group
 	shared := slices.DeleteFunc(slices.Clone(services), func(s string) bool { return s == "traefik" })
 	if len(shared) < len(services) {
-		groups = append(groups, group{"waiting lodev-traefik healthy", "lodev-traefik healthy", []string{"traefik"}})
+		groups = append(groups, group{"waiting lodev-traefik healthy", "lodev-traefik", []string{"traefik"}})
 	}
 	if len(shared) > 0 {
-		groups = append(groups, group{"waiting shared services healthy", "shared services healthy", shared})
+		groups = append(groups, group{"waiting shared services healthy", "shared services", shared})
 	}
 	labels := make([]string, len(groups))
 	for i, g := range groups {
@@ -124,9 +124,9 @@ func waitServicesHealthy(services []string, timeout time.Duration) error {
 				}
 			}
 			if errs[gi] = errors.Join(gerrs...); len(failed) > 0 {
-				l.Fail(gi, strings.Join(failed, ", ")+" not healthy")
+				l.Fail(gi, strings.Join(failed, ", "), "unhealthy")
 			} else {
-				l.Done(gi, g.ok)
+				l.Done(gi, g.ok, "healthy")
 			}
 		})
 	}
@@ -158,8 +158,8 @@ func waitShown(container string, wait func() error) error {
 
 func finishLine(l *ui.Lines, i int, container string, err error) {
 	if err != nil {
-		l.Fail(i, container+" not healthy")
+		l.Fail(i, container, "unhealthy")
 	} else {
-		l.Done(i, container+" healthy")
+		l.Done(i, container, "healthy")
 	}
 }

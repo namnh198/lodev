@@ -126,10 +126,10 @@ func TestWaitServicesShowsLines(t *testing.T) {
 			[]string{"waiting lodev-traefik healthy\n", "waiting shared services healthy\n", "✔ lodev-traefik healthy\n", "✔ shared services healthy\n"},
 			[]string{"lodev-mysql", "lodev-redis"}},
 		{"one shared fails", []string{"traefik", "mysql", "redis"}, []string{"lodev-mysql"},
-			[]string{"✔ lodev-traefik healthy\n", "✗ lodev-mysql not healthy\n"},
+			[]string{"✔ lodev-traefik healthy\n", "✗ lodev-mysql unhealthy\n"},
 			[]string{"✔ shared services", "lodev-redis"}},
 		{"several fail", []string{"traefik", "mysql", "redis", "opensearch"}, []string{"lodev-traefik", "lodev-mysql", "lodev-opensearch"},
-			[]string{"✗ lodev-traefik not healthy\n", "✗ lodev-mysql, lodev-opensearch not healthy\n"},
+			[]string{"✗ lodev-traefik unhealthy\n", "✗ lodev-mysql, lodev-opensearch unhealthy\n"},
 			[]string{"✔"}},
 		{"no traefik", []string{"mysql"}, nil,
 			[]string{"waiting shared services healthy\n✔ shared services healthy\n"},
@@ -194,7 +194,7 @@ func TestWaitDBShowsFailure(t *testing.T) {
 	if err := waitDB("mariadb", &config.Global{}); err != boom {
 		t.Fatalf("error %v", err)
 	}
-	if got := o.String(); !strings.HasSuffix(got, "✗ lodev-mariadb not healthy\n") {
+	if got := o.String(); !strings.HasSuffix(got, "✗ lodev-mariadb unhealthy\n") {
 		t.Errorf("got %q", got)
 	}
 }

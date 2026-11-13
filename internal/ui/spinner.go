@@ -35,11 +35,12 @@ const (
 	failed
 )
 
-// Lines shows one status line per label on stdout: spinning while waiting, then ✔ or ✗.
+// Lines shows one status line per label on stdout: spinning while waiting, then ✔ or ✗ with a colored status.
 // On a terminal (debug off) the block is redrawn in place; otherwise each change is a new line.
 type Lines struct {
 	mu            sync.Mutex
 	labels, msgs  []string
+	statuses      []string
 	state         []int
 	frame         int
 	live, stopped bool
@@ -48,7 +49,7 @@ type Lines struct {
 
 // Spin prints the waiting lines and, on a terminal, starts animating them.
 func Spin(labels ...string) *Lines {
-	l := &Lines{labels: labels, msgs: make([]string, len(labels)), state: make([]int, len(labels)),
+	l := &Lines{labels: labels, msgs: make([]string, len(labels)), statuses: make([]string, len(labels)), state: make([]int, len(labels)),
 		live: len(labels) > 0 && out.isTerm() && !debug} // debug lines on stderr would break the redraw
 	if !l.live {
 		for _, s := range labels {
@@ -97,15 +98,23 @@ func (l *Lines) draw(again bool) {
 
 // line is line i cut to width w (0 = no limit), so it never wraps and breaks the cursor-up redraw.
 func (l *Lines) line(i, w int) string {
-	code, icon, text := "94", spinFrames[l.frame%len(spinFrames)], l.labels[i]
+	code, icon, text, status := "94", spinFrames[l.frame%len(spinFrames)], l.labels[i], ""
 	switch l.state[i] {
 	case done:
-		code, icon, text = "32", "✔", l.msgs[i]
+		code, icon, text, status = "32", "✔", l.msgs[i], l.statuses[i]
 	case failed:
-		code, icon, text = "31", "✗", l.msgs[i]
+		code, icon, text, status = "31", "✗", l.msgs[i], l.statuses[i]
 	}
-	// Only the icon is colored, like docker compose.
-	return paint(code, icon) + fit(icon+" "+text, w)[len(icon):]
+	// Only the icon and the status word are colored, like docker compose.
+	full := icon + " " + text
+	if status != "" {
+		full += " " + status
+	}
+	cut, at := fit(full, w), len(full)-len(status)
+	if status == "" || len(cut) <= at {
+		return paint(code, icon) + cut[len(icon):]
+	}
+	return paint(code, icon) + cut[len(icon):at] + paint(code, cut[at:])
 }
 
 // fit keeps s within w-1 columns (the last column is left free); every rune here is one column wide.
@@ -123,17 +132,18 @@ func paint(code, s string) string {
 	return s
 }
 
-// Done turns line i into "✔ msg"; Fail into "✗ msg". Calls after Stop, or on a finished line, are ignored.
-func (l *Lines) Done(i int, msg string) { l.finish(i, done, msg) }
-func (l *Lines) Fail(i int, msg string) { l.finish(i, failed, msg) }
+// Done turns line i into "✔ msg status"; Fail into "✗ msg status", the status word colored like the
+// icon. Calls after Stop, or on a finished line, are ignored.
+func (l *Lines) Done(i int, msg, status string) { l.finish(i, done, msg, status) }
+func (l *Lines) Fail(i int, msg, status string) { l.finish(i, failed, msg, status) }
 
-func (l *Lines) finish(i, st int, msg string) {
+func (l *Lines) finish(i, st int, msg, status string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.stopped || l.state[i] != waiting {
 		return
 	}
-	l.state[i], l.msgs[i] = st, msg
+	l.state[i], l.msgs[i], l.statuses[i] = st, msg, status
 	if !l.live {
 		fmt.Fprintln(out.w, l.line(i, 0))
 	}
