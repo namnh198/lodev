@@ -18,6 +18,7 @@ services:
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
+    working_dir: {{q .P.WorkDir}}
     # lodev start waits for this, and varnish too (a backend that fails its first probe starts sick).
     healthcheck:
       test: ["CMD", "/usr/local/bin/lodev-healthcheck"]
@@ -39,7 +40,7 @@ services:
 {{- end}}
 {{- end}}
     volumes:
-      - {{q (print .P.Root ":/var/www/html")}}
+      - {{q (print .P.Root ":" .P.WorkDir)}}
       - {{q (print .CAFile ":/etc/lodev/rootCA.pem:ro")}}
       - {{q (print .P.Root "/.lodev/php:/etc/lodev/php.d:ro")}}
 {{- if .Cron}}

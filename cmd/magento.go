@@ -30,7 +30,7 @@ func magentoAfterImport(p *config.Project, t dbTarget) error {
 	prefix := ""
 	if webUp {
 		user, _ := p.ContainerUser()
-		out, err := dockerOutput(docker.ExecArgs(composeProject(p), composeFile(p), "web", user, "/var/www/html", false,
+		out, err := dockerOutput(docker.ExecArgs(composeProject(p), composeFile(p), "web", user, p.WorkDir(), false,
 			// lodev's php shows errors on stdout: a missing env.php must not read as the prefix.
 			[]string{"php", "-d", "display_errors=stderr", "-r", magentoPrefixPHP})...)
 		if err != nil {

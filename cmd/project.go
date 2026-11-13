@@ -439,6 +439,7 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := os.Remove(composeLegacy(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	warnWorkDirMove(p)
 	if err := projectCompose(p, "up", "-d", "--remove-orphans"); err != nil {
 		return err
 	}
@@ -761,4 +762,15 @@ func init() {
 	}
 
 	rootCmd.AddCommand(createCmd, startCmd, stopCmd, restartCmd, removeCmd, listCmd)
+}
+
+// warnWorkDirMove warns once, before the web container is recreated, when it ran the project in
+// another folder: paths cached by the app and the IDE's path mapping still point there.
+func warnWorkDirMove(p *config.Project) {
+	cur, err := dockerOutput("inspect", "--format", "{{.Config.WorkingDir}}", "lodev-"+p.Name+"-web")
+	if err != nil || cur == "" || cur == p.WorkDir() {
+		return
+	}
+	ui.Warn("the project moves in the web container: %s → %s (working_dir)\n"+
+		"flush caches that hold paths (Magento: bin/magento cache:flush) and update your IDE's path mapping", cur, p.WorkDir())
 }

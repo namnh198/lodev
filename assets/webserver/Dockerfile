@@ -74,5 +74,5 @@ COPY supervisor/ /etc/lodev/supervisor/
 COPY entrypoint.sh /usr/local/bin/lodev-entrypoint
 RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck
 
-WORKDIR /var/www/html
+WORKDIR /app
 ENTRYPOINT ["/usr/local/bin/lodev-entrypoint"]

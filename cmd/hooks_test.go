@@ -73,9 +73,9 @@ func TestHookFolderSteps(t *testing.T) {
 	}
 	want := [][]string{
 		env("post-start", "sh", "-c", "composer install"),
-		env("post-start", "/var/www/html/"+d+"10-a.sh"),
-		env("post-start", "/var/www/html/"+d+"20-b.sh"),
-		env("post-start", "/var/www/html/"+d+"30-link.sh"),
+		env("post-start", "/app/"+d+"10-a.sh"),
+		env("post-start", "/app/"+d+"20-b.sh"),
+		env("post-start", "/app/"+d+"30-link.sh"),
 	}
 	if !slices.EqualFunc(*got, want, slices.Equal) {
 		t.Errorf("steps:\n%q\nwant\n%q", *got, want)
@@ -107,7 +107,7 @@ func TestHookScriptChecks(t *testing.T) {
 	}
 	os.Chmod(filepath.Join(p.Root, ".lodev/hooks/x.sh"), 0o755)
 	got := stubHookExec(t, true, nil)
-	if err := runHooks(p, "post-start"); err != nil || !slices.Equal((*got)[0], env("post-start", "/var/www/html/.lodev/hooks/x.sh")) {
+	if err := runHooks(p, "post-start"); err != nil || !slices.Equal((*got)[0], env("post-start", "/app/.lodev/hooks/x.sh")) {
 		t.Errorf("script run %q, %v", *got, err)
 	}
 }

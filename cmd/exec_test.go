@@ -56,7 +56,7 @@ func TestXdebugScript(t *testing.T) {
 	if got := xdebugScript("toggle"); got != want {
 		t.Errorf("toggle = %q", got)
 	}
-	// The script runs in /var/www/html; a project's own supervisord.conf there must not be read.
+	// The script runs in the project folder; a project's own supervisord.conf there must not be read.
 	if !strings.Contains(on, "supervisorctl -c /etc/supervisor/supervisord.conf ") {
 		t.Errorf("on = %q", on)
 	}

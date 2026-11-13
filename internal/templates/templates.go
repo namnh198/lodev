@@ -65,8 +65,8 @@ func webEnv(in ProjectInput) []string {
 	}
 	kv := [][2]string{
 		{"LODEV_PHP", p.PHP}, {"LODEV_WEBSERVER", p.Webserver}, {"LODEV_USER", in.User},
-		{"LODEV_UID", strconv.Itoa(in.UID)}, {"LODEV_GID", strconv.Itoa(in.GID)},
-		{"PHP_IDE_CONFIG", "serverName=" + p.Name},
+		{"LODEV_UID", strconv.Itoa(in.UID)}, {"LODEV_GID", strconv.Itoa(in.GID)}, {"LODEV_WORKDIR", p.WorkDir()},
+		{"PHP_IDE_CONFIG", "serverName=" + p.IDEServerName()},
 		{"DB_HOST", db}, {"DB_PORT", "3306"}, {"DB_DATABASE", p.DBName()}, {"DB_USERNAME", "root"}, {"DB_PASSWORD", "root"},
 		{"REDIS_HOST", "redis"}, {"OPENSEARCH_HOST", "opensearch"},
 		{"MONGODB_URI", "mongodb://root:root@mongodb:27017/?authSource=admin"},
@@ -129,11 +129,11 @@ func WebserverConfig(p *config.Project) ([]byte, error) {
 	default:
 		return nil, nil
 	}
-	root := "/var/www/html"
+	root := p.WorkDir()
 	if p.Docroot != "" {
 		root += "/" + strings.Trim(p.Docroot, "/")
 	}
-	return render(name, struct{ Root string }{root})
+	return render(name, struct{ Root, WorkDir string }{root, p.WorkDir()})
 }
 
 // UserPart is one file from .lodev/web-images/, appended to the generated Dockerfile.

@@ -1,16 +1,17 @@
 #!/bin/sh
 # lodev web healthcheck (compose healthcheck): the project mount, the webserver and PHP behind it.
-# Prints one line, e.g. "/var/www/html:OK nginx:OK php-fpm:OK phpstatus:OK"; exits 1 on any FAILED.
+# Prints one line, e.g. "/app:OK nginx:OK php-fpm:OK phpstatus:OK"; exits 1 on any FAILED.
 rc=0
 check() { # name, command...
   name=$1; shift
   if "$@" >/dev/null 2>&1; then printf '%s:OK ' "$name"; else printf '%s:FAILED ' "$name"; rc=1; fi
 }
-# -c: run from /var/www/html, supervisorctl would read a project's own supervisord.conf first.
+# -c: run from the project folder, supervisorctl would read a project's own supervisord.conf first.
 running() { supervisorctl -c /etc/supervisor/supervisord.conf status "$1" | grep -q RUNNING; }
 
 # The project folder itself, not just any mount: its .lodev/config.yaml must be readable.
-check /var/www/html test -r /var/www/html/.lodev/config.yaml
+dir=${LODEV_WORKDIR:-/app}
+check "$dir" test -r "$dir/.lodev/config.yaml"
 case "${LODEV_WEBSERVER:-nginx}" in
   none) check php php -r 'exit(0);' ;;
   *)

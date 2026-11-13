@@ -68,7 +68,7 @@ func runHooks(p *config.Project, event string) error {
 			if fi.Mode()&0o111 == 0 {
 				return fmt.Errorf("hook %s: %s is not executable (chmod +x %s)", event, s.script, s.script)
 			}
-			cmd = []string{"/var/www/html/" + s.script}
+			cmd = []string{p.WorkDir() + "/" + s.script}
 		}
 		ui.Info("▶ %s: %s", event, s.label)
 		full := append([]string{"env", "LODEV_HOOK=" + event, "LODEV_PROJECT=" + p.Name}, cmd...)

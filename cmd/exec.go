@@ -59,7 +59,7 @@ func runInService(service, user string, cmd []string) error {
 	return runInProject(p, service, user, cmd)
 }
 
-// runInProject runs cmd in service of p (web: as the project user, in /var/www/html).
+// runInProject runs cmd in service of p (web: as the project user, in its working_dir).
 func runInProject(p *config.Project, service, user string, cmd []string) error {
 	err := execIn(p, service, user, cmd)
 	var exitErr *exec.ExitError
@@ -75,7 +75,7 @@ func execInWeb(p *config.Project, cmd []string) error { return execIn(p, "web", 
 func execIn(p *config.Project, service, user string, cmd []string) error {
 	workdir := ""
 	if service == "web" {
-		workdir = "/var/www/html"
+		workdir = p.WorkDir()
 		if user == "" {
 			user, _ = p.ContainerUser()
 		}

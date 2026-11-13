@@ -275,6 +275,9 @@ nodejs: "20"                 # optional: lts | latest | current | 20 | 20.11 | 2
 php_extensions: [ldap]       # optional: a-z 0-9 _ ; installed for the project's PHP version
 packages: [ffmpeg]           # optional: extra apt packages
 user: kuroko                 # optional: shell user in the web container; default = your host username
+working_dir: /app            # optional: where the project is mounted in the web container (default /app)
+php_ide_config: myshop       # optional: PHP_IDE_CONFIG serverName for PhpStorm (default: name)
+enable_xdebug: true          # optional: Xdebug on at every start (default false); lodev xdebug on/off sets it
 varnish: true                # optional: Varnish in front of the web server (default false)
 varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
 cron: true                   # optional: run cron jobs in the web container (default false)
@@ -294,7 +297,7 @@ changed) installs without downloading again; `--rebuild` uses no cache at all, s
 ## Cron
 
 `cron: true` runs cron jobs in the web container with [supercronic](https://github.com/aptible/supercronic),
-as your user, in `/var/www/html`, with the container's environment. Without `cron_jobs` the
+as your user, in `working_dir`, with the container's environment. Without `cron_jobs` the
 project type picks the job:
 
 | type | default job |
@@ -324,7 +327,7 @@ Changes apply on `lodev restart`; cron jobs, `lodev ssh` and `lodev exec` see th
 
 ## Hooks
 
-Steps lodev runs in the web container (as your user, in `/var/www/html`) at four moments:
+Steps lodev runs in the web container (as your user, in `working_dir`) at four moments:
 
 | Event | When |
 |---|---|
@@ -389,7 +392,9 @@ bin/magento config:set system/full_page_cache/caching_application 2
 username; lowercased, characters outside `a-z 0-9 _ -` become `_`, a leading digit or `-` gets a
 `_` prefix, `root`/`www-data` get `_user`, max 32 chars). `lodev start` / `restart` print one warning when
 the name had to change. The user has passwordless `sudo`, the hostname is `<name>-web` and the
-workdir `/var/www/html`. nginx / apache / php-fpm workers run as that user too, so files PHP
+workdir is `working_dir` (default `/app`, as on Magento Cloud). Projects started by an older lodev ran in
+`/var/www/html`: the first start after the change warns, so you can flush caches that hold paths and
+update the IDE's path mapping. nginx / apache / php-fpm workers run as that user too, so files PHP
 writes are owned by you on the host. `xdebug` toggling still runs as root.
 
 After upgrading, the first `lodev start` rebuilds `lodev/webserver` (the base image no longer bakes
@@ -483,7 +488,7 @@ Every container has a Docker healthcheck, and `lodev start` / `lodev service sta
 unhealthy, and print the last check and where to look:
 
 ```
-lodev-shop-web is unhealthy: /var/www/html:OK nginx:OK php-fpm:FAILED phpstatus:FAILED
+lodev-shop-web is unhealthy: /app:OK nginx:OK php-fpm:FAILED phpstatus:FAILED
 Check:
   lodev logs -s web
   docker logs lodev-shop-web

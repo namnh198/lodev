@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -54,6 +55,12 @@ type Project struct {
 	PHPExtensions []string `yaml:"php_extensions,omitempty"`
 	Packages      []string `yaml:"packages,omitempty"`
 	User          string   `yaml:"user,omitempty"`
+	// WorkingDir is where the project is mounted in the web container (default /app).
+	WorkingDir string `yaml:"working_dir,omitempty"`
+	// PHPIDEConfig is the PHP_IDE_CONFIG serverName PhpStorm maps (default: the project name).
+	PHPIDEConfig string `yaml:"php_ide_config,omitempty"`
+	// EnableXdebug turns Xdebug on whenever the project starts; lodev xdebug on/off keeps it in step.
+	EnableXdebug bool `yaml:"enable_xdebug,omitempty"`
 	// Varnish puts a varnish container in front of the web server.
 	Varnish        bool   `yaml:"varnish,omitempty"`
 	VarnishVersion string `yaml:"varnish_version,omitempty"`
@@ -76,6 +83,46 @@ func (p *Project) VarnishImage() string {
 		return "varnish:" + p.VarnishVersion
 	}
 	return "varnish:" + DefaultVarnishVersion
+}
+
+// DefaultWorkingDir is where the project is mounted when working_dir is unset (as on Magento Cloud).
+const DefaultWorkingDir = "/app"
+
+// WorkDir is the project's folder inside the web container.
+func (p *Project) WorkDir() string {
+	if p.WorkingDir != "" {
+		return p.WorkingDir
+	}
+	return DefaultWorkingDir
+}
+
+// IDEServerName is the serverName in PHP_IDE_CONFIG.
+func (p *Project) IDEServerName() string {
+	if p.PHPIDEConfig != "" {
+		return p.PHPIDEConfig
+	}
+	return p.Name
+}
+
+var workDirRe = regexp.MustCompile(`^(/[A-Za-z0-9._-]+)+$`)
+
+// systemDirs hold the container's own files (or lodev's mounts): a project mounted there would break it.
+var systemDirs = []string{"/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64", "/opt", "/proc", "/root",
+	"/run", "/sbin", "/sys", "/tmp", "/usr", "/var/lib", "/var/log", "/var/run"}
+
+func checkWorkingDir(d string) error {
+	if d == "" {
+		return nil
+	}
+	if !workDirRe.MatchString(d) || path.Clean(d) != d {
+		return fmt.Errorf("working_dir %q must be an absolute folder like /app (a-z, 0-9, . _ -)", d)
+	}
+	for _, s := range systemDirs {
+		if d == s || strings.HasPrefix(d, s+"/") {
+			return fmt.Errorf("working_dir %q is inside the container's %s", d, s)
+		}
+	}
+	return nil
 }
 
 // ProjectPath is the project's config file.
@@ -191,6 +238,12 @@ func (p *Project) ValidateTLD(tld string) error {
 	}
 	if err := validateHooks(p.Hooks); err != nil {
 		return err
+	}
+	if err := checkWorkingDir(p.WorkingDir); err != nil {
+		return err
+	}
+	if strings.ContainsAny(p.PHPIDEConfig, "\r\n") {
+		return fmt.Errorf("php_ide_config %q must be one line", p.PHPIDEConfig)
 	}
 	domainRe := domainRegexp(tld)
 	for _, d := range p.Domains {

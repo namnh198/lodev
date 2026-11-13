@@ -463,3 +463,37 @@ func BenchmarkValidateDomains(b *testing.B) {
 		p.ValidateTLD("test")
 	}
 }
+
+func TestWorkDirAndIDEServerName(t *testing.T) {
+	p := Project{Name: "shop"}
+	if p.WorkDir() != "/app" || p.IDEServerName() != "shop" {
+		t.Errorf("defaults: %q %q", p.WorkDir(), p.IDEServerName())
+	}
+	p.WorkingDir, p.PHPIDEConfig = "/var/www/html", "shop-ide"
+	if p.WorkDir() != "/var/www/html" || p.IDEServerName() != "shop-ide" {
+		t.Errorf("set: %q %q", p.WorkDir(), p.IDEServerName())
+	}
+}
+
+func TestValidateWorkingDir(t *testing.T) {
+	base := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", Domains: []string{"x.test"}}
+	for _, d := range []string{"/app", "/var/www/html", "/srv/my-app_2"} {
+		p := base
+		p.WorkingDir = d
+		if err := p.Validate(); err != nil {
+			t.Errorf("%q: %v", d, err)
+		}
+	}
+	for _, d := range []string{"app", "/", "/app/", "/a/../b", "/my app", "/a:b", "/etc", "/usr/local/app", "/home/x", "/tmp"} {
+		p := base
+		p.WorkingDir = d
+		if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "working_dir") {
+			t.Errorf("%q: want a working_dir error, got %v", d, err)
+		}
+	}
+	p := base
+	p.PHPIDEConfig = "a\nb"
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "php_ide_config") {
+		t.Errorf("newline in php_ide_config: %v", err)
+	}
+}

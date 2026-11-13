@@ -29,7 +29,7 @@ func TestExtract(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(d, "Dockerfile.legacy")); err != nil {
 		t.Fatal(err)
 	}
-	// The healthcheck runs in /var/www/html; a project's own supervisord.conf there must not be read.
+	// The healthcheck runs in the project folder; a project's own supervisord.conf there must not be read.
 	hc, _ := os.ReadFile(filepath.Join(d, "healthcheck.sh"))
 	if !strings.Contains(string(hc), "supervisorctl -c /etc/supervisor/supervisord.conf ") {
 		t.Error("healthcheck.sh: supervisorctl must name its config")

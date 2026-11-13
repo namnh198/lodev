@@ -3,10 +3,10 @@
     LoadModule remoteip_module /usr/lib/apache2/modules/mod_remoteip.so
 </IfModule>
 <VirtualHost *:80>
-    DocumentRoot /var/www/html/pub
+    DocumentRoot /app/pub
     DirectoryIndex index.php index.html
 
-    <Directory /var/www/html/pub>
+    <Directory /app/pub>
         Options FollowSymLinks
         AllowOverride All
         Require all granted

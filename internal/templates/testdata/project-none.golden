@@ -18,6 +18,7 @@ services:
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
+    working_dir: "/app"
     # lodev start waits for this, and varnish too (a backend that fails its first probe starts sick).
     healthcheck:
       test: ["CMD", "/usr/local/bin/lodev-healthcheck"]
@@ -32,6 +33,7 @@ services:
       - "LODEV_USER=kuroko"
       - "LODEV_UID=501"
       - "LODEV_GID=20"
+      - "LODEV_WORKDIR=/app"
       - "PHP_IDE_CONFIG=serverName=shop"
       - "DB_HOST=mysql"
       - "DB_PORT=3306"
@@ -51,7 +53,7 @@ services:
       - "mailpit.test:172.30.0.2"
       - "phpmyadmin.test:172.30.0.2"
     volumes:
-      - "/work/shop:/var/www/html"
+      - "/work/shop:/app"
       - "/home/u/.lodev/rootCA/rootCA.pem:/etc/lodev/rootCA.pem:ro"
       - "/work/shop/.lodev/php:/etc/lodev/php.d:ro"
       - "/home/u/.lodev/data/home-shop:/home/kuroko"
