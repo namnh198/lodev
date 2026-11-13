@@ -46,19 +46,19 @@ func TestDBTarget(t *testing.T) {
 		{[]string{"other"}, "", "mysql other"},
 		{nil, "mongodb", "mongodb shop"},
 	} {
-		tg, err := dbTargetFor(c.args, c.service)
+		tg, err := dbTargetFor(c.args, c.service, "")
 		if err != nil || tg.service+" "+tg.db != c.want {
 			t.Errorf("%v %q: %+v %v", c.args, c.service, tg, err)
 		}
 	}
-	if _, err := dbTargetFor(nil, "postgres"); err == nil || !strings.Contains(err.Error(), "mysql, mariadb, mongodb") {
+	if _, err := dbTargetFor(nil, "postgres", ""); err == nil || !strings.Contains(err.Error(), "mysql, mariadb, mongodb") {
 		t.Errorf("postgres: %v", err)
 	}
 	t.Chdir(t.TempDir()) // outside a project
-	if tg, err := dbTargetFor([]string{"x"}, ""); err != nil || tg.service != "mysql" {
+	if tg, err := dbTargetFor([]string{"x"}, "", ""); err != nil || tg.service != "mysql" {
 		t.Errorf("outside: %+v %v", tg, err)
 	}
-	if _, err := dbTargetFor(nil, ""); err == nil || err.Error() != "give the database name (not in a lodev project)" {
+	if _, err := dbTargetFor(nil, "", ""); err == nil || err.Error() != "give the database name (not in a lodev project)" {
 		t.Errorf("no name: %v", err)
 	}
 }
@@ -183,13 +183,40 @@ func TestDBCommandsNeedDocker(t *testing.T) {
 func TestDBTargetRejectsBadNames(t *testing.T) {
 	newShop(t)
 	for _, name := range []string{"a`b", "a;b", "a b", "", "-A", "--force", "a$b"} {
-		if _, err := dbTargetFor([]string{name}, "mysql"); err == nil || err.Error() != fmt.Sprintf("database name %q: use A-Z a-z 0-9 _ - (not first)", name) {
+		if _, err := dbTargetFor([]string{name}, "mysql", ""); err == nil || err.Error() != fmt.Sprintf("database name %q: use A-Z a-z 0-9 _ - (not first)", name) {
 			t.Errorf("%q: %v", name, err)
 		}
 	}
 	for _, name := range []string{"shop_2", "my-db", "_x"} {
-		if _, err := dbTargetFor([]string{name}, "mysql"); err != nil {
+		if _, err := dbTargetFor([]string{name}, "mysql", ""); err != nil {
 			t.Errorf("%q: %v", name, err)
 		}
+	}
+}
+
+func TestDBTargetDBNameFlag(t *testing.T) {
+	newShop(t)
+	if tg, err := dbTargetFor(nil, "", "other"); err != nil || tg.service+" "+tg.db != "mysql other" {
+		t.Errorf("-n other: %+v %v", tg, err)
+	}
+	if _, err := dbTargetFor([]string{"other"}, "", "other"); err != nil {
+		t.Errorf("same twice: %v", err)
+	}
+	if _, err := dbTargetFor([]string{"a"}, "", "b"); err == nil || err.Error() != `the database is "a" as an argument and "b" with --db-name; give one` {
+		t.Errorf("both: %v", err)
+	}
+	if _, err := dbTargetFor(nil, "", "-A"); err == nil || !strings.Contains(err.Error(), "database name") {
+		t.Errorf("-n -A: %v", err)
+	}
+}
+
+func TestDBExportDBNameFlag(t *testing.T) {
+	newShop(t)
+	calls, _ := stubDBStream(t, "")
+	if _, _, err := runConfig(t, newDBExportCmd, "-n", "other", "-f", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if got := (*calls)[len(*calls)-1]; got[len(got)-1] != "other" {
+		t.Errorf("dump %q", got)
 	}
 }

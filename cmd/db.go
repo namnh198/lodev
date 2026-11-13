@@ -26,9 +26,9 @@ const mongoURI = "--uri=mongodb://root:root@localhost:27017/?authSource=admin"
 
 type dbTarget struct{ service, db string }
 
-// dbTargetFor picks the service (-s, else the project's database) and the database (the
-// argument, else the project's).
-func dbTargetFor(args []string, service string) (dbTarget, error) {
+// dbTargetFor picks the service (-s, else the project's database) and the database (--db-name or
+// the argument, else the project's).
+func dbTargetFor(args []string, service, name string) (dbTarget, error) {
 	p, _ := currentProject() // nil outside a project
 	if service == "" {
 		switch {
@@ -44,12 +44,19 @@ func dbTargetFor(args []string, service string) (dbTarget, error) {
 		return dbTarget{}, fmt.Errorf("--service %q: use one of %s", service, strings.Join(dbServices, ", "))
 	}
 	t := dbTarget{service: service}
-	switch {
-	case len(args) > 0:
-		if !dbNameRe.MatchString(args[0]) {
-			return dbTarget{}, fmt.Errorf("database name %q: use A-Z a-z 0-9 _ - (not first)", args[0])
+	given := name != ""
+	if len(args) > 0 {
+		if name != "" && name != args[0] {
+			return dbTarget{}, fmt.Errorf("the database is %q as an argument and %q with --db-name; give one", args[0], name)
 		}
-		t.db = args[0]
+		name, given = args[0], true
+	}
+	switch {
+	case given:
+		if !dbNameRe.MatchString(name) {
+			return dbTarget{}, fmt.Errorf("database name %q: use A-Z a-z 0-9 _ - (not first)", name)
+		}
+		t.db = name
 	case p != nil:
 		t.db = p.DBName()
 	default:
@@ -140,7 +147,8 @@ func dbFlags(c *cobra.Command, args []string) (dbTarget, bool, error) {
 	if compress != "" && compress != "gz" {
 		return dbTarget{}, false, fmt.Errorf("--compress %q: only gz is supported", compress)
 	}
-	t, err := dbTargetFor(args, service)
+	name, _ := c.Flags().GetString("db-name")
+	t, err := dbTargetFor(args, service, name)
 	if err != nil {
 		return dbTarget{}, false, err
 	}
@@ -165,6 +173,7 @@ func dbCmd(use, short string, run func(c *cobra.Command, t dbTarget, gz bool, fi
 		},
 	}
 	c.Flags().StringP("service", "s", "", "mysql | mariadb | mongodb (default: the project's database)")
+	c.Flags().StringP("db-name", "n", "", "the database (default: the project's); same as the [database] argument")
 	c.Flags().StringP("compress", "c", "", "gz: gzip the dump (import detects gzip by itself)")
 	c.Flags().StringP("file", "f", "", "dump file; - for stdout/stdin")
 	return c
