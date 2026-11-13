@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -122,5 +123,34 @@ func TestCreateRegistersExistingConfig(t *testing.T) {
 	}
 	if err := runRoot(t, "create", "--no-ask"); err == nil || !strings.Contains(err.Error(), "already initialized") {
 		t.Errorf("second create: %v", err)
+	}
+}
+
+// TestCreateWaitsForTheLock: create writes projects.json only once a running start/restart lets go.
+func TestCreateWaitsForTheLock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LODEV_HOME", home)
+	root := filepath.Join(t.TempDir(), "blog")
+	os.Mkdir(root, 0o755)
+	t.Chdir(root)
+	lock, err := os.OpenFile(filepath.Join(home, "lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lockFile(lock); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- runRoot(t, "create", "--no-ask") }()
+	time.Sleep(200 * time.Millisecond)
+	if got := registeredPath(t, "blog"); got != "" {
+		t.Errorf("registered while locked: %q", got)
+	}
+	lock.Close()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got := registeredPath(t, "blog"); got != root {
+		t.Errorf("registered %q", got)
 	}
 }

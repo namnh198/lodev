@@ -650,7 +650,7 @@ func init() {
 				return err
 			}
 			if _, err := os.Stat(config.ProjectPath(root)); err == nil {
-				return registerExisting(root)
+				return withLock(func() error { return registerExisting(root) })
 			}
 			p, err := newProjectConfig(root, name, typ, php, webserver, docroot)
 			if err != nil {
@@ -672,7 +672,7 @@ func init() {
 			if err := writeLodevGitignore(p); err != nil {
 				return err
 			}
-			if err := registerProject(p); err != nil {
+			if err := withLock(func() error { return registerProject(p) }); err != nil {
 				return err
 			}
 			ui.Success("Created .lodev/config.yaml (%s, PHP %s, %s)\nRun: lodev start", p.Type, p.PHP, p.Webserver)
