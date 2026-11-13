@@ -182,12 +182,12 @@ func TestDBCommandsNeedDocker(t *testing.T) {
 // TestDBTargetRejectsBadNames: a name that would break the backtick-quoted SQL fails before Docker.
 func TestDBTargetRejectsBadNames(t *testing.T) {
 	newShop(t)
-	for _, name := range []string{"a`b", "a;b", "a b", ""} {
-		if _, err := dbTargetFor([]string{name}, "mysql"); err == nil || err.Error() != fmt.Sprintf("database name %q: use A-Z a-z 0-9 _ $ -", name) {
+	for _, name := range []string{"a`b", "a;b", "a b", "", "-A", "--force", "a$b"} {
+		if _, err := dbTargetFor([]string{name}, "mysql"); err == nil || err.Error() != fmt.Sprintf("database name %q: use A-Z a-z 0-9 _ - (not first)", name) {
 			t.Errorf("%q: %v", name, err)
 		}
 	}
-	for _, name := range []string{"shop_2", "my-db", "a$b"} {
+	for _, name := range []string{"shop_2", "my-db", "_x"} {
 		if _, err := dbTargetFor([]string{name}, "mysql"); err != nil {
 			t.Errorf("%q: %v", name, err)
 		}
