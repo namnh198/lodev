@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"lodev/internal/config"
+	"lodev/internal/ui"
 )
 
 // stubInspect answers `docker inspect` for waitHealthy with the given states, one per call
@@ -107,5 +109,57 @@ func TestWaitWebUsesContainerTimeout(t *testing.T) {
 	want := []string{"lodev-shop-web 1m30s lodev logs -s web", "lodev-mariadb 1m30s lodev service logs mariadb"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestWaitServicesShowsLines(t *testing.T) {
+	o, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	oldOut, oldPoll := dockerOutput, healthPoll
+	t.Cleanup(func() { dockerOutput, healthPoll = oldOut, oldPoll })
+	healthPoll = time.Millisecond
+	dockerOutput = func(a ...string) (string, error) {
+		if a[len(a)-1] == "lodev-redis" {
+			return stHealthy, nil
+		}
+		return stExited, nil
+	}
+	err := waitServicesHealthy([]string{"mysql", "redis"}, 20*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "lodev-mysql exited") {
+		t.Errorf("error %v", err)
+	}
+	for _, want := range []string{"waiting lodev-mysql healthy\n", "waiting lodev-redis healthy\n", "✓ lodev-redis healthy\n", "✗ lodev-mysql not healthy\n"} {
+		if !strings.Contains(o.String(), want) {
+			t.Errorf("missing %q in %q", want, o.String())
+		}
+	}
+}
+
+func TestWaitWebShowsLine(t *testing.T) {
+	o, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	old := waitHealthyFn
+	t.Cleanup(func() { waitHealthyFn = old })
+	waitHealthyFn = func(string, time.Duration, string) error { return nil }
+	if err := waitWeb(&config.Project{Name: "shop"}, &config.Global{}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := o.String(), "waiting lodev-shop-web healthy\n✓ lodev-shop-web healthy\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestWaitDBShowsFailure(t *testing.T) {
+	o, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	old := waitHealthyFn
+	t.Cleanup(func() { waitHealthyFn = old })
+	boom := errors.New("lodev-mariadb exited (code 1)")
+	waitHealthyFn = func(string, time.Duration, string) error { return boom }
+	if err := waitDB("mariadb", &config.Global{}); err != boom {
+		t.Fatalf("error %v", err)
+	}
+	if got := o.String(); !strings.HasSuffix(got, "✗ lodev-mariadb not healthy\n") {
+		t.Errorf("got %q", got)
 	}
 }

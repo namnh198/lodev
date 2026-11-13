@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"lodev/internal/config"
+	"lodev/internal/ui"
 )
 
 // healthPoll is how often waitHealthy asks Docker; swapped in tests.
@@ -87,24 +88,48 @@ func waitHealthy(container string, timeout time.Duration, logsCmd string) error 
 // waitServicesHealthy waits for the shared services side by side and reports every one that failed.
 func waitServicesHealthy(services []string, timeout time.Duration) error {
 	errs := make([]error, len(services))
+	labels := make([]string, len(services))
+	for i, svc := range services {
+		labels[i] = "waiting lodev-" + svc + " healthy"
+	}
+	l := ui.Spin(labels...)
 	var wg sync.WaitGroup
 	for i, svc := range services {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs[i] = waitHealthy("lodev-"+svc, timeout, "lodev service logs "+svc)
-		}()
+			finishLine(l, i, "lodev-"+svc, errs[i])
+		})
 	}
 	wg.Wait()
+	l.Stop()
 	return errors.Join(errs...)
 }
 
 // waitWeb waits for the project's web container (its lodev-healthcheck).
 func waitWeb(p *config.Project, g *config.Global) error {
-	return waitHealthyFn("lodev-"+p.Name+"-web", g.ContainerWait(), "lodev logs -s web")
+	c := "lodev-" + p.Name + "-web"
+	return waitShown(c, func() error { return waitHealthyFn(c, g.ContainerWait(), "lodev logs -s web") })
 }
 
 // waitDB waits for the shared database a project uses.
 func waitDB(db string, g *config.Global) error {
-	return waitHealthyFn("lodev-"+db, g.ContainerWait(), "lodev service logs "+db)
+	c := "lodev-" + db
+	return waitShown(c, func() error { return waitHealthyFn(c, g.ContainerWait(), "lodev service logs "+db) })
+}
+
+// waitShown runs one health wait behind a spinner line for container.
+func waitShown(container string, wait func() error) error {
+	l := ui.Spin("waiting " + container + " healthy")
+	err := wait()
+	finishLine(l, 0, container, err)
+	l.Stop()
+	return err
+}
+
+func finishLine(l *ui.Lines, i int, container string, err error) {
+	if err != nil {
+		l.Fail(i, container+" not healthy")
+	} else {
+		l.Done(i, container+" healthy")
+	}
 }
