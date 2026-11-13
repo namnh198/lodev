@@ -91,8 +91,8 @@ make && sudo make install                  # build as yourself, install to /usr/
 make && make install PREFIX=~/.local       # no sudo
 ```
 
-`make` targets: `build` (default; all of linux/darwin/windows × amd64/arm64 into
-`dist/bin/<os>_<arch>/`), `completions`, `dist` (archives + `checksums.txt`), `deb`, `packaging`,
+`make` targets: `build` (all of linux/darwin/windows × amd64/arm64 into
+`dist/bin/<os>_<arch>/`), `completions` (default; `build` plus the completion scripts), `dist` (archives + `checksums.txt`), `deb`, `packaging`,
 `packages` (all of these), `install`, `uninstall`, `test`, `clean`. The version comes from
 `git describe`; override with `make VERSION=v1.2.3`.
 

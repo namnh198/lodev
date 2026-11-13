@@ -13,7 +13,9 @@ LINUX_ARCHES = $(patsubst linux/%,%,$(filter linux/%,$(TARGETS)))
 
 .PHONY: build completions dist deb packaging packages install uninstall test clean help
 
-## build: cross-build every target into dist/bin/<os>_<arch>/ (default)
+.DEFAULT_GOAL := completions
+
+## build: cross-build every target into dist/bin/<os>_<arch>/
 build:
 	@for t in $(TARGETS); do \
 		os=$${t%/*}; arch=$${t#*/}; ext=; [ $$os = windows ] && ext=.exe; \
@@ -22,7 +24,7 @@ build:
 			-o dist/bin/$${os}_$$arch/lodev$$ext . || exit 1; \
 	done
 
-## completions: bash/zsh/fish completion scripts into dist/completions/
+## completions: build, then bash/zsh/fish completion scripts into dist/completions/ (default)
 completions: build
 	@mkdir -p dist/completions
 	$(HOSTBIN) completion bash > dist/completions/lodev.bash
