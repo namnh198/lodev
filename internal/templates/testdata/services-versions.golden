@@ -197,6 +197,8 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     container_name: lodev-rabbitmq
+    # RabbitMQ keeps its data under its node name (rabbit@<hostname>): a fixed hostname keeps it across re-creates.
+    hostname: rabbitmq
     restart: unless-stopped
     volumes:
       - lodev-rabbitmq:/var/lib/rabbitmq

@@ -213,6 +213,8 @@ services:
   rabbitmq:
     image: {{.G.Image "rabbitmq"}}
     container_name: lodev-rabbitmq
+    # RabbitMQ keeps its data under its node name (rabbit@<hostname>): a fixed hostname keeps it across re-creates.
+    hostname: rabbitmq
     restart: unless-stopped
     volumes:
       - {{with .G.MountPath "rabbitmq"}}{{q (print . ":/var/lib/rabbitmq")}}{{else}}lodev-rabbitmq:/var/lib/rabbitmq{{end}}

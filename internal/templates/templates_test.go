@@ -146,6 +146,7 @@ type service struct {
 		Test []string `yaml:"test"`
 	} `yaml:"healthcheck"`
 	WorkingDir string `yaml:"working_dir"`
+	Hostname   string `yaml:"hostname"`
 }
 
 func parse(t *testing.T, b []byte) map[string]service {
@@ -170,7 +171,8 @@ func TestSharedComposeStructure(t *testing.T) {
 	if !slices.Contains(def["phpmyadmin"].Environment, "PMA_HOSTS=mysql") {
 		t.Errorf("phpmyadmin %v", def["phpmyadmin"].Environment)
 	}
-	if r := def["rabbitmq"]; r.Image != "rabbitmq:4-management" || !slices.Contains(r.Volumes, "lodev-rabbitmq:/var/lib/rabbitmq") {
+	if r := def["rabbitmq"]; r.Image != "rabbitmq:4-management" || !slices.Contains(r.Volumes, "lodev-rabbitmq:/var/lib/rabbitmq") ||
+		r.Hostname != "rabbitmq" {
 		t.Errorf("rabbitmq %+v", r)
 	}
 	if ip := def["traefik"].Networks.(map[string]any)["lodev"].(map[string]any)["ipv4_address"]; ip != "172.30.0.2" {
