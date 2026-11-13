@@ -67,7 +67,7 @@ func TestSpinLive(t *testing.T) {
 
 func TestSpinLiveColor(t *testing.T) {
 	got := spinLive(t, true)
-	for _, want := range []string{"\x1b[32m✓ a ok\x1b[0m\n", "\x1b[31m✗ b bad\x1b[0m\n", "\x1b[94m" + spinFrames[0] + "\x1b[0m w a"} {
+	for _, want := range []string{"\x1b[32m✓\x1b[0m a ok\n", "\x1b[31m✗\x1b[0m b bad\n", "\x1b[94m" + spinFrames[0] + "\x1b[0m w a"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}

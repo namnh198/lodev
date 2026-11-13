@@ -97,14 +97,15 @@ func (l *Lines) draw(again bool) {
 
 // line is line i cut to width w (0 = no limit), so it never wraps and breaks the cursor-up redraw.
 func (l *Lines) line(i, w int) string {
+	code, icon, text := "94", spinFrames[l.frame%len(spinFrames)], l.labels[i]
 	switch l.state[i] {
 	case done:
-		return paint("32", fit("✓ "+l.msgs[i], w))
+		code, icon, text = "32", "✓", l.msgs[i]
 	case failed:
-		return paint("31", fit("✗ "+l.msgs[i], w))
+		code, icon, text = "31", "✗", l.msgs[i]
 	}
-	frame := spinFrames[l.frame%len(spinFrames)]
-	return paint("94", frame) + fit(frame+" "+l.labels[i], w)[len(frame):]
+	// Only the icon is colored, like docker compose.
+	return paint(code, icon) + fit(icon+" "+text, w)[len(icon):]
 }
 
 // fit keeps s within w-1 columns (the last column is left free); every rune here is one column wide.
