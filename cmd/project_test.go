@@ -719,3 +719,30 @@ func TestStartRebuildFlags(t *testing.T) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
+
+// TestEnsureProjectDB: start waits for the project's database and creates it, unless
+// auto_create_db is off; a project without a SQL database has nothing to do.
+func TestEnsureProjectDB(t *testing.T) {
+	oldWait, oldOut := waitHealthyFn, dockerOutput
+	t.Cleanup(func() { waitHealthyFn, dockerOutput = oldWait, oldOut })
+	var calls []string
+	waitHealthyFn = func(c string, _ time.Duration, _ string) error { calls = append(calls, "wait "+c); return nil }
+	dockerOutput = func(a ...string) (string, error) { calls = append(calls, a[len(a)-1]); return "", nil }
+	shop := &config.Project{Name: "shop", Services: []string{"mysql"}}
+	for _, c := range []struct {
+		p    *config.Project
+		on   bool
+		want []string
+	}{
+		{shop, true, []string{"wait lodev-mysql", "CREATE DATABASE IF NOT EXISTS `shop`"}},
+		{shop, false, nil},
+		{&config.Project{Name: "cli"}, true, nil},
+	} {
+		calls = nil
+		g, _ := config.ParseGlobal(nil)
+		g.AutoCreateDB = c.on
+		if err := ensureProjectDB(c.p, g); err != nil || !slices.Equal(calls, c.want) {
+			t.Errorf("%s on=%v: %q %v", c.p.Name, c.on, calls, err)
+		}
+	}
+}

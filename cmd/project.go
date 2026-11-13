@@ -381,13 +381,8 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err != nil {
 		return err
 	}
-	if db := p.DB(); db != "" {
-		if err := waitDB(db, g); err != nil {
-			return err
-		}
-		if err := dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName())); err != nil {
-			return err
-		}
+	if err := ensureProjectDB(p, g); err != nil {
+		return err
 	}
 	if p.Webserver != "none" {
 		if err := certs.Ensure(p.Name, p.Domains); err != nil {
@@ -846,4 +841,17 @@ func registerExisting(root string) error {
 	}
 	ui.Success("Registered %s (%s, PHP %s, %s)\nRun: lodev start", p.Name, p.Type, p.PHP, p.Webserver)
 	return nil
+}
+
+// ensureProjectDB waits for the project's SQL database and creates it, unless auto_create_db is
+// off (the user manages databases; db-import still creates its own).
+func ensureProjectDB(p *config.Project, g *config.Global) error {
+	db := p.DB()
+	if db == "" || !g.AutoCreateDB {
+		return nil
+	}
+	if err := waitDB(db, g); err != nil {
+		return err
+	}
+	return dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName()))
 }

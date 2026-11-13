@@ -30,6 +30,8 @@ type Global struct {
 		OpenSearch string `yaml:"opensearch"`
 	} `yaml:"memory"`
 	UpdateCheck bool `yaml:"update_check"`
+	// AutoCreateDB makes lodev start/restart create the project's database (CREATE DATABASE IF NOT EXISTS).
+	AutoCreateDB bool `yaml:"auto_create_db"`
 	// NodeVersion is the Node.js the web image installs with n; a project's nodejs overrides it.
 	NodeVersion string `yaml:"node_version"`
 	// ContainerTimeout is how long lodev waits for a container to turn healthy (a Go duration).
@@ -112,6 +114,7 @@ func defaultGlobal() *Global {
 	g.Ports.HTTP, g.Ports.HTTPS, g.Ports.Dashboard = 80, 443, 10999
 	g.Memory.OpenSearch = "2g"
 	g.UpdateCheck = true
+	g.AutoCreateDB = true
 	g.NodeVersion = DefaultNodeVersion
 	g.ContainerTimeout = "120s"
 	g.TLD = "test" // a config.yaml written before tld existed keeps .test; first run writes the OS default

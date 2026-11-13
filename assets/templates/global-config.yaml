@@ -32,6 +32,8 @@ tld: test                     # domains end in .<tld>: shop.test; change with `l
 container_timeout: 120s       # how long start / service start wait for containers to turn healthy
 update_check: true  # after a command, say when a newer lodev release exists (asks GitHub at most every 4h);
                     # turn off with `lodev config-global --update-check=false`
+auto_create_db: true  # lodev start/restart create the project's database (CREATE DATABASE IF NOT EXISTS);
+                      # false = you manage databases yourself (db-import still creates its target)
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
 use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
 # data_dir: ~/.lodev/data         # project homes and mounted service data (unset = <lodev home>/data)

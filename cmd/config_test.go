@@ -545,3 +545,20 @@ func TestConfigGlobalContainerTimeout(t *testing.T) {
 	out, _, _ := runConfig(t, newConfigGlobalCmd)
 	mustContain(t, out, "container_timeout", "3m")
 }
+
+func TestConfigGlobalAutoCreateDB(t *testing.T) {
+	newGlobalHome(t, "")
+	out, _, err := runConfig(t, newConfigGlobalCmd, "--auto-create-db=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readGlobal(t); got != "auto_create_db: false\n" {
+		t.Errorf("file: %q", got)
+	}
+	mustContain(t, out, "auto_create_db: true → false")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--auto-create-db=maybe"); err == nil || !strings.Contains(err.Error(), `--auto-create-db "maybe" is not true or false`) {
+		t.Errorf("err = %v", err)
+	}
+	out, _, _ = runConfig(t, newConfigGlobalCmd)
+	mustContain(t, out, "auto_create_db", "false")
+}

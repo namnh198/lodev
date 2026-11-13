@@ -430,3 +430,12 @@ func TestTLDSurvivesOtherConfigErrors(t *testing.T) {
 		t.Errorf("TLD() = %q, want local", got)
 	}
 }
+
+func TestAutoCreateDBDefault(t *testing.T) {
+	if g, err := ParseGlobal(nil); err != nil || !g.AutoCreateDB {
+		t.Errorf("default: %v %v", g.AutoCreateDB, err)
+	}
+	if g, err := ParseGlobal([]byte("auto_create_db: false\n")); err != nil || g.AutoCreateDB {
+		t.Errorf("false: %v %v", g.AutoCreateDB, err)
+	}
+}

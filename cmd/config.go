@@ -328,6 +328,7 @@ func globalValues(g *config.Global) [][2]string {
 		rows = append(rows, [2]string{"versions." + s, g.Versions[s]})
 	}
 	rows = append(rows, [2]string{"memory.opensearch", g.Memory.OpenSearch}, [2]string{"update_check", strconv.FormatBool(g.UpdateCheck)},
+		[2]string{"auto_create_db", strconv.FormatBool(g.AutoCreateDB)},
 		[2]string{"node_version", g.NodeVersion}, [2]string{"container_timeout", g.ContainerTimeout}, [2]string{"tld", g.TLD},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
@@ -451,7 +452,7 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
 	}
-	for _, k := range []string{"update_check", "use_docker_compose_system", "use_docker_buildx_system", "mount_volume"} {
+	for _, k := range []string{"update_check", "auto_create_db", "use_docker_compose_system", "use_docker_buildx_system", "mount_volume"} {
 		flag := strings.ReplaceAll(k, "_", "-")
 		if !fl.Changed(flag) {
 			continue
@@ -547,6 +548,7 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("node-version", "", `Node.js in the web image: lts | latest | current | 24 | 22.11 ("" = 24)`)
 	f.String("opensearch-memory", "", `OpenSearch memory limit: 1g | 2g | 3g | 4g ("" = 2g)`)
 	f.String("update-check", "", `check for new lodev versions: true | false ("" = true)`)
+	f.String("auto-create-db", "", `lodev start/restart create the project's database: true | false ("" = true)`)
 	f.String("use-docker-compose-system", "", `run the system docker compose instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("data-dir", "", `folder for project homes and mounted service data ("" = ~/.lodev/data)`)
