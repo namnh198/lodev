@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"io"
@@ -191,5 +192,43 @@ func TestSnapshotRestoreDropsFirst(t *testing.T) {
 	}
 	if i, j := strings.Index(all, "DROP DATABASE"), strings.Index(all, "CREATE DATABASE"); i < 0 || j < i {
 		t.Errorf("drop must come before create:\n%s", all)
+	}
+}
+
+// TestSnapshotForceKeepsOldOnFailure: --force replaces a snapshot only once the new one is complete.
+func TestSnapshotForceKeepsOldOnFailure(t *testing.T) {
+	snapshotShop(t, "mysql", "")
+	if _, _, err := runConfig(t, newSnapshotCmd, "create", "before"); err != nil {
+		t.Fatal(err)
+	}
+	dockerStream = func([]string, io.Reader, io.Writer) error { return errors.New("boom") }
+	if _, _, err := runConfig(t, newSnapshotCmd, "create", "before", "--force"); err == nil {
+		t.Fatal("no error")
+	}
+	snaps, err := snapshotsOf("shop")
+	if err != nil || len(snaps) != 1 || snaps[0].name != "before" {
+		t.Fatalf("snapshots %+v %v", snaps, err)
+	}
+	f, err := os.Open(filepath.Join(snapshotDir("shop", "before"), "mysql.sql.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := io.ReadAll(zr); !strings.HasPrefix(string(b), "DUMP ") {
+		t.Errorf("old dump %q", b)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(snapshotDir("shop", "before"))); len(entries) != 1 {
+		t.Errorf("left over: %v", entries)
+	}
+	// A temp dir a crash left behind (meta.json written, not yet renamed) is not a snapshot.
+	tmp := snapshotDir("shop", ".x.tmp")
+	os.MkdirAll(tmp, 0o755)
+	os.WriteFile(filepath.Join(tmp, "meta.json"), []byte(`{"services":["mysql"]}`), 0o644)
+	if snaps, _ := snapshotsOf("shop"); len(snaps) != 1 {
+		t.Errorf("temp dir listed: %+v", snaps)
 	}
 }

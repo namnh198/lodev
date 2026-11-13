@@ -64,6 +64,9 @@ func snapshotsOf(project string) ([]snapshotEntry, error) {
 	}
 	var out []snapshotEntry
 	for _, d := range dirs {
+		if strings.HasPrefix(d.Name(), ".") {
+			continue // snapshotCreate's temp dir
+		}
 		dir := snapshotDir(project, d.Name())
 		b, err := os.ReadFile(filepath.Join(dir, "meta.json"))
 		if err != nil {
@@ -126,27 +129,40 @@ func snapshotCreate(c *cobra.Command, args []string) error {
 		}
 	}
 	dir := snapshotDir(p.Name, name)
-	if _, err := os.Stat(dir); err == nil {
+	_, statErr := os.Stat(dir)
+	if statErr == nil {
 		if force, _ := c.Flags().GetBool("force"); !force {
 			return fmt.Errorf("snapshot %s exists (--force replaces it)", name)
 		}
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// Dump next to it first: --force drops the old snapshot only once the new one is complete. No
+	// snapshot name starts with a dot, so this never clashes with one.
+	tmp := snapshotDir(p.Name, "."+name+".tmp")
+	if err := os.RemoveAll(tmp); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
 		return err
 	}
 	meta := snapshotMeta{Created: time.Now(), Lodev: Version}
 	for _, t := range targets {
-		if err := dumpFile(t, filepath.Join(dir, snapshotFile(t.service))); err != nil {
-			os.RemoveAll(dir) // a half snapshot would look like a good one
+		if err := dumpFile(t, filepath.Join(tmp, snapshotFile(t.service))); err != nil {
+			os.RemoveAll(tmp) // a half snapshot would look like a good one
 			return fmt.Errorf("snapshot %s: %s: %w", name, t.service, err)
 		}
 		meta.Services = append(meta.Services, t.service)
 	}
 	b, _ := json.MarshalIndent(meta, "", "  ")
-	if err := os.WriteFile(filepath.Join(dir, "meta.json"), b, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmp, "meta.json"), b, 0o644); err != nil {
+		os.RemoveAll(tmp)
+		return err
+	}
+	if statErr == nil {
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(tmp, dir); err != nil {
 		return err
 	}
 	ui.Success("Snapshot %s of %s: %s", name, p.Name, strings.Join(meta.Services, ", "))
