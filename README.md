@@ -13,7 +13,8 @@ but not supported at runtime: lodev edits `/etc/hosts` with sudo and checks port
 [mkcert](https://github.com/FiloSottile/mkcert) is optional (`brew install mkcert`); without it
 lodev runs mkcert in Docker and tells you how to trust its CA.
 
-Every method below also installs bash, zsh and fish completions.
+Every method below also installs shell completions: the install script and `make install`
+for your `$SHELL` only, the packages for bash, zsh and fish.
 
 ### Install script (macOS, Linux)
 
@@ -29,8 +30,9 @@ if needed). Options: `VERSION=v1.2.3` (default: latest), `PREFIX` (default: `/us
 curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | PREFIX="$HOME/.local" sh
 ```
 
-With a custom `PREFIX` the script prints the lines to add for your `PATH` and for bash, zsh
-and fish completions, since shells only read completions from the standard locations.
+It installs the completion for your `$SHELL` only (bash, zsh or fish). With a custom `PREFIX`
+the script prints the lines to add for your `PATH` and for that completion, since shells only
+read completions from the standard locations.
 
 On macOS it also clears `com.apple.quarantine`, so Gatekeeper does not block lodev. `curl`,
 Homebrew and `lodev self-upgrade` never set it; only a browser download does. If you

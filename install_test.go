@@ -43,53 +43,57 @@ func fakeRelease(t *testing.T, wrongSum bool) string {
 	return dir
 }
 
-func runInstall(t *testing.T, release, prefix string) (string, error) {
+func runInstall(t *testing.T, release, prefix, shell string) (string, error) {
 	t.Helper()
 	c := exec.Command("sh", "install.sh")
 	c.Env = append(os.Environ(), "VERSION=v9.9.9", "PREFIX="+prefix, "BASE_URL=file://"+release,
-		"LODEV_UNAME_S=Linux", "LODEV_UNAME_M=x86_64")
+		"LODEV_UNAME_S=Linux", "LODEV_UNAME_M=x86_64", "SHELL="+shell)
 	out, err := c.CombinedOutput()
 	return string(out), err
 }
 
+// TestInstallScript: only the completion for $SHELL is installed, with only its hint.
 func TestInstallScript(t *testing.T) {
-	prefix := filepath.Join(t.TempDir(), "my apps") // a space must survive every path and hint
-	out, err := runInstall(t, fakeRelease(t, false), prefix)
-	if err != nil {
-		t.Fatalf("install.sh: %v\n%s", err, out)
+	comps := map[string]struct{ file, hint string }{
+		"bash": {"share/bash-completion/completions/lodev", `source "%s/share/bash-completion/completions/lodev"`},
+		"zsh":  {"share/zsh/site-functions/_lodev", `fpath=("%s/share/zsh/site-functions" $fpath)`},
+		"fish": {"share/fish/vendor_completions.d/lodev.fish", `set -p fish_complete_path "%s/share/fish/vendor_completions.d"`},
 	}
-	for f, mode := range map[string]os.FileMode{
-		"bin/lodev": 0o755,
-		"share/bash-completion/completions/lodev":    0,
-		"share/zsh/site-functions/_lodev":            0,
-		"share/fish/vendor_completions.d/lodev.fish": 0,
-		"share/doc/lodev/LICENSE":                    0,
-	} {
-		fi, err := os.Stat(filepath.Join(prefix, f))
-		if err != nil {
-			t.Errorf("missing %s", f)
-		} else if mode != 0 && fi.Mode().Perm() != mode {
-			t.Errorf("%s mode %v", f, fi.Mode())
-		}
-	}
-	if left, _ := filepath.Glob(filepath.Join(prefix, "bin", ".lodev*")); len(left) > 0 {
-		t.Errorf("temp files left: %v", left)
-	}
-	for _, want := range []string{
-		`export PATH="` + prefix + `/bin:$PATH"`,
-		`source "` + prefix + `/share/bash-completion/completions/lodev"`,
-		`fpath=("` + prefix + `/share/zsh/site-functions" $fpath)`,
-		`set -p fish_complete_path "` + prefix + `/share/fish/vendor_completions.d"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output lacks %q:\n%s", want, out)
-		}
+	for _, shell := range []string{"/bin/bash", "/usr/bin/zsh", "/usr/local/bin/fish", "/bin/sh"} {
+		t.Run(filepath.Base(shell), func(t *testing.T) {
+			prefix := filepath.Join(t.TempDir(), "my apps") // a space must survive every path and hint
+			out, err := runInstall(t, fakeRelease(t, false), prefix, shell)
+			if err != nil {
+				t.Fatalf("install.sh: %v\n%s", err, out)
+			}
+			for f, mode := range map[string]os.FileMode{"bin/lodev": 0o755, "share/doc/lodev/LICENSE": 0} {
+				fi, err := os.Stat(filepath.Join(prefix, f))
+				if err != nil {
+					t.Errorf("missing %s", f)
+				} else if mode != 0 && fi.Mode().Perm() != mode {
+					t.Errorf("%s mode %v", f, fi.Mode())
+				}
+			}
+			if left, _ := filepath.Glob(filepath.Join(prefix, "bin", ".lodev*")); len(left) > 0 {
+				t.Errorf("temp files left: %v", left)
+			}
+			if !strings.Contains(out, `export PATH="`+prefix+`/bin:$PATH"`) {
+				t.Errorf("output lacks the PATH hint:\n%s", out)
+			}
+			for name, c := range comps {
+				_, err := os.Stat(filepath.Join(prefix, c.file))
+				hinted := strings.Contains(out, fmt.Sprintf(c.hint, prefix))
+				if want := name == filepath.Base(shell); (err == nil) != want || hinted != want {
+					t.Errorf("%s completion: installed %v, hinted %v, want %v:\n%s", name, err == nil, hinted, want, out)
+				}
+			}
+		})
 	}
 }
 
 func TestInstallScriptChecksumMismatch(t *testing.T) {
 	prefix := t.TempDir()
-	out, err := runInstall(t, fakeRelease(t, true), prefix)
+	out, err := runInstall(t, fakeRelease(t, true), prefix, "/bin/zsh")
 	if err == nil || !strings.Contains(out, "checksum mismatch") {
 		t.Errorf("want a checksum failure, got %v:\n%s", err, out)
 	}
