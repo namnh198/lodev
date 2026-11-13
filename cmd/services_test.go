@@ -385,7 +385,7 @@ func TestPrepareServiceDataCopies(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := g.MountPath("mysql")
-	want := []string{"stop lodev-mysql", "run --rm --user 0 --entrypoint cp -v lodev-mysql:/from -v " + path + ":/to mysql:8.4 -a /from/. /to/"}
+	want := []string{"stop lodev-mysql", "run --rm --user 0 --entrypoint cp -v lodev-mysql:/from -v " + path + ":/to mysql:8.0 -a /from/. /to/"}
 	if got := runs(f.calls); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("calls:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}

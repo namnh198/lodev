@@ -198,7 +198,7 @@ services:           # traefik is always on
 memory:
   opensearch: 2g    # container limit, 1g..4g; JVM heap is half
 versions:           # 8 | 8.0 | 8.0.36; only these keys
-  mysql: "8.4"
+  mysql: "8.0"
   mariadb: "11.4"
   redis: "7"        # redis:<v>-alpine
   opensearch: "2"     # built as lodev/opensearch:<v> with analysis-icu and analysis-phonetic (Smile ElasticSuite)

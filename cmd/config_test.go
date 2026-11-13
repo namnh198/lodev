@@ -277,7 +277,7 @@ func TestConfigGlobalCreatesFile(t *testing.T) {
 	if got := readGlobal(t); got != "versions:\n  mysql: \"9.1\"\n" {
 		t.Fatalf("%q", got)
 	}
-	mustContain(t, out, "versions.mysql: 8.4 → 9.1", "Run: lodev service start to apply")
+	mustContain(t, out, "versions.mysql: 8.0 → 9.1", "Run: lodev service start to apply")
 }
 
 func TestConfigGlobalCreatesHome(t *testing.T) {
@@ -376,7 +376,7 @@ func TestConfigGlobalShowTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "ports.http", "80", "versions.mysql", "8.4")
+	mustContain(t, out, "ports.http", "80", "versions.mysql", "8.0")
 }
 
 func TestConfigGlobalUpdateCheck(t *testing.T) {

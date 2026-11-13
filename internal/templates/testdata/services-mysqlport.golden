@@ -67,7 +67,7 @@ services:
         ipv4_address: 172.30.0.2
 
   mysql:
-    image: mysql:8.4
+    image: mysql:8.0
     container_name: lodev-mysql
     restart: unless-stopped
     environment:
