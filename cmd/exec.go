@@ -216,12 +216,65 @@ func init() {
 		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"on", "off", "toggle", "status"},
 		RunE: func(_ *cobra.Command, args []string) error {
-			script := xdebugScript(args[0])
-			if script == "" {
+			if xdebugScript(args[0]) == "" {
 				return errors.New("usage: lodev xdebug on|off|toggle|status")
 			}
-			return runInService("web", "root", []string{"sh", "-c", script})
+			if args[0] == "status" {
+				return runInService("web", "root", []string{"sh", "-c", xdebugScript("status")})
+			}
+			p, err := currentProject()
+			if err != nil {
+				return err
+			}
+			return setXdebug(p, xdebugTarget(args[0], p))
 		},
 	}
 	rootCmd.AddCommand(xdebugCmd)
+}
+
+// xdebugTarget is whether action (on, off, toggle) leaves Xdebug on; toggle flips enable_xdebug.
+func xdebugTarget(action string, p *config.Project) bool {
+	if action == "toggle" {
+		return !p.EnableXdebug
+	}
+	return action == "on"
+}
+
+// setXdebug switches Xdebug in the running web container, then records it as enable_xdebug in
+// .lodev/config.yaml so the next start keeps it; a stopped project only gets the setting.
+func setXdebug(p *config.Project, on bool) error {
+	state := map[bool]string{true: "on", false: "off"}[on]
+	if containerRunning("lodev-" + p.Name + "-web") {
+		if err := execIn(p, "web", "root", []string{"sh", "-c", xdebugScript(state)}); err != nil {
+			return err
+		}
+	} else {
+		ui.Info("xdebug %s: applies on the next lodev start", state)
+	}
+	d, err := config.OpenDoc(config.ProjectPath(p.Root))
+	if err != nil {
+		return err
+	}
+	if on {
+		d.Set([]string{"enable_xdebug"}, true)
+	} else {
+		d.Delete([]string{"enable_xdebug"})
+	}
+	data, err := d.Bytes()
+	if err == nil {
+		err = d.Write(data)
+	}
+	return err
+}
+
+// syncXdebug makes a started web container match enable_xdebug: on when enabled, off only when a
+// kept (not recreated) container still has it, so a plain start does not restart php-fpm.
+func syncXdebug(p *config.Project) {
+	state, script := "on", xdebugScript("on")
+	if !p.EnableXdebug {
+		state, script = "off", "[ ! -e /etc/php/$LODEV_PHP/cli/conf.d/99-lodev-xdebug.ini ] || { "+xdebugScript("off")+"; }"
+	}
+	if err := execIn(p, "web", "root", []string{"sh", "-c", script}); err != nil {
+		ui.Warn("could not switch Xdebug %s: %v (run lodev xdebug %s)", state, err, state)
+	}
 }

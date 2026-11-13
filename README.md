@@ -522,7 +522,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
-| `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003) |
+| `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.yaml`, so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL |
 | `lodev clean [--dry-run] [--yes] [--keep-cache]` | Remove lodev images no container uses (older versions, `lodev/php`, removed projects) and Docker build cache older than 7 days; lists them and asks first; never touches volumes |

@@ -235,7 +235,7 @@ func TestConfigShowTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "KEY", "php", "8.3", "shop.test", "varnish", "varnish_version")
+	mustContain(t, out, "KEY", "php", "8.3", "shop.test", "varnish", "varnish_version", "working_dir", "/app", "php_ide_config", "enable_xdebug")
 	if readShop(t, root) != shopConf {
 		t.Fatal("file changed")
 	}

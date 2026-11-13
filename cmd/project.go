@@ -449,6 +449,7 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := waitForUser(p, user, 10*time.Second); err != nil {
 		return err
 	}
+	syncXdebug(p)
 	if err := dropStaleProjectImage(p, img); err != nil {
 		ui.Warn("could not remove the old project image: %v", err)
 	}

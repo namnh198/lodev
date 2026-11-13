@@ -87,6 +87,8 @@ func projectValues(p *config.Project, list func([]string) string) [][2]string {
 		{"docroot", p.Docroot}, {"domains", list(p.Domains)}, {"services", list(p.Services)},
 		{"nodejs", p.NodeJS}, {"php_extensions", list(p.PHPExtensions)},
 		{"packages", list(p.Packages)}, {"user", p.User},
+		{"working_dir", p.WorkDir()}, {"php_ide_config", p.IDEServerName()},
+		{"enable_xdebug", strconv.FormatBool(p.EnableXdebug)},
 		{"varnish", strconv.FormatBool(p.Varnish)}, {"varnish_version", p.VarnishVersion},
 		{"cron", strconv.FormatBool(p.Cron)},
 	}
