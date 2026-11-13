@@ -35,7 +35,7 @@ const (
 	failed
 )
 
-// Lines shows one status line per label on stdout: spinning while waiting, then ✓ or ✗.
+// Lines shows one status line per label on stdout: spinning while waiting, then ✔ or ✗.
 // On a terminal (debug off) the block is redrawn in place; otherwise each change is a new line.
 type Lines struct {
 	mu            sync.Mutex
@@ -100,7 +100,7 @@ func (l *Lines) line(i, w int) string {
 	code, icon, text := "94", spinFrames[l.frame%len(spinFrames)], l.labels[i]
 	switch l.state[i] {
 	case done:
-		code, icon, text = "32", "✓", l.msgs[i]
+		code, icon, text = "32", "✔", l.msgs[i]
 	case failed:
 		code, icon, text = "31", "✗", l.msgs[i]
 	}
@@ -123,7 +123,7 @@ func paint(code, s string) string {
 	return s
 }
 
-// Done turns line i into "✓ msg"; Fail into "✗ msg". Calls after Stop, or on a finished line, are ignored.
+// Done turns line i into "✔ msg"; Fail into "✗ msg". Calls after Stop, or on a finished line, are ignored.
 func (l *Lines) Done(i int, msg string) { l.finish(i, done, msg) }
 func (l *Lines) Fail(i int, msg string) { l.finish(i, failed, msg) }
 

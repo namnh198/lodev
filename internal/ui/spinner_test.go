@@ -19,7 +19,7 @@ func TestSpinPlain(t *testing.T) {
 	l.Stop()
 	l.Stop()
 	l.Done(0, "late")
-	if got, want := o.String(), "waiting a healthy\nwaiting b healthy\n✗ b not healthy\n✓ a healthy\n"; got != want {
+	if got, want := o.String(), "waiting a healthy\nwaiting b healthy\n✗ b not healthy\n✔ a healthy\n"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -31,7 +31,7 @@ func TestSpinPlainWhenDebug(t *testing.T) {
 	l := Spin("waiting a healthy")
 	l.Done(0, "a healthy")
 	l.Stop()
-	if got, want := o.String(), "waiting a healthy\n✓ a healthy\n"; got != want {
+	if got, want := o.String(), "waiting a healthy\n✔ a healthy\n"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -60,14 +60,14 @@ func TestSpinLive(t *testing.T) {
 	if !strings.Contains(got, spinFrames[1]+" w a") {
 		t.Errorf("no spinning frame in %q", got)
 	}
-	if last := got[i:]; !strings.HasSuffix(last, "✓ a ok\n\r\x1b[2K✗ b bad\n") {
+	if last := got[i:]; !strings.HasSuffix(last, "✔ a ok\n\r\x1b[2K✗ b bad\n") {
 		t.Errorf("final block %q", last)
 	}
 }
 
 func TestSpinLiveColor(t *testing.T) {
 	got := spinLive(t, true)
-	for _, want := range []string{"\x1b[32m✓\x1b[0m a ok\n", "\x1b[31m✗\x1b[0m b bad\n", "\x1b[94m" + spinFrames[0] + "\x1b[0m w a"} {
+	for _, want := range []string{"\x1b[32m✔\x1b[0m a ok\n", "\x1b[31m✗\x1b[0m b bad\n", "\x1b[94m" + spinFrames[0] + "\x1b[0m w a"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}

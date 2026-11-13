@@ -128,7 +128,7 @@ func TestWaitServicesShowsLines(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "lodev-mysql exited") {
 		t.Errorf("error %v", err)
 	}
-	for _, want := range []string{"waiting lodev-mysql healthy\n", "waiting lodev-redis healthy\n", "✓ lodev-redis healthy\n", "✗ lodev-mysql not healthy\n"} {
+	for _, want := range []string{"waiting lodev-mysql healthy\n", "waiting lodev-redis healthy\n", "✔ lodev-redis healthy\n", "✗ lodev-mysql not healthy\n"} {
 		if !strings.Contains(o.String(), want) {
 			t.Errorf("missing %q in %q", want, o.String())
 		}
@@ -144,7 +144,7 @@ func TestWaitWebShowsLine(t *testing.T) {
 	if err := waitWeb(&config.Project{Name: "shop"}, &config.Global{}); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := o.String(), "waiting lodev-shop-web healthy\n✓ lodev-shop-web healthy\n"; got != want {
+	if got, want := o.String(), "waiting lodev-shop-web healthy\n✔ lodev-shop-web healthy\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
