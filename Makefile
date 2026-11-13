@@ -10,6 +10,9 @@ HOST    := $(shell go env GOOS)_$(shell go env GOARCH)
 HOSTBIN  = dist/bin/$(HOST)/lodev
 LDFLAGS  = -s -w -X lodev/cmd.Version=$(VERSION) -X lodev/cmd.Channel=$(CHANNEL)
 LINUX_ARCHES = $(patsubst linux/%,%,$(filter linux/%,$(TARGETS)))
+# Completion scripts for the shell you run make from; release archives and debs ship all three.
+COMPLETION_SHELLS ?= $(notdir $(shell printf %s "$$SHELL"))
+dist deb: COMPLETION_SHELLS = bash zsh fish
 
 .PHONY: build completions dist deb packaging packages install uninstall test clean help
 
@@ -24,12 +27,15 @@ build:
 			-o dist/bin/$${os}_$$arch/lodev$$ext . || exit 1; \
 	done
 
-## completions: build, then bash/zsh/fish completion scripts into dist/completions/ (default)
+## completions: build, then the completion script for $SHELL (or COMPLETION_SHELLS) into dist/completions/ (default)
 completions: build
+	@rm -f dist/completions/lodev.bash dist/completions/_lodev dist/completions/lodev.fish
 	@mkdir -p dist/completions
-	$(HOSTBIN) completion bash > dist/completions/lodev.bash
-	$(HOSTBIN) completion zsh > dist/completions/_lodev
-	$(HOSTBIN) completion fish > dist/completions/lodev.fish
+	@for s in $(COMPLETION_SHELLS); do \
+		case $$s in bash) f=lodev.bash;; zsh) f=_lodev;; fish) f=lodev.fish;; \
+		*) echo "skip  completion for '$$s' (bash, zsh and fish only)"; continue;; esac; \
+		echo "completion $$s"; $(HOSTBIN) completion $$s > dist/completions/$$f || exit 1; \
+	done
 
 ## dist: one archive per target plus dist/checksums.txt
 dist: completions
@@ -63,15 +69,15 @@ packages: dist deb packaging
 
 ## install: install this machine's binary and completions under PREFIX (run `make` first, as yourself)
 install:
-	@test -x $(HOSTBIN) && test -f dist/completions/lodev.bash || \
-		{ echo "nothing to install: run \`make\` first (then \`sudo make install\`)"; exit 1; }
-	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
-		$(DESTDIR)$(PREFIX)/share/zsh/site-functions $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d \
-		$(DESTDIR)$(PREFIX)/share/doc/lodev
+	@test -x $(HOSTBIN) || { echo "nothing to install: run \`make\` first (then \`sudo make install\`)"; exit 1; }
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/doc/lodev
 	install -m 0755 $(HOSTBIN) $(DESTDIR)$(PREFIX)/bin/lodev
-	install -m 0644 dist/completions/lodev.bash $(DESTDIR)$(PREFIX)/share/bash-completion/completions/lodev
-	install -m 0644 dist/completions/_lodev $(DESTDIR)$(PREFIX)/share/zsh/site-functions/_lodev
-	install -m 0644 dist/completions/lodev.fish $(DESTDIR)$(PREFIX)/share/fish/vendor_completions.d/lodev.fish
+	@for c in lodev.bash:bash-completion/completions/lodev _lodev:zsh/site-functions/_lodev \
+		lodev.fish:fish/vendor_completions.d/lodev.fish; do \
+		src=dist/completions/$${c%%:*}; dst=$(DESTDIR)$(PREFIX)/share/$${c#*:}; \
+		[ -f $$src ] || continue; \
+		echo "install $$dst"; install -d $$(dirname $$dst) && install -m 0644 $$src $$dst || exit 1; \
+	done
 	install -m 0644 LICENSE $(DESTDIR)$(PREFIX)/share/doc/lodev/LICENSE
 
 ## uninstall: remove what install put under PREFIX

@@ -91,8 +91,11 @@ make && sudo make install                  # build as yourself, install to /usr/
 make && make install PREFIX=~/.local       # no sudo
 ```
 
+`make` writes the completion script for your `$SHELL` only; pick others with
+`make COMPLETION_SHELLS="bash zsh fish"`.
+
 `make` targets: `build` (all of linux/darwin/windows × amd64/arm64 into
-`dist/bin/<os>_<arch>/`), `completions` (default; `build` plus the completion scripts), `dist` (archives + `checksums.txt`), `deb`, `packaging`,
+`dist/bin/<os>_<arch>/`), `completions` (default; `build` plus the completion script for `$SHELL`), `dist` (archives + `checksums.txt`), `deb`, `packaging`,
 `packages` (all of these), `install`, `uninstall`, `test`, `clean`. The version comes from
 `git describe`; override with `make VERSION=v1.2.3`.
 
