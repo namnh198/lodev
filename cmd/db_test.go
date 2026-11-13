@@ -72,10 +72,10 @@ func TestDBCommands(t *testing.T) {
 		{"mongodb", "exec -i lodev-mongodb mongodump --uri=mongodb://root:root@localhost:27017/?authSource=admin --db=shop --archive",
 			"exec -i lodev-mongodb mongorestore --uri=mongodb://root:root@localhost:27017/?authSource=admin --archive --drop --nsFrom=$db$.$col$ --nsTo=shop.$col$"},
 	} {
-		if got := strings.Join(dbDumpArgs(dbTarget{c.svc, "shop"}), " "); got != c.dump {
+		if got := strings.Join(dbDumpArgs(dbTarget{c.svc, "shop"}, nil), " "); got != c.dump {
 			t.Errorf("%s dump:\n got %s\nwant %s", c.svc, got, c.dump)
 		}
-		if got := strings.Join(dbRestoreArgs(dbTarget{c.svc, "shop"}), " "); got != c.restore {
+		if got := strings.Join(dbRestoreArgs(dbTarget{c.svc, "shop"}, nil), " "); got != c.restore {
 			t.Errorf("%s restore:\n got %s\nwant %s", c.svc, got, c.restore)
 		}
 	}
@@ -218,5 +218,67 @@ func TestDBExportDBNameFlag(t *testing.T) {
 	}
 	if got := (*calls)[len(*calls)-1]; got[len(got)-1] != "other" {
 		t.Errorf("dump %q", got)
+	}
+}
+
+func TestSplitArgs(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want []string
+	}{
+		{"", nil},
+		{"--skip-add-locks", []string{"--skip-add-locks"}},
+		{`--no-data --where="id > 10"`, []string{"--no-data", "--where=id > 10"}},
+		{`'a b' c`, []string{"a b", "c"}},
+		{`a\ b`, []string{"a b"}},
+		{`x ""`, []string{"x", ""}},
+		{`"say \"hi\" \\ ok"`, []string{`say "hi" \ ok`}},
+		{"; rm -rf /", []string{";", "rm", "-rf", "/"}},
+		{"$(id) `id`", []string{"$(id)", "`id`"}},
+	} {
+		got, err := splitArgs(c.in)
+		if err != nil || !slices.Equal(got, c.want) {
+			t.Errorf("%q: %q %v", c.in, got, err)
+		}
+	}
+	for in, want := range map[string]string{`'open`: "unclosed quote", `"open`: "unclosed quote", `a\`: "trailing backslash"} {
+		if _, err := splitArgs(in); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: %v", in, err)
+		}
+	}
+}
+
+func TestDBDumpRestoreExtra(t *testing.T) {
+	extra := []string{"--x", "--y=1"}
+	for _, c := range []struct{ svc, dump, restore string }{
+		{"mysql", "--no-tablespaces --x --y=1 shop", "mysql -uroot --x --y=1 shop"},
+		{"mariadb", "--no-tablespaces --x --y=1 shop", "mariadb -uroot --x --y=1 shop"},
+		{"mongodb", "--archive --x --y=1", "--nsTo=shop.$col$ --x --y=1"},
+	} {
+		if got := strings.Join(dbDumpArgs(dbTarget{c.svc, "shop"}, extra), " "); !strings.HasSuffix(got, c.dump) {
+			t.Errorf("%s dump: %s", c.svc, got)
+		}
+		if got := strings.Join(dbRestoreArgs(dbTarget{c.svc, "shop"}, extra), " "); !strings.HasSuffix(got, c.restore) {
+			t.Errorf("%s restore: %s", c.svc, got)
+		}
+	}
+}
+
+func TestDBExportExtraCommand(t *testing.T) {
+	newShop(t)
+	calls, _ := stubDBStream(t, "")
+	if _, _, err := runConfig(t, newDBExportCmd, "-e", "--skip-add-locks", "-e", `--where="id > 10"`, "-f", "-"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join((*calls)[len(*calls)-1], " "); !strings.HasSuffix(got, "--no-tablespaces --skip-add-locks --where=id > 10 shop") {
+		t.Errorf("dump %s", got)
+	}
+	out := filepath.Join(t.TempDir(), "out.sql")
+	n := len(*calls)
+	if _, _, err := runConfig(t, newDBExportCmd, "-e", `'open`, "-f", out); err == nil || !strings.Contains(err.Error(), "unclosed quote") {
+		t.Errorf("bad quote: %v", err)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) || len(*calls) != n {
+		t.Errorf("bad quote still ran: file %v, calls %d→%d", err, n, len(*calls))
 	}
 }

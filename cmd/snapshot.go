@@ -206,7 +206,7 @@ func dumpFile(t dbTarget, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := dumpTo(t, f, true); err != nil {
+	if err := dumpTo(t, f, true, nil); err != nil {
 		f.Close()
 		return err
 	}
@@ -286,7 +286,7 @@ func newSnapshotCmd() *cobra.Command {
 				}
 				err = dropDB(t) // a restore gives back the snapshot's database, not a merge with it
 				if err == nil {
-					err = restoreFrom(t, f)
+					err = restoreFrom(t, f, nil)
 				}
 				f.Close()
 				if err != nil {
