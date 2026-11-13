@@ -92,3 +92,22 @@ func TestSpinConcurrent(t *testing.T) {
 	wg.Wait()
 	l.Stop()
 }
+
+// TestSpinLiveFitsWidth: a line wider than the terminal would wrap and break the cursor-up redraw.
+func TestSpinLiveFitsWidth(t *testing.T) {
+	o, _ := setup(t, false, false)
+	setTTY(true)
+	oldW, oldE := termWidth, spinEvery
+	termWidth, spinEvery = func() int { return 10 }, time.Millisecond
+	t.Cleanup(func() { termWidth, spinEvery = oldW, oldE })
+	l := Spin("waiting lodev-a-very-long-project-web healthy")
+	time.Sleep(5 * time.Millisecond)
+	l.Done(0, "lodev-a-very-long-project-web healthy")
+	l.Stop()
+	for _, line := range strings.Split(o.String(), "\n") {
+		line = strings.NewReplacer("\x1b[1A", "", "\r\x1b[2K", "").Replace(line)
+		if n := len([]rune(line)); n > 9 {
+			t.Errorf("line %q is %d columns, terminal is 10", line, n)
+		}
+	}
+}

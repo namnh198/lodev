@@ -2,17 +2,31 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/spinner"
+	"golang.org/x/term"
 )
 
 // Swapped in tests.
 var (
 	spinFrames = spinner.MiniDot.Frames
 	spinEvery  = spinner.MiniDot.FPS
+	// termWidth is stdout's width, 0 when unknown.
+	termWidth = func() int {
+		f, ok := out.w.(*os.File)
+		if !ok {
+			return 0
+		}
+		w, _, err := term.GetSize(int(f.Fd()))
+		if err != nil {
+			return 0
+		}
+		return w
+	}
 )
 
 const (
@@ -71,20 +85,34 @@ func (l *Lines) draw(again bool) {
 	if again {
 		fmt.Fprintf(&b, "\x1b[%dA", len(l.labels))
 	}
+	w := 0
+	if l.live {
+		w = termWidth()
+	}
 	for i := range l.labels {
-		fmt.Fprintf(&b, "\r\x1b[2K%s\n", l.line(i))
+		fmt.Fprintf(&b, "\r\x1b[2K%s\n", l.line(i, w))
 	}
 	fmt.Fprint(out.w, b.String())
 }
 
-func (l *Lines) line(i int) string {
+// line is line i cut to width w (0 = no limit), so it never wraps and breaks the cursor-up redraw.
+func (l *Lines) line(i, w int) string {
 	switch l.state[i] {
 	case done:
-		return paint("32", "✓ "+l.msgs[i])
+		return paint("32", fit("✓ "+l.msgs[i], w))
 	case failed:
-		return paint("31", "✗ "+l.msgs[i])
+		return paint("31", fit("✗ "+l.msgs[i], w))
 	}
-	return paint("94", spinFrames[l.frame%len(spinFrames)]) + " " + l.labels[i]
+	frame := spinFrames[l.frame%len(spinFrames)]
+	return paint("94", frame) + fit(frame+" "+l.labels[i], w)[len(frame):]
+}
+
+// fit keeps s within w-1 columns (the last column is left free); every rune here is one column wide.
+func fit(s string, w int) string {
+	if r := []rune(s); w > 1 && len(r) > w-1 {
+		return string(r[:w-1])
+	}
+	return s
 }
 
 func paint(code, s string) string {
@@ -106,7 +134,7 @@ func (l *Lines) finish(i, st int, msg string) {
 	}
 	l.state[i], l.msgs[i] = st, msg
 	if !l.live {
-		fmt.Fprintln(out.w, l.line(i))
+		fmt.Fprintln(out.w, l.line(i, 0))
 	}
 }
 
