@@ -232,3 +232,30 @@ func TestSnapshotForceKeepsOldOnFailure(t *testing.T) {
 		t.Errorf("temp dir listed: %+v", snaps)
 	}
 }
+
+// TestSnapshotForceRenameFails: if the new snapshot cannot take the old one's place, the old one comes back.
+func TestSnapshotForceRenameFails(t *testing.T) {
+	snapshotShop(t, "mysql", "")
+	if _, _, err := runConfig(t, newSnapshotCmd, "create", "before"); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := snapshotsOf("shop")
+	old := snapshotRename
+	t.Cleanup(func() { snapshotRename = old })
+	snapshotRename = func(from, to string) error {
+		if filepath.Base(from) == ".before.tmp" {
+			return errors.New("rename failed")
+		}
+		return os.Rename(from, to)
+	}
+	if _, _, err := runConfig(t, newSnapshotCmd, "create", "before", "--force"); err == nil {
+		t.Fatal("no error")
+	}
+	snaps, _ := snapshotsOf("shop")
+	if len(snaps) != 1 || snaps[0].name != "before" || !snaps[0].meta.Created.Equal(first[0].meta.Created) {
+		t.Fatalf("snapshots %+v", snaps)
+	}
+	if _, err := os.Stat(snapshotDir("shop", ".before.old")); !os.IsNotExist(err) {
+		t.Errorf(".before.old left: %v", err)
+	}
+}

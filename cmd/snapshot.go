@@ -18,6 +18,9 @@ import (
 	"lodev/internal/ui"
 )
 
+// snapshotRename moves snapshot dirs; swapped in tests to fail a rename.
+var snapshotRename = os.Rename
+
 // A letter or digit first: "." and ".." would point at the project's or every project's folder.
 var snapshotNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
@@ -157,16 +160,35 @@ func snapshotCreate(c *cobra.Command, args []string) error {
 		os.RemoveAll(tmp)
 		return err
 	}
-	if statErr == nil {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-	}
-	if err := os.Rename(tmp, dir); err != nil {
+	if err := swapSnapshot(p.Name, name, tmp, statErr == nil); err != nil {
 		return err
 	}
 	ui.Success("Snapshot %s of %s: %s", name, p.Name, strings.Join(meta.Services, ", "))
 	return nil
+}
+
+// swapSnapshot moves the complete snapshot tmp to name. An old snapshot is set aside first and
+// put back if the new one cannot take its place, so --force never ends with neither.
+func swapSnapshot(project, name, tmp string, replace bool) error {
+	dir := snapshotDir(project, name)
+	if !replace {
+		return snapshotRename(tmp, dir)
+	}
+	old := snapshotDir(project, "."+name+".old")
+	if err := os.RemoveAll(old); err != nil {
+		return err
+	}
+	if err := snapshotRename(dir, old); err != nil {
+		return err
+	}
+	if err := snapshotRename(tmp, dir); err != nil {
+		if rerr := snapshotRename(old, dir); rerr != nil {
+			return fmt.Errorf("%w; the old snapshot is in %s", err, old)
+		}
+		os.RemoveAll(tmp)
+		return err
+	}
+	return os.RemoveAll(old)
 }
 
 // dropDB removes t's database, so tables or collections created after the snapshot go too.
