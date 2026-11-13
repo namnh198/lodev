@@ -11,22 +11,25 @@ import (
 	"golang.org/x/term"
 )
 
-// stream decides lazily, on first write, whether its writer gets color.
+// stream decides lazily, on first write, whether its writer is a terminal and gets color.
 type stream struct {
-	w       io.Writer
-	color   bool
-	decided bool
+	w          io.Writer
+	color, tty bool
+	decided    bool
 }
 
-func (s *stream) useColor() bool {
+func (s *stream) decide() {
 	if !s.decided {
 		s.decided = true
 		if f, ok := s.w.(*os.File); ok {
-			s.color = colorFor(term.IsTerminal(int(f.Fd())))
+			s.tty = term.IsTerminal(int(f.Fd()))
+			s.color = colorFor(s.tty)
 		}
 	}
-	return s.color
 }
+
+func (s *stream) useColor() bool { s.decide(); return s.color }
+func (s *stream) isTerm() bool   { s.decide(); return s.tty }
 
 var (
 	out   = &stream{w: os.Stdout}
