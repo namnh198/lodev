@@ -685,9 +685,9 @@ func TestSharedComposeOpenSearchPlugins(t *testing.T) {
 	b, err := SharedCompose(defaultGlobal(t), home)
 	var doc struct {
 		Services map[string]struct {
-			Image string `yaml:"image"`
+			Image      string `yaml:"image"`
 			PullPolicy string `yaml:"pull_policy"`
-			Build struct {
+			Build      struct {
 				DockerfileInline string `yaml:"dockerfile_inline"`
 			} `yaml:"build"`
 		} `yaml:"services"`
