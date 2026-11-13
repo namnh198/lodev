@@ -596,3 +596,18 @@ func TestServicesComposeFileOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestCustomServices(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "full.yaml")
+	os.WriteFile(f, []byte("services:\n  traefik: {}\n  mysql: {}\n  syspro-forward-80: {}\n  adminer: {}\n"), 0o644)
+	got, err := customServices(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"adminer", "syspro-forward-80"}; !slices.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if _, err := customServices(filepath.Join(t.TempDir(), "missing.yaml")); err == nil {
+		t.Error("missing file must fail")
+	}
+}

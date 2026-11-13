@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"lodev/assets"
 	"lodev/internal/certs"
@@ -130,7 +131,12 @@ func servicesUp() error {
 	if err := prepareServiceData(g, g.EnabledServices()); err != nil {
 		return err
 	}
-	if err := servicesCompose(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...)...); err != nil {
+	custom, err := customServices(servicesFullFile())
+	if err != nil {
+		return err
+	}
+	up := append(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...), custom...)
+	if err := servicesCompose(up...); err != nil {
 		return err
 	}
 	return waitServicesFn(append([]string{"traefik"}, g.EnabledServices()...), g.ContainerWait())
@@ -182,6 +188,29 @@ func mergeServicesCompose() error {
 		return err
 	}
 	return mergeComposeFiles("lodev-services", servicesFile(), servicesFullFile(), extra)
+}
+
+// customServices lists the services the user's *.compose.yml files add to the merged file: up starts
+// them with the enabled shared ones, which it must name since the base also holds the disabled ones.
+func customServices(full string) ([]string, error) {
+	b, err := os.ReadFile(full)
+	if err != nil {
+		return nil, err
+	}
+	var doc struct {
+		Services map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(b, &doc); err != nil {
+		return nil, fmt.Errorf("%s: %w", full, err)
+	}
+	var out []string
+	for name := range doc.Services {
+		if name != "traefik" && !slices.Contains(config.SharedServices, name) {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
 }
 
 // warnImageChange warns before a database container is recreated on another image (e.g. a version change).
