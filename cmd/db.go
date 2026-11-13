@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,9 @@ import (
 )
 
 var dbServices = []string{"mysql", "mariadb", "mongodb"}
+
+// dbNameRe is what lodev puts between backticks in SQL (and in MongoDB names) without escaping.
+var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_$-]+$`)
 
 // mongoURI is the shared MongoDB's root login (MONGO_INITDB_ROOT_* in the services compose).
 const mongoURI = "--uri=mongodb://root:root@localhost:27017/?authSource=admin"
@@ -41,6 +45,9 @@ func dbTargetFor(args []string, service string) (dbTarget, error) {
 	t := dbTarget{service: service}
 	switch {
 	case len(args) > 0:
+		if !dbNameRe.MatchString(args[0]) {
+			return dbTarget{}, fmt.Errorf("database name %q: use A-Z a-z 0-9 _ $ -", args[0])
+		}
 		t.db = args[0]
 	case p != nil:
 		t.db = p.DBName()

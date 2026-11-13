@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -176,4 +177,19 @@ func TestDBCommandsNeedDocker(t *testing.T) {
 		}
 	}
 	_ = slices.Contains[[]string]
+}
+
+// TestDBTargetRejectsBadNames: a name that would break the backtick-quoted SQL fails before Docker.
+func TestDBTargetRejectsBadNames(t *testing.T) {
+	newShop(t)
+	for _, name := range []string{"a`b", "a;b", "a b", ""} {
+		if _, err := dbTargetFor([]string{name}, "mysql"); err == nil || err.Error() != fmt.Sprintf("database name %q: use A-Z a-z 0-9 _ $ -", name) {
+			t.Errorf("%q: %v", name, err)
+		}
+	}
+	for _, name := range []string{"shop_2", "my-db", "a$b"} {
+		if _, err := dbTargetFor([]string{name}, "mysql"); err != nil {
+			t.Errorf("%q: %v", name, err)
+		}
+	}
 }
