@@ -9,6 +9,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/registry"
 	"lodev/internal/ui"
+	"lodev/internal/update"
 )
 
 type imageInfo struct{ Ref, ID, Size string }
@@ -22,9 +23,13 @@ func withTag(ref string) string {
 }
 
 // cleanKeep is what this lodev still runs on: the current PHP images, OpenSearch image, mkcert and
-// the registered projects' images.
+// the registered projects' images, plus the registry image a stable release pulled. Nightly and dev
+// builds build the base image here, so no registry image is theirs.
 func cleanKeep(g *config.Global, reg registry.Registry) map[string]bool {
 	keep := map[string]bool{"lodev/opensearch:" + g.Versions["opensearch"]: true, "lodev/mkcert:latest": true}
+	if update.Stable(config.ImageTag) {
+		keep[config.RegistryImage()] = true
+	}
 	for _, v := range config.SupportedPHP {
 		keep[withTag(config.PHPImage(v))] = true
 	}
@@ -34,12 +39,12 @@ func cleanKeep(g *config.Global, reg registry.Registry) map[string]bool {
 	return keep
 }
 
-// cleanCandidates are imgs no container uses (by ref or by ID, as `docker ps -a` shows them) and
-// lodev does not keep.
+// cleanCandidates are lodev's images (its own and the registry's) no container uses (by ref or by
+// ID, as `docker ps -a` shows them) and lodev does not keep.
 func cleanCandidates(imgs []imageInfo, used, keep map[string]bool) []imageInfo {
 	var out []imageInfo
 	for _, img := range imgs {
-		if !strings.HasPrefix(img.Ref, "lodev/") || keep[img.Ref] {
+		if !strings.HasPrefix(img.Ref, "lodev/") && !strings.HasPrefix(img.Ref, config.RegistryRepo+":") || keep[img.Ref] {
 			continue
 		}
 		inUse := false
@@ -73,7 +78,7 @@ func newCleanCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			list, err := dockerOutput("images", "--filter", "reference=lodev/*", "--format", "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}")
+			list, err := dockerOutput("images", "--filter", "reference=lodev/*", "--filter", "reference="+config.RegistryRepo, "--format", "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}")
 			if err != nil {
 				return err
 			}

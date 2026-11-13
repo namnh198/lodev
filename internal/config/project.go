@@ -451,8 +451,11 @@ var ImageTag = "dev"
 // WebserverImage is the base web image, with PHP 8.2-8.5.
 func WebserverImage() string { return "lodev/webserver:" + ImageTag }
 
+// RegistryRepo is where stable releases publish the base web image.
+const RegistryRepo = "ghcr.io/namnh198/lodev-webserver"
+
 // RegistryImage is the base web image a stable release publishes (pulled instead of built).
-func RegistryImage() string { return "ghcr.io/namnh198/lodev-webserver:" + ImageTag }
+func RegistryImage() string { return RegistryRepo + ":" + ImageTag }
 
 // DefaultNodeVersion is the Node.js in the base image unless node_version says otherwise.
 const DefaultNodeVersion = "24"

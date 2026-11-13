@@ -25,19 +25,35 @@ func TestCleanKeep(t *testing.T) {
 	}
 }
 
+// TestCleanKeepRegistryImage: a stable release runs on the registry image it pulled, so only older
+// ones go; nightly and dev builds build the image here, so every registry image goes.
+func TestCleanKeepRegistryImage(t *testing.T) {
+	old := config.ImageTag
+	t.Cleanup(func() { config.ImageTag = old })
+	g, _ := config.ParseGlobal(nil)
+	for tag, kept := range map[string]bool{"v0.1.8": true, "v0.1.8-3-gabc1234": false, "dev": false} {
+		config.ImageTag = tag
+		if got := cleanKeep(g, nil)[config.RegistryRepo+":"+tag]; got != kept {
+			t.Errorf("%s: registry image kept %v, want %v", tag, got, kept)
+		}
+	}
+}
+
 func TestCleanCandidates(t *testing.T) {
 	cur := config.PHPImage("8.4")
 	imgs := []imageInfo{
 		{"lodev/webserver:v0.1.0", "aaa111", "1.1GB"}, {"lodev/webserver:v0.1.0-legacy-7.4", "bbb222", "300MB"},
 		{"lodev/php:latest", "ccc333", "1GB"}, {"lodev/gone-web:latest", "ddd444", "1.2GB"},
 		{"nginx:latest", "eee555", "190MB"}, {cur, "fff666", "1.1GB"}, {"lodev/shop-web:latest", "ggg777", "1.3GB"},
+		{config.RegistryRepo + ":v0.0.9", "hhh888", "1.1GB"}, {"ghcr.io/someone/else:v1", "iii999", "50MB"},
 	}
 	keep := map[string]bool{cur: true, "lodev/shop-web:latest": true}
 	var got []string
 	for _, c := range cleanCandidates(imgs, nil, keep) {
 		got = append(got, c.Ref)
 	}
-	want := []string{"lodev/webserver:v0.1.0", "lodev/webserver:v0.1.0-legacy-7.4", "lodev/php:latest", "lodev/gone-web:latest"}
+	want := []string{"lodev/webserver:v0.1.0", "lodev/webserver:v0.1.0-legacy-7.4", "lodev/php:latest", "lodev/gone-web:latest",
+		config.RegistryRepo + ":v0.0.9"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %q", got)
 	}
@@ -62,7 +78,10 @@ func stubClean(t *testing.T, rmiFail string) *[]string {
 	dockerOutput = func(a ...string) (string, error) {
 		switch a[0] {
 		case "images":
-			return "lodev/php:latest\tccc333\t1GB\nlodev/webserver:v0.0.1\tddd444\t1.1GB", nil
+			if !slices.Contains(a, "reference="+config.RegistryRepo) {
+				t.Errorf("images does not list the registry images: %q", a)
+			}
+			return "lodev/php:latest\tccc333\t1GB\nlodev/webserver:v0.0.1\tddd444\t1.1GB\n" + config.RegistryRepo + ":v0.0.1\tjjj000\t1.1GB", nil
 		case "ps":
 			return "", nil
 		case "system":
@@ -88,7 +107,8 @@ func TestCleanCommand(t *testing.T) {
 	}
 	calls = stubClean(t, "")
 	if _, _, err := runConfig(t, newCleanCmd, "--yes"); err != nil ||
-		!slices.Equal(*calls, []string{"rmi lodev/php:latest", "rmi lodev/webserver:v0.0.1", "builder prune -f --filter until=168h"}) {
+		!slices.Equal(*calls, []string{"rmi lodev/php:latest", "rmi lodev/webserver:v0.0.1", "rmi " + config.RegistryRepo + ":v0.0.1",
+			"builder prune -f --filter until=168h"}) {
 		t.Errorf("--yes: %q %v", *calls, err)
 	}
 	calls = stubClean(t, "")
