@@ -154,3 +154,17 @@ func TestCreateWaitsForTheLock(t *testing.T) {
 		t.Errorf("registered %q", got)
 	}
 }
+
+// TestStartThroughSymlink: a project registered through a symlink starts from its real folder.
+func TestStartThroughSymlink(t *testing.T) {
+	root := newShop(t)
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Fatal(err)
+	}
+	register(t, "shop", link)
+	got := stubStart(t)
+	if err := runRoot(t, "start"); err != nil || len(*got) != 1 {
+		t.Errorf("err %v, ran %v", err, *got)
+	}
+}

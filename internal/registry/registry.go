@@ -61,6 +61,20 @@ func (r Registry) Save() error {
 	return os.Rename(f.Name(), file())
 }
 
+// SamePath reports whether a and b are one folder, also when one reaches it through a symlink
+// (os.Getwd keeps the symlinked path the shell was in). A path that cannot be resolved compares as given.
+func SamePath(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ra, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		return false
+	}
+	rb, err := filepath.EvalSymlinks(b)
+	return err == nil && ra == rb
+}
+
 // stale entries point at a folder that is no longer a lodev project (moved or deleted).
 func stale(e Entry) bool {
 	_, err := os.Stat(filepath.Join(e.Path, ".lodev", "config.yaml"))
@@ -70,7 +84,7 @@ func stale(e Entry) bool {
 func (r Registry) Conflict(p *config.Project) error {
 	for _, name := range r.Names() {
 		e := r[name]
-		if e.Path == p.Root || stale(e) {
+		if SamePath(e.Path, p.Root) || stale(e) {
 			continue
 		}
 		if name == p.Name {
@@ -89,7 +103,7 @@ func (r Registry) Conflict(p *config.Project) error {
 func (r Registry) Put(p *config.Project) []string {
 	var dropped []string
 	for name, e := range r {
-		if e.Path == p.Root && name != p.Name {
+		if SamePath(e.Path, p.Root) && name != p.Name {
 			delete(r, name)
 			dropped = append(dropped, name)
 		}

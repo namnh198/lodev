@@ -84,7 +84,7 @@ func existingProject(args []string) (*config.Project, error) {
 
 func registered(reg registry.Registry, root string) bool {
 	for _, e := range reg {
-		if e.Path == root {
+		if registry.SamePath(e.Path, root) {
 			return true
 		}
 	}

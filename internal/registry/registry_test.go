@@ -114,3 +114,38 @@ func TestSaveReplacesAtomically(t *testing.T) {
 		t.Errorf("temp files left: %v", left)
 	}
 }
+
+// symlinked is a project dir and a symlink to it.
+func symlinked(t *testing.T) (real, link string) {
+	t.Helper()
+	real = projectDir(t)
+	link = filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	return real, link
+}
+
+func TestSamePathThroughSymlink(t *testing.T) {
+	real, link := symlinked(t)
+	if !SamePath(real, link) || !SamePath(link, real) || !SamePath(real, real) {
+		t.Error("a symlink and its target are not the same path")
+	}
+	if SamePath(real, projectDir(t)) {
+		t.Error("two folders are the same path")
+	}
+}
+
+// TestConflictSymlinkedSelf: an entry saved through a symlink is the same project at its real path.
+func TestConflictSymlinkedSelf(t *testing.T) {
+	real, link := symlinked(t)
+	r := Registry{"shop": {Path: link, Domains: []string{"shop.test"}}}
+	p := project("shop", real, "shop.test")
+	if err := r.Conflict(p); err != nil {
+		t.Fatal(err)
+	}
+	r.Put(project("shop2", real, "shop2.test")) // renamed: the old name's entry goes
+	if len(r) != 1 || r["shop2"].Path != real {
+		t.Errorf("%v", r)
+	}
+}
