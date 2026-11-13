@@ -112,26 +112,61 @@ func TestWaitWebUsesContainerTimeout(t *testing.T) {
 	}
 }
 
+// TestWaitServicesShowsLines: traefik gets its own line, the shared services one line together;
+// a failed line names the containers that failed.
 func TestWaitServicesShowsLines(t *testing.T) {
-	o, _, restore := ui.Capture(false)
-	t.Cleanup(restore)
-	oldOut, oldPoll := dockerOutput, healthPoll
-	t.Cleanup(func() { dockerOutput, healthPoll = oldOut, oldPoll })
-	healthPoll = time.Millisecond
-	dockerOutput = func(a ...string) (string, error) {
-		if a[len(a)-1] == "lodev-redis" {
-			return stHealthy, nil
-		}
-		return stExited, nil
-	}
-	err := waitServicesHealthy([]string{"mysql", "redis"}, 20*time.Millisecond)
-	if err == nil || !strings.Contains(err.Error(), "lodev-mysql exited") {
-		t.Errorf("error %v", err)
-	}
-	for _, want := range []string{"waiting lodev-mysql healthy\n", "waiting lodev-redis healthy\n", "✔ lodev-redis healthy\n", "✗ lodev-mysql not healthy\n"} {
-		if !strings.Contains(o.String(), want) {
-			t.Errorf("missing %q in %q", want, o.String())
-		}
+	for _, tc := range []struct {
+		name     string
+		services []string
+		exited   []string
+		want     []string
+		absent   []string
+	}{
+		{"all healthy", []string{"traefik", "mysql", "redis"}, nil,
+			[]string{"waiting lodev-traefik healthy\n", "waiting shared services healthy\n", "✔ lodev-traefik healthy\n", "✔ shared services healthy\n"},
+			[]string{"lodev-mysql", "lodev-redis"}},
+		{"one shared fails", []string{"traefik", "mysql", "redis"}, []string{"lodev-mysql"},
+			[]string{"✔ lodev-traefik healthy\n", "✗ lodev-mysql not healthy\n"},
+			[]string{"✔ shared services", "lodev-redis"}},
+		{"several fail", []string{"traefik", "mysql", "redis", "opensearch"}, []string{"lodev-traefik", "lodev-mysql", "lodev-opensearch"},
+			[]string{"✗ lodev-traefik not healthy\n", "✗ lodev-mysql, lodev-opensearch not healthy\n"},
+			[]string{"✔"}},
+		{"no traefik", []string{"mysql"}, nil,
+			[]string{"waiting shared services healthy\n✔ shared services healthy\n"},
+			[]string{"traefik"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o, _, restore := ui.Capture(false)
+			t.Cleanup(restore)
+			oldOut, oldPoll := dockerOutput, healthPoll
+			t.Cleanup(func() { dockerOutput, healthPoll = oldOut, oldPoll })
+			healthPoll = time.Millisecond
+			dockerOutput = func(a ...string) (string, error) {
+				if slices.Contains(tc.exited, a[len(a)-1]) {
+					return stExited, nil
+				}
+				return stHealthy, nil
+			}
+			err := waitServicesHealthy(tc.services, 20*time.Millisecond)
+			if (err != nil) != (len(tc.exited) > 0) {
+				t.Errorf("error %v", err)
+			}
+			for _, c := range tc.exited {
+				if !strings.Contains(err.Error(), c+" exited") {
+					t.Errorf("error lacks %s: %v", c, err)
+				}
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(o.String(), w) {
+					t.Errorf("missing %q in %q", w, o.String())
+				}
+			}
+			for _, a := range tc.absent {
+				if strings.Contains(o.String(), a) {
+					t.Errorf("unexpected %q in %q", a, o.String())
+				}
+			}
+		})
 	}
 }
 

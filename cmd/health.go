@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,21 +87,50 @@ func waitHealthy(container string, timeout time.Duration, logsCmd string) error 
 }
 
 // waitServicesHealthy waits for the shared services side by side and reports every one that failed.
+// traefik gets its own line and the other services one line together; a failed line names the
+// containers that failed.
 func waitServicesHealthy(services []string, timeout time.Duration) error {
-	errs := make([]error, len(services))
-	labels := make([]string, len(services))
-	for i, svc := range services {
-		labels[i] = "waiting lodev-" + svc + " healthy"
+	type group struct {
+		label, ok string
+		services  []string
+	}
+	var groups []group
+	shared := slices.DeleteFunc(slices.Clone(services), func(s string) bool { return s == "traefik" })
+	if len(shared) < len(services) {
+		groups = append(groups, group{"waiting lodev-traefik healthy", "lodev-traefik healthy", []string{"traefik"}})
+	}
+	if len(shared) > 0 {
+		groups = append(groups, group{"waiting shared services healthy", "shared services healthy", shared})
+	}
+	labels := make([]string, len(groups))
+	for i, g := range groups {
+		labels[i] = g.label
 	}
 	l := ui.Spin(labels...)
-	var wg sync.WaitGroup
-	for i, svc := range services {
-		wg.Go(func() {
-			errs[i] = waitHealthy("lodev-"+svc, timeout, "lodev service logs "+svc)
-			finishLine(l, i, "lodev-"+svc, errs[i])
+	errs := make([]error, len(groups))
+	var all sync.WaitGroup
+	for gi, g := range groups {
+		all.Go(func() {
+			gerrs := make([]error, len(g.services))
+			var wg sync.WaitGroup
+			for i, svc := range g.services {
+				wg.Go(func() { gerrs[i] = waitHealthy("lodev-"+svc, timeout, "lodev service logs "+svc) })
+			}
+			wg.Wait()
+			var failed []string
+			for i, err := range gerrs {
+				if err != nil {
+					failed = append(failed, "lodev-"+g.services[i])
+				}
+			}
+			if errs[gi] = errors.Join(gerrs...); len(failed) > 0 {
+				l.Fail(gi, strings.Join(failed, ", ")+" not healthy")
+			} else {
+				l.Done(gi, g.ok)
+			}
 		})
 	}
-	wg.Wait()
+	all.Wait()
 	l.Stop()
 	return errors.Join(errs...)
 }
