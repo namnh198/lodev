@@ -344,6 +344,7 @@ func TestScaffold(t *testing.T) {
 }
 
 func TestCreateNoAsk(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir()) // create registers the project
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "artisan"), nil, 0o644)
 	t.Chdir(root)
@@ -697,7 +698,7 @@ func TestStartNameWithAll(t *testing.T) {
 }
 
 func TestStartRebuildFlags(t *testing.T) {
-	newShop(t)
+	register(t, "shop", newShop(t))
 	defer func(o func(*config.Project, startOpts) error) { startFn = o }(startFn)
 	var got []startOpts
 	startFn = func(_ *config.Project, r startOpts) error { got = append(got, r); return nil }

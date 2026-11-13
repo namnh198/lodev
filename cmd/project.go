@@ -57,6 +57,53 @@ func projectArg(args []string) (*config.Project, error) {
 	return config.LoadProject(e.Path)
 }
 
+// existingProject is projectArg for start and restart: the project must have a .lodev/config.yaml
+// and be registered with lodev (lodev create does both). It is looked up by folder, so a project
+// renamed in its config.yaml still starts (and retires its old name).
+func existingProject(args []string) (*config.Project, error) {
+	if len(args) > 0 {
+		return projectArg(args)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	root, err := config.FindRoot(wd)
+	if err != nil {
+		return nil, errors.New("project does not exist: no .lodev/config.yaml in this folder or above (run lodev create)")
+	}
+	reg, err := registry.Load()
+	if err != nil {
+		return nil, err
+	}
+	if !registered(reg, root) {
+		return nil, fmt.Errorf("project does not exist: %s is not registered with lodev (run lodev create)", root)
+	}
+	return config.LoadProject(root)
+}
+
+func registered(reg registry.Registry, root string) bool {
+	for _, e := range reg {
+		if e.Path == root {
+			return true
+		}
+	}
+	return false
+}
+
+// registerProject adds p to the registry, refusing a name or domain another project uses.
+func registerProject(p *config.Project) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	if err := reg.Conflict(p); err != nil {
+		return err
+	}
+	reg.Put(p)
+	return reg.Save()
+}
+
 // WebserverConfFile is the generated webserver config, mounted into the container.
 func WebserverConfFile(p *config.Project) string {
 	return filepath.Join(p.Root, ".lodev", p.Webserver+"-webserver.conf")
@@ -602,8 +649,8 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if _, err := os.Stat(filepath.Join(root, ".lodev", "config.yaml")); err == nil {
-				return errors.New("already initialized (.lodev/config.yaml exists)")
+			if _, err := os.Stat(config.ProjectPath(root)); err == nil {
+				return registerExisting(root)
 			}
 			p, err := newProjectConfig(root, name, typ, php, webserver, docroot)
 			if err != nil {
@@ -623,6 +670,9 @@ func init() {
 				return err
 			}
 			if err := writeLodevGitignore(p); err != nil {
+				return err
+			}
+			if err := registerProject(p); err != nil {
 				return err
 			}
 			ui.Success("Created .lodev/config.yaml (%s, PHP %s, %s)\nRun: lodev start", p.Type, p.PHP, p.Webserver)
@@ -651,7 +701,7 @@ func init() {
 					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, startOpts{noHooks: startNoHooks}) })
 				})
 			}
-			p, err := projectArg(args)
+			p, err := existingProject(args)
 			if err != nil {
 				return err
 			}
@@ -707,7 +757,7 @@ func init() {
 				}
 				return withLock(func() error { return allThenServiceURLs(restart) })
 			}
-			p, err := projectArg(args)
+			p, err := existingProject(args)
 			if err != nil {
 				return err
 			}
@@ -774,4 +824,26 @@ func warnWorkDirMove(p *config.Project) {
 	}
 	ui.Warn("the project moves in the web container: %s → %s (working_dir)\n"+
 		"flush caches that hold paths (Magento: bin/magento cache:flush) and update your IDE's path mapping", cur, p.WorkDir())
+}
+
+// registerExisting is lodev create in a folder that already has a .lodev/config.yaml (a cloned
+// project, or one lodev remove dropped): it registers that config as it is.
+func registerExisting(root string) error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	if registered(reg, root) {
+		return errors.New("already initialized (.lodev/config.yaml exists)")
+	}
+	p, err := config.LoadProject(root)
+	if err != nil {
+		return err
+	}
+	ui.Warn(".lodev/config.yaml already exists: registering the project with it as it is")
+	if err := registerProject(p); err != nil {
+		return err
+	}
+	ui.Success("Registered %s (%s, PHP %s, %s)\nRun: lodev start", p.Name, p.Type, p.PHP, p.Webserver)
+	return nil
 }
