@@ -229,8 +229,16 @@ func ensureTrusted(p *config.Project, yes, locked bool) error {
 	if err != nil {
 		return err
 	}
+	// By folder, not name: approvals follow the folder across a renamed `name:`.
 	e, known := reg[p.Name]
-	known = known && registry.SamePath(e.Path, p.Root)
+	if known = known && registry.SamePath(e.Path, p.Root); !known {
+		for _, o := range reg {
+			if registry.SamePath(o.Path, p.Root) {
+				e, known = o, true
+				break
+			}
+		}
+	}
 	if known && e.Trusted == nil { // registered by a lodev older than approvals
 		return recordTrust(p, sums, locked)
 	}

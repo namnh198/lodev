@@ -316,7 +316,7 @@ func newDBImportCmd() *cobra.Command {
 			if noHooks, _ := c.Flags().GetBool("no-hooks"); noHooks {
 				return nil
 			}
-			return runHooks(p, "post-db-import")
+			return runHooks(p, "post-db-import", false)
 		})
 	c.Flags().Bool("no-hooks", false, "do not run the post-db-import hooks")
 	c.Flags().Bool("no-magento", false, "Magento: keep the dump's base URLs and cookie domain")

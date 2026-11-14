@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"lodev/internal/config"
 	"lodev/internal/registry"
@@ -288,6 +289,73 @@ func TestEnsureTrustedPromptAccept(t *testing.T) {
 	}
 }
 
+func TestEnsureTrustedFollowsRename(t *testing.T) {
+	p := hookedProject(t)
+	p.Name = "old"
+	approve(t, p)
+	p.Name = "new"
+	asTTY(t, false, "")
+	if err := ensureTrusted(p, false, false); err != nil {
+		t.Fatalf("a renamed project must keep its approval: %v", err)
+	}
+}
+
+func TestEnsureTrustedRenamedPreUpgradeRecordsSilently(t *testing.T) {
+	p := hookedProject(t)
+	p.Name = "old"
+	trustHome(t, p, nil)
+	p.Name = "new"
+	asTTY(t, false, "")
+	if err := ensureTrusted(p, false, false); err != nil {
+		t.Fatal(err)
+	}
+	reg, _ := registry.Load()
+	if _, ok := reg["old"]; ok || reg["new"].Trusted["hooks.post-start[0]"] == "" {
+		t.Errorf("registry %#v", reg)
+	}
+}
+
+// start and restart hold the lock; the post-start gate may record, and must not take it again.
+func TestRunHooksLockedRecordsWithoutTakingTheLock(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	stubHookExec(t, true, nil)
+	asTTY(t, true, "y")
+	done := make(chan error, 1)
+	go func() { done <- withLock(func() error { return runHooks(p, "post-start", true) }) }()
+	select {
+	case err := <-done:
+		if err != nil || len(approvedSet(t, "shop")) != 1 {
+			t.Errorf("err %v, set %v", err, approvedSet(t, "shop"))
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("runHooks took the lock its caller holds")
+	}
+}
+
+func TestRestartUnapprovedFailsBeforeAnythingRuns(t *testing.T) {
+	root := newShop(t)
+	writeShop(t, root, shopConf+"hooks:\n  pre-stop: [\"echo down\"]\n")
+	p, err := currentProject()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trustHome(t, p, map[string]string{})
+	ran := stubHookExec(t, true, nil)
+	asTTY(t, false, "")
+	oldRun, oldStart := dockerRun, startFn
+	t.Cleanup(func() { dockerRun, startFn = oldRun, oldStart })
+	var calls []string
+	dockerRun = func(a ...string) error { calls = append(calls, strings.Join(a, " ")); return nil }
+	startFn = func(*config.Project, startOpts) error { calls = append(calls, "start"); return nil }
+	if err := restartProject(p, startOpts{}); err == nil || !strings.Contains(err.Error(), "have not approved") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(calls) != 0 || len(*ran) != 0 {
+		t.Errorf("docker %q, hooks %q", calls, *ran)
+	}
+}
+
 func TestStartChecksTrustFirst(t *testing.T) {
 	p := hookedProject(t)
 	trustHome(t, p, map[string]string{})
@@ -312,7 +380,7 @@ func TestRunHooksRefusesChangedHook(t *testing.T) {
 	ran := stubHookExec(t, true, nil)
 	asTTY(t, false, "")
 	writeRepoFile(t, p, ".lodev/hooks/down.sh", "#!/bin/sh\nrm -rf /\n") // as after a git pull
-	if err := runHooks(p, "pre-stop"); err == nil || !strings.Contains(err.Error(), "changed") {
+	if err := runHooks(p, "pre-stop", false); err == nil || !strings.Contains(err.Error(), "changed") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(*ran) != 0 {

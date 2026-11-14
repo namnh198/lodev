@@ -49,13 +49,14 @@ func hookSteps(p *config.Project, event string) ([]hookStep, error) {
 }
 
 // runHooks runs event's steps in the web container; the first failing step stops the rest.
-func runHooks(p *config.Project, event string) error {
+// locked says the caller holds the registry lock (start, restart).
+func runHooks(p *config.Project, event string, locked bool) error {
 	steps, err := hookSteps(p, event)
 	if err != nil || len(steps) == 0 {
 		return err
 	}
 	// A git pull after start must not slip a hook into stop, db import or snapshot restore.
-	if err := ensureTrusted(p, false, false); err != nil {
+	if err := ensureTrusted(p, false, locked); err != nil {
 		return err
 	}
 	if web := "lodev-" + p.Name + "-web"; !containerRunning(web) {

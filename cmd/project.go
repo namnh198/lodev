@@ -569,7 +569,7 @@ func start(p *config.Project, rebuild startOpts) error {
 	if rebuild.noHooks {
 		return nil
 	}
-	return runHooks(p, "post-start")
+	return runHooks(p, "post-start", true)
 }
 
 // Swapped in tests.
@@ -746,7 +746,7 @@ func restartProject(p *config.Project, o startOpts) error {
 	}
 	// A stopped project has nothing to prepare for its stop.
 	if !o.noHooks && containerRunning("lodev-"+p.Name+"-web") {
-		if err := runHooks(p, "pre-stop"); err != nil {
+		if err := runHooks(p, "pre-stop", true); err != nil {
 			return fmt.Errorf("%w (lodev restart --no-hooks restarts anyway)", err)
 		}
 	}
@@ -910,7 +910,7 @@ func init() {
 			}
 			if !stopNoHooks && containerRunning("lodev-"+p.Name+"-web") {
 				// Nothing is stopped yet: a failing pre-stop hook keeps the project running.
-				if err := runHooks(p, "pre-stop"); err != nil {
+				if err := runHooks(p, "pre-stop", false); err != nil {
 					return fmt.Errorf("%w (lodev stop --no-hooks stops anyway)", err)
 				}
 			}
