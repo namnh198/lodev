@@ -13,3 +13,6 @@ func Home() string {
 	h, _ := os.UserHomeDir()
 	return filepath.Join(h, ".lodev")
 }
+
+// TraefikDir holds the route files Traefik watches.
+func TraefikDir() string { return filepath.Join(Home(), "traefik") }

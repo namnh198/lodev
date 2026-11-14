@@ -152,8 +152,14 @@ func (d *Doc) Bytes() ([]byte, error) {
 // Write replaces the file with data atomically, keeping its mode (0644 for a new file).
 // A symlinked file is written through the link, so the link survives.
 func (d *Doc) Write(data []byte) error {
-	target := d.path
-	if t, err := filepath.EvalSymlinks(d.path); err == nil {
+	return WriteFileAtomic(d.path, data, d.mode)
+}
+
+// WriteFileAtomic replaces path with data through a temp file renamed into place, so a reader
+// (or Traefik's directory watch) never sees a half-written file. A symlink is written through.
+func WriteFileAtomic(path string, data []byte, mode os.FileMode) error {
+	target := path
+	if t, err := filepath.EvalSymlinks(path); err == nil {
 		target = t
 	}
 	dir := filepath.Dir(target)
@@ -173,7 +179,7 @@ func (d *Doc) Write(data []byte) error {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Chmod(tmp, d.mode)
+		err = os.Chmod(tmp, mode)
 	}
 	if err == nil {
 		err = os.Rename(tmp, target)

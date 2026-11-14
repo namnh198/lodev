@@ -75,9 +75,3 @@ services:
     networks: [lodev, default]
     volumes:
       - "/work/shop/.lodev/varnish.vcl:/etc/varnish/default.vcl:ro"
-    labels:
-      - traefik.enable=true
-      - "traefik.http.routers.p-shop.rule=Host(`shop.test`) || Host(`en.test`)"
-      - traefik.http.routers.p-shop.entrypoints=websecure
-      - traefik.http.routers.p-shop.tls=true
-      - traefik.http.services.p-shop.loadbalancer.server.port=80

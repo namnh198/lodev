@@ -183,7 +183,7 @@ func Remove(name string) error {
 	return nil
 }
 
-// SyncTraefik rewrites Traefik's dynamic config to list every issued cert.
+// SyncTraefik rewrites Traefik's certs.yaml to list every issued cert.
 func SyncTraefik() error {
 	// <name>.domains exists for every issued cert; *.pem would also match key files.
 	files, err := filepath.Glob(filepath.Join(dir(), "*.domains"))
@@ -199,8 +199,12 @@ func SyncTraefik() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir(), 0o755); err != nil {
+	if err := config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "certs.yaml"), data, 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir(), "dynamic.yaml"), data, 0o644)
+	// Older lodev kept the certs file here.
+	if err := os.Remove(filepath.Join(dir(), "dynamic.yaml")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

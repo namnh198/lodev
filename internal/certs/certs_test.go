@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestSyncTraefik(t *testing.T) {
+func TestSyncTraefikWritesCertsYAML(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("LODEV_HOME", home)
 	dir := filepath.Join(home, "certs")
@@ -22,10 +22,14 @@ func TestSyncTraefik(t *testing.T) {
 	for _, f := range []string{"a.pem", "a-key.pem", "a.domains", "api-key.pem", "api-key-key.pem", "api-key.domains"} {
 		os.WriteFile(filepath.Join(dir, f), nil, 0o644)
 	}
+	os.WriteFile(filepath.Join(dir, "dynamic.yaml"), []byte("old"), 0o644)
 	if err := SyncTraefik(); err != nil {
 		t.Fatal(err)
 	}
-	data, _ := os.ReadFile(filepath.Join(dir, "dynamic.yaml"))
+	if exists(filepath.Join(dir, "dynamic.yaml")) {
+		t.Error("old certs/dynamic.yaml is still there")
+	}
+	data, _ := os.ReadFile(filepath.Join(home, "traefik", "certs.yaml"))
 	s := string(data)
 	if strings.Count(s, "certFile:") != 2 || !strings.Contains(s, "certFile: /certs/a.pem") || !strings.Contains(s, "certFile: /certs/api-key.pem") {
 		t.Fatal(s)

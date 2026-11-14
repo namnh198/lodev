@@ -59,9 +59,3 @@ services:
       - "/home/u/.lodev/data/home-shop:/home/kuroko"
       - "/work/shop/.lodev/apache-webserver.conf:/etc/lodev/webserver.conf:ro"
       - "/work/shop/.lodev/apache:/etc/apache2/custom.d:ro"
-    labels:
-      - traefik.enable=true
-      - "traefik.http.routers.p-shop.rule=Host(`shop.test`) || Host(`en.test`)"
-      - traefik.http.routers.p-shop.entrypoints=websecure
-      - traefik.http.routers.p-shop.tls=true
-      - traefik.http.services.p-shop.loadbalancer.server.port=80

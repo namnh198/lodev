@@ -96,10 +96,6 @@ func webEnv(in ProjectInput) []string {
 }
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
-	hosts := make([]string, len(in.Project.Domains))
-	for i, d := range in.Project.Domains {
-		hosts[i] = "Host(`" + d + "`)"
-	}
 	return render("project-compose.yaml.tmpl", struct {
 		P          *config.Project
 		ExtraHosts []string
@@ -108,11 +104,10 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		User       string
 		UID, GID   int
 		HomeDir    string
-		Rule       string
 		CustomDir  map[string]string
 		Env        []string
 		Cron       bool
-	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, strings.Join(hosts, " || "), customDirs,
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, customDirs,
 		webEnv(in), len(in.Project.CronLines()) > 0})
 }
 
@@ -171,4 +166,25 @@ func VarnishVCL(p *config.Project) ([]byte, error) {
 
 func TraefikDynamic(certNames []string) ([]byte, error) {
 	return render("traefik-dynamic.yaml.tmpl", certNames)
+}
+
+// TraefikRoute sends HTTPS requests for Hosts to the backend at URL.
+type TraefikRoute struct {
+	Name  string
+	Hosts []string
+	URL   string
+}
+
+// Rule is Traefik's router rule matching any of Hosts.
+func (r TraefikRoute) Rule() string {
+	hs := make([]string, len(r.Hosts))
+	for i, h := range r.Hosts {
+		hs[i] = "Host(`" + h + "`)"
+	}
+	return strings.Join(hs, " || ")
+}
+
+// TraefikRoutes renders one dynamic-config file holding a router and a service per route.
+func TraefikRoutes(rs []TraefikRoute) ([]byte, error) {
+	return render("traefik-routes.yaml.tmpl", rs)
 }
