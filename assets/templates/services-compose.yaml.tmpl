@@ -67,7 +67,7 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
-      - {{with .G.MountPath "mysql"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mysql:/var/lib/mysql{{end}}
+      - {{dataMount .G "mysql"}}
       - {{q (print .Home "/services/mysql/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro")}}
     healthcheck:
       # Over TCP: the temporary server MySQL runs while initializing listens on the socket only.
@@ -90,7 +90,7 @@ services:
     environment:
       - MARIADB_ROOT_PASSWORD=root
     volumes:
-      - {{with .G.MountPath "mariadb"}}{{q (print . ":/var/lib/mysql")}}{{else}}lodev-mariadb:/var/lib/mysql{{end}}
+      - {{dataMount .G "mariadb"}}
       - {{q (print .Home "/services/mariadb/lodev.cnf:/etc/mysql/conf.d/zz-lodev.cnf:ro")}}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -111,7 +111,7 @@ services:
     restart: unless-stopped
     # The image declares VOLUME /data; without a named volume each recreate leaves an anonymous one.
     volumes:
-      - {{with .G.MountPath "redis"}}{{q (print . ":/data")}}{{else}}lodev-redis:/data{{end}}
+      - {{dataMount .G "redis"}}
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 30s
@@ -140,7 +140,7 @@ services:
       - OPENSEARCH_JAVA_OPTS=-Xms{{.Heap}} -Xmx{{.Heap}}
     mem_limit: {{.G.Memory.OpenSearch}}
     volumes:
-      - {{with .G.MountPath "opensearch"}}{{q (print . ":/usr/share/opensearch/data")}}{{else}}lodev-opensearch:/usr/share/opensearch/data{{end}}
+      - {{dataMount .G "opensearch"}}
     healthcheck:
       # One node: yellow (replicas unassigned) is as healthy as it gets.
       test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
@@ -204,7 +204,7 @@ services:
     hostname: rabbitmq
     restart: unless-stopped
     volumes:
-      - {{with .G.MountPath "rabbitmq"}}{{q (print . ":/var/lib/rabbitmq")}}{{else}}lodev-rabbitmq:/var/lib/rabbitmq{{end}}
+      - {{dataMount .G "rabbitmq"}}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
@@ -225,7 +225,7 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=root
     volumes:
-      - {{with .G.MountPath "mongodb"}}{{q (print . ":/data/db")}}{{else}}lodev-mongodb:/data/db{{end}}
+      - {{dataMount .G "mongodb"}}
     # mongo declares /data/configdb a volume too; a standalone mongod keeps nothing there, and a tmpfs
     # stops Docker leaving a new anonymous volume on every re-create.
     tmpfs:

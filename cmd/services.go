@@ -317,7 +317,7 @@ func prepareServiceData(g *config.Global, svcs []string) error {
 		if err != nil {
 			return err
 		}
-		vol := "lodev-" + svc
+		vol := config.DataVolume(svc)
 		if len(entries) > 0 {
 			continue
 		}
@@ -340,15 +340,11 @@ func prepareServiceData(g *config.Global, svcs []string) error {
 	return nil
 }
 
-// dataTargets is where each data service keeps its data in its container.
-var dataTargets = map[string]string{"mysql": "/var/lib/mysql", "mariadb": "/var/lib/mysql", "redis": "/data",
-	"opensearch": "/usr/share/opensearch/data", "rabbitmq": "/var/lib/rabbitmq", "mongodb": "/data/db"}
-
 // copyBackServiceData replaces svc's volume with the folder its container still mounts (once: the
 // folder is renamed after), so removing a mount path keeps the data written to the folder.
 func copyBackServiceData(g *config.Global, svc string) error {
-	vol := "lodev-" + svc
-	mount, err := dockerOutput("inspect", "-f", `{{range .Mounts}}{{if eq .Destination "`+dataTargets[svc]+`"}}{{.Type}} {{.Source}}{{end}}{{end}}`, vol)
+	vol := config.DataVolume(svc)
+	mount, err := dockerOutput("inspect", "-f", `{{range .Mounts}}{{if eq .Destination "`+config.DataTarget(svc)+`"}}{{.Type}} {{.Source}}{{end}}{{end}}`, vol)
 	path, bind := strings.CutPrefix(strings.TrimSpace(mount), "bind ")
 	if err != nil || !bind {
 		return nil

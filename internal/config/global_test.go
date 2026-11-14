@@ -456,3 +456,16 @@ func TestAutoCreateDBDefault(t *testing.T) {
 		t.Errorf("false: %v %v", g.AutoCreateDB, err)
 	}
 }
+
+// Every data service has the folder its container keeps data in; the compose file and the
+// copy-back of a removed mount path both read it.
+func TestDataTargets(t *testing.T) {
+	for _, s := range DataServices {
+		if DataTarget(s) == "" {
+			t.Errorf("%s has no data target", s)
+		}
+	}
+	if DataTarget("mysql") != "/var/lib/mysql" || DataTarget("mailpit") != "" || DataVolume("redis") != "lodev-redis" {
+		t.Errorf("mysql %q, mailpit %q, redis volume %q", DataTarget("mysql"), DataTarget("mailpit"), DataVolume("redis"))
+	}
+}

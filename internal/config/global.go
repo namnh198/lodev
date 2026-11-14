@@ -57,7 +57,9 @@ var (
 	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
 	// DataServices keep data in a volume (or, with mount_paths, a folder).
 	DataServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
-	versionRe    = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
+	dataTargets  = map[string]string{"mysql": "/var/lib/mysql", "mariadb": "/var/lib/mysql", "redis": "/data",
+		"opensearch": "/usr/share/opensearch/data", "rabbitmq": "/var/lib/rabbitmq", "mongodb": "/data/db"}
+	versionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 )
 
 // Image is the image of a versioned shared service at its configured version.
@@ -99,6 +101,12 @@ func (g *Global) DataPath() string {
 	}
 	return expandPath(g.DataDir)
 }
+
+// DataTarget is the folder a data service keeps its data in, in its container; "" for other services.
+func DataTarget(svc string) string { return dataTargets[svc] }
+
+// DataVolume is the named volume a data service keeps its data in without a mount path.
+func DataVolume(svc string) string { return "lodev-" + svc }
 
 // MountPath is the folder svc keeps its data in (mount_paths: absolute, ~/..., or under data_dir),
 // or "" for its named volume.

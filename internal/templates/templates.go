@@ -15,6 +15,13 @@ import (
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 	"q": strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
+	// dataMount is a data service's data mount: its mount path, else its named volume.
+	"dataMount": func(g *config.Global, svc string) string {
+		if p := g.MountPath(svc); p != "" {
+			return strconv.Quote(p + ":" + config.DataTarget(svc))
+		}
+		return config.DataVolume(svc) + ":" + config.DataTarget(svc)
+	},
 }).ParseFS(assets.FS, "templates/*.tmpl"))
 
 func render(name string, data any) ([]byte, error) {
