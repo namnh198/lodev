@@ -25,10 +25,12 @@ type doctorEnv struct {
 	info, df    string
 	globalYAML  string
 	projectGone bool
+	mounts      string // lodev-traefik's mounts as JSON
 }
 
 func healthyDoctor() doctorEnv {
 	return doctorEnv{
+		mounts:  `[{"Destination":"/etc/traefik/dynamic"}]`,
 		compose: dockertools.Compose.Version(), mkcert: true,
 		info: "[name=seccomp,profile=builtin]", df: "Images\t1GB (10%)\nBuild Cache\t500MB",
 	}
@@ -71,6 +73,9 @@ func runDoctorWith(t *testing.T, e doctorEnv) []checkResult {
 	dockerOutput = func(a ...string) (string, error) {
 		switch a[0] {
 		case "inspect":
+			if a[2] == "{{json .Mounts}}" {
+				return e.mounts, nil
+			}
 			if s, ok := e.states[a[len(a)-1]]; ok {
 				if s == "" {
 					return "", errors.New("No such container")
@@ -106,6 +111,18 @@ func TestDoctorHealthy(t *testing.T) {
 		if r.Level != levelOK {
 			t.Errorf("%s: %+v", r.Name, r)
 		}
+	}
+}
+
+func TestDoctorTraefikFileRow(t *testing.T) {
+	const name = "Traefik reads routes from files (no Docker socket)"
+	e := healthyDoctor()
+	if r := row(t, runDoctorWith(t, e), name); r.Level != levelOK {
+		t.Errorf("new traefik: %+v", r)
+	}
+	e.mounts = `[{"Destination":"/var/run/docker.sock"}]`
+	if r := row(t, runDoctorWith(t, e), name); r.Level != levelFail || r.Fix != "lodev service start" {
+		t.Errorf("old traefik: %+v", r)
 	}
 }
 

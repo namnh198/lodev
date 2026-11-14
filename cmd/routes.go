@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -10,7 +13,101 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"lodev/internal/config"
+	"lodev/internal/templates"
+	"lodev/internal/ui"
 )
+
+// syncProjectRoutes writes the running projects' route files; given its body with the project routes.
+var syncProjectRoutes = func() error { return nil }
+
+func sharedVirtualServices() ([]virtualService, error) {
+	full, err := os.ReadFile(servicesFullFile())
+	if err != nil {
+		return nil, err
+	}
+	return virtualServices(full, "lodev-services", config.TLD(), nil)
+}
+
+// sharedVirtualHosts lists the hosts of every shared service in the merged file, running or not.
+func sharedVirtualHosts() ([]string, error) {
+	vs, err := sharedVirtualServices()
+	if err != nil {
+		return nil, err
+	}
+	var hosts []string
+	for _, v := range vs {
+		hosts = append(hosts, v.Hosts...)
+	}
+	return hosts, nil
+}
+
+// writeServicesRoutes writes lodev-services.yaml with a route for each shared service whose container runs.
+func writeServicesRoutes() error {
+	vs, err := sharedVirtualServices()
+	if err != nil {
+		return err
+	}
+	var rs []templates.TraefikRoute
+	for _, v := range vs {
+		if containerRunning(v.Container) {
+			rs = append(rs, templates.TraefikRoute{Name: "s-" + v.Service, Hosts: v.Hosts, URL: fmt.Sprintf("http://%s:%d", v.Container, v.Port)})
+		}
+	}
+	data, err := templates.TraefikRoutes(rs)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(config.TraefikDir(), 0o755); err != nil {
+		return err
+	}
+	return config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "lodev-services.yaml"), data, 0o644)
+}
+
+// oldTraefik reports a lodev-traefik from before routes came from files: it still mounts the Docker
+// socket or lacks the dynamic folder. False when there is no such container. A var so tests can swap it.
+var oldTraefik = func() bool {
+	out, err := dockerOutput("inspect", "-f", "{{json .Mounts}}", "lodev-traefik")
+	if err != nil {
+		return false
+	}
+	var mounts []struct{ Destination string }
+	if json.Unmarshal([]byte(out), &mounts) != nil {
+		return false
+	}
+	files := false
+	for _, m := range mounts {
+		if m.Destination == "/var/run/docker.sock" {
+			return true
+		}
+		files = files || m.Destination == "/etc/traefik/dynamic"
+	}
+	return !files
+}
+
+// warnTraefikLabels warns for each service of a merged compose file that still carries traefik.* labels.
+func warnTraefikLabels(full []byte, hint string) {
+	var doc struct {
+		Services map[string]struct {
+			Labels map[string]any `yaml:"labels"`
+		} `yaml:"services"`
+	}
+	if yaml.Unmarshal(full, &doc) != nil {
+		return
+	}
+	names := make([]string, 0, len(doc.Services))
+	for name := range doc.Services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		for k := range doc.Services[name].Labels {
+			if strings.HasPrefix(k, "traefik.") {
+				ui.Warn("service %s: traefik labels are ignored (Traefik reads files, not the Docker socket); %s", name, hint)
+				break
+			}
+		}
+	}
+}
 
 // virtualService is a compose service that declares a Traefik route through VIRTUAL_HOST / VIRTUAL_PORT.
 type virtualService struct {

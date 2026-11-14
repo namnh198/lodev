@@ -337,7 +337,10 @@ func ensureServices(p *config.Project) error {
 	}
 	needed := append(append([]string{"traefik"}, g.EnabledServices()...), p.Services...)
 	if !slices.ContainsFunc(needed, func(svc string) bool { return !containerRunning("lodev-" + svc) }) {
-		return nil
+		if !oldTraefik() {
+			return nil
+		}
+		ui.Info("Recreating Traefik to read routes from files (one-time after upgrading lodev)")
 	}
 	if err := servicesUpFn(); err != nil {
 		return err

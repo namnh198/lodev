@@ -581,6 +581,30 @@ func TestEnsureServices(t *testing.T) {
 	}
 }
 
+func TestEnsureServicesRecreatesOldTraefik(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	stubDocker(t, "")
+	defer func(o func() error) { servicesUpFn = o }(servicesUpFn)
+	defer func(o func(string) bool) { containerRunning = o }(containerRunning)
+	defer func(o func() bool) { oldTraefik = o }(oldTraefik)
+	ups := 0
+	servicesUpFn = func() error { ups++; return nil }
+	containerRunning = func(string) bool { return true }
+	stdout, _, restore := ui.Capture(false)
+	defer restore()
+	oldTraefik = func() bool { return false }
+	if err := ensureServices(&config.Project{}); err != nil || ups != 0 {
+		t.Fatalf("new traefik: err %v, servicesUp calls %d", err, ups)
+	}
+	oldTraefik = func() bool { return true }
+	if err := ensureServices(&config.Project{}); err != nil || ups != 1 {
+		t.Fatalf("old traefik: err %v, servicesUp calls %d", err, ups)
+	}
+	if !strings.Contains(stdout.String(), "Recreating Traefik to read routes from files (one-time after upgrading lodev)") {
+		t.Errorf("no info line: %q", stdout)
+	}
+}
+
 func TestWriteVarnishVCL(t *testing.T) {
 	p := confProject(t, "nginx")
 	vcl := varnishVCLFile(p)

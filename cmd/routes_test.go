@@ -1,10 +1,101 @@
 package cmd
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
+	"lodev/internal/ui"
 )
+
+const sharedFull = `services:
+  mailpit:
+    container_name: lodev-mailpit
+    networks: {lodev: {}}
+    environment: {VIRTUAL_HOST: mailpit.test, VIRTUAL_PORT: "8025"}
+  rabbitmq:
+    container_name: lodev-rabbitmq
+    networks: {lodev: {}}
+    environment: {VIRTUAL_HOST: rabbitmq.test, VIRTUAL_PORT: "15672"}
+`
+
+func writeSharedFull(t *testing.T) {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	os.MkdirAll(filepath.Dir(servicesFullFile()), 0o755)
+	if err := os.WriteFile(servicesFullFile(), []byte(sharedFull), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWriteServicesRoutesOnlyRunning(t *testing.T) {
+	writeSharedFull(t)
+	defer func(o func(string) bool) { containerRunning = o }(containerRunning)
+	containerRunning = func(c string) bool { return c == "lodev-mailpit" }
+	hosts, err := sharedVirtualHosts()
+	if err != nil || !slices.Equal(hosts, []string{"mailpit.test", "rabbitmq.test"}) {
+		t.Fatalf("hosts %v, err %v", hosts, err)
+	}
+	if err := writeServicesRoutes(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(config.TraefikDir(), "lodev-services.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	if !strings.Contains(got, "s-mailpit:") || !strings.Contains(got, "http://lodev-mailpit:8025") {
+		t.Errorf("mailpit route missing:\n%s", got)
+	}
+	if strings.Contains(got, "s-rabbitmq") {
+		t.Errorf("stopped rabbitmq has a route:\n%s", got)
+	}
+}
+
+func TestOldTraefik(t *testing.T) {
+	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
+	for _, c := range []struct {
+		name, out string
+		err       error
+		want      bool
+	}{
+		{"socket", `[{"Destination":"/var/run/docker.sock"},{"Destination":"/etc/traefik/dynamic"}]`, nil, true},
+		{"old certs mount", `[{"Destination":"/certs"}]`, nil, true},
+		{"files only", `[{"Destination":"/etc/traefik/dynamic"}]`, nil, false},
+		{"no container", "", errors.New("No such object"), false},
+	} {
+		dockerOutput = func(a ...string) (string, error) {
+			if want := "inspect -f {{json .Mounts}} lodev-traefik"; strings.Join(a, " ") != want {
+				t.Errorf("docker %v", a)
+			}
+			return c.out, c.err
+		}
+		if got := oldTraefik(); got != c.want {
+			t.Errorf("%s: got %v", c.name, got)
+		}
+	}
+}
+
+func TestWarnTraefikLabels(t *testing.T) {
+	_, stderr, restore := ui.Capture(false)
+	defer restore()
+	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      traefik.http.routers.x.rule: Host(`a`)\n"), "use VIRTUAL_HOST")
+	for _, want := range []string{"traefik labels are ignored", "VIRTUAL_HOST"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Errorf("warning %q lacks %q", stderr, want)
+		}
+	}
+	stderr.Reset()
+	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      a.b: c\n"), "x")
+	if stderr.Len() != 0 {
+		t.Errorf("unexpected warning %q", stderr)
+	}
+}
 
 func TestVirtualServicesBasic(t *testing.T) {
 	full := `services:

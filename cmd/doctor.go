@@ -150,6 +150,12 @@ func runDoctor() ([]checkResult, bool) {
 				add("service "+svc, levelOK, "running", "")
 			}
 		}
+		const traefikRow = "Traefik reads routes from files (no Docker socket)"
+		if oldTraefik() {
+			add(traefikRow, levelFail, "lodev-traefik still reads the Docker socket", "lodev service start")
+		} else {
+			add(traefikRow, levelOK, "yes", "")
+		}
 	}
 
 	for _, name := range reg.Names() {

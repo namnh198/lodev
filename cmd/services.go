@@ -21,6 +21,7 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/hosts"
+	"lodev/internal/registry"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
 )
@@ -115,13 +116,37 @@ func servicesUp() error {
 	if err := mergeServicesCompose(); err != nil {
 		return err
 	}
-	if err := certs.Ensure("lodev-services", config.ReservedDomains()); err != nil {
+	full, err := os.ReadFile(servicesFullFile())
+	if err != nil {
+		return err
+	}
+	warnTraefikLabels(full, "set VIRTUAL_HOST (and VIRTUAL_PORT) in its environment instead")
+	vs, err := virtualServices(full, "lodev-services", config.TLD(), nil)
+	if err != nil {
+		return err
+	}
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	domains := config.ReservedDomains()
+	for _, v := range vs {
+		for _, h := range v.Hosts {
+			for _, name := range reg.Names() {
+				if slices.Contains(reg[name].Domains, h) {
+					return fmt.Errorf("VIRTUAL_HOST %s of shared service %s is already used by project %q", h, v.Service, name)
+				}
+			}
+			domains = append(domains, h)
+		}
+	}
+	if err := certs.Ensure("lodev-services", domains); err != nil {
 		return err
 	}
 	if err := certs.SyncTraefik(); err != nil {
 		return err
 	}
-	if err := hosts.Apply("lodev-services", config.ReservedDomains()); err != nil {
+	if err := hosts.Apply("lodev-services", domains); err != nil {
 		return err
 	}
 	if err := ensureDBConfig(); err != nil {
@@ -139,7 +164,13 @@ func servicesUp() error {
 	if err := servicesCompose(up...); err != nil {
 		return err
 	}
-	return waitServicesFn(append([]string{"traefik"}, g.EnabledServices()...), g.ContainerWait())
+	if err := waitServicesFn(append([]string{"traefik"}, g.EnabledServices()...), g.ContainerWait()); err != nil {
+		return err
+	}
+	if err := writeServicesRoutes(); err != nil {
+		return err
+	}
+	return syncProjectRoutes()
 }
 
 // printServiceURLs lists the shared services' URLs; printed once, not per project start.
@@ -172,6 +203,7 @@ const servicesExample = `# Rename to <name>.compose.yml to merge it into the sha
 #   adminer:
 #     image: adminer
 #     networks: [lodev]
+#     environment: {VIRTUAL_HOST: adminer.test, VIRTUAL_PORT: "8080"}
 `
 
 // mergeServicesCompose merges ~/.lodev/services/*.compose.{yml,yaml} over the generated services.compose-base.yaml.
@@ -295,7 +327,10 @@ func startService(svc string) error {
 	if err := prepareServiceData(g, []string{svc}); err != nil {
 		return err
 	}
-	return servicesCompose("up", "-d", svc)
+	if err := servicesCompose("up", "-d", svc); err != nil {
+		return err
+	}
+	return writeServicesRoutes()
 }
 
 func runningProjects() ([]string, error) {
