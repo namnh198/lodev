@@ -483,6 +483,10 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err != nil {
 		return err
 	}
+	apacheSnap, err := snapshotApache(p, projectApacheSnapshot(g, p))
+	if err != nil {
+		return err
+	}
 	vols, err := ensureVolumes(p, g, img)
 	if err != nil {
 		return err
@@ -500,6 +504,7 @@ func start(p *config.Project, rebuild startOpts) error {
 
 		GlobalHomeAdditional:  globalAdd,
 		ProjectHomeAdditional: projectAdd,
+		ApacheSnapshot:        apacheSnap,
 		Env:                   env,
 	}
 	if err := renderProjectCompose(p, in); err != nil {
@@ -682,20 +687,55 @@ func snapshotHomeAdditional(p *config.Project, dst string) (string, error) {
 	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
 		return "", os.RemoveAll(dst)
 	}
-	// Contents only: a running container bind-mounts dst, and a new inode would leave it on a deleted folder.
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		return "", err
+	return dst, snapshotTree(src, dst)
+}
+
+// projectApacheSnapshot is the copy of p's apache config (webserver.conf and custom.d/) the web
+// container mounts.
+func projectApacheSnapshot(g *config.Global, p *config.Project) string {
+	return filepath.Join(g.DataPath(), "apache-"+p.Name)
+}
+
+// snapshotApache copies p's .lodev/apache-webserver.conf and .lodev/apache/ into dst as
+// webserver.conf and custom.d/ and returns dst; apache runs commands from its config (piped logs),
+// so like homeadditional the container must only see what the trust gate approved. Not apache:
+// dst is removed and "" returned (nginx's config cannot run commands; it stays mounted from the repo).
+func snapshotApache(p *config.Project, dst string) (string, error) {
+	if p.Webserver != "apache" {
+		return "", os.RemoveAll(dst)
 	}
-	old, err := os.ReadDir(dst)
+	conf, err := os.ReadFile(WebserverConfFile(p))
 	if err != nil {
 		return "", err
 	}
+	custom := filepath.Join(dst, "custom.d")
+	if err := os.MkdirAll(custom, 0o755); err != nil {
+		return "", err
+	}
+	// WriteFile truncates in place: the inode a running container bind-mounts stays the same.
+	if err := os.WriteFile(filepath.Join(dst, "webserver.conf"), conf, 0o644); err != nil {
+		return "", err
+	}
+	return dst, snapshotTree(filepath.Join(p.Root, ".lodev", "apache"), custom)
+}
+
+// snapshotTree replaces dst's contents with a copy of src (a symlinked src followed; regular files
+// and symlinks, as trustItems lists them). A missing src leaves dst empty.
+func snapshotTree(src, dst string) error {
+	// Contents only: a running container bind-mounts dst, and a new inode would leave it on a deleted folder.
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	old, err := os.ReadDir(dst)
+	if err != nil {
+		return err
+	}
 	for _, e := range old {
 		if err := os.RemoveAll(filepath.Join(dst, e.Name())); err != nil {
-			return "", err
+			return err
 		}
 	}
-	err = walkTree(src, func(path, rel string, d fs.DirEntry) error {
+	return walkTree(src, func(path, rel string, d fs.DirEntry) error {
 		to := filepath.Join(dst, filepath.FromSlash(rel))
 		fi, err := d.Info()
 		if err != nil {
@@ -719,7 +759,6 @@ func snapshotHomeAdditional(p *config.Project, dst string) (string, error) {
 		}
 		return nil
 	})
-	return dst, err
 }
 
 func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
@@ -761,8 +800,10 @@ func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 		if _, err := os.Stat(h); err == nil {
 			ui.Info("Kept %s (caches and histories)", h)
 		}
-		if err := os.RemoveAll(projectHomeAdditional(g, p)); err != nil {
-			return err
+		for _, snap := range []string{projectHomeAdditional(g, p), projectApacheSnapshot(g, p)} {
+			if err := os.RemoveAll(snap); err != nil {
+				return err
+			}
 		}
 	}
 	if err := removeVolumes(p.Name, dropVolumes, yes); err != nil {

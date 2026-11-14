@@ -64,7 +64,11 @@ services:
 {{- if .ProjectHomeAdditional}}
       - {{q (print .ProjectHomeAdditional ":/etc/lodev/homeadditional/project:ro")}}
 {{- end}}
-{{- if ne .P.Webserver "none"}}
+{{- if .ApacheSnapshot}}
+      # A copy made after the trust gate: apache config can run commands (piped logs).
+      - {{q (print .ApacheSnapshot "/webserver.conf:/etc/lodev/webserver.conf:ro")}}
+      - {{q (print .ApacheSnapshot "/custom.d:" (index .CustomDir .P.Webserver) ":ro")}}
+{{- else if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver ":" (index .CustomDir .P.Webserver) ":ro")}}
 {{- end}}

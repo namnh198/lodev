@@ -303,6 +303,17 @@ func TestProjectComposeMounts(t *testing.T) {
 			t.Errorf("%s networks: %v", c.ws, web.Networks)
 		}
 	}
+	in := projectInput("apache")
+	in.ApacheSnapshot = "/data/apache-shop"
+	snap := parse(t, must(t)(ProjectCompose(in)))["web"]
+	for _, w := range []string{"/data/apache-shop/webserver.conf:/etc/lodev/webserver.conf:ro", "/data/apache-shop/custom.d:/etc/apache2/custom.d:ro"} {
+		if !has(snap.Volumes, w) {
+			t.Errorf("apache snapshot: missing mount %s in %v", w, snap.Volumes)
+		}
+	}
+	if has(snap.Volumes, "/work/shop/.lodev/apache") {
+		t.Errorf("apache snapshot: repo config still mounted: %v", snap.Volumes)
+	}
 	none := parse(t, must(t)(ProjectCompose(projectInput("none"))))["web"]
 	if !has(none.Volumes, php) || has(none.Volumes, "webserver.conf") || has(none.Volumes, "custom.d") {
 		t.Errorf("none mounts: %v", none.Volumes)

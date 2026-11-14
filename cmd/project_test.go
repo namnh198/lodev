@@ -662,6 +662,7 @@ func TestDeleteKeepsHome(t *testing.T) {
 	h := projectHome(g, p)
 	writeFile(t, filepath.Join(h, ".bash_history"), "ls\n")
 	writeFile(t, filepath.Join(projectHomeAdditional(g, p), ".gitconfig"), "x")
+	writeFile(t, filepath.Join(projectApacheSnapshot(g, p), "webserver.conf"), "x")
 	out, _, restore := ui.Capture(false)
 	defer restore()
 	if err := deleteProject(p, false, false, true); err != nil {
@@ -673,6 +674,9 @@ func TestDeleteKeepsHome(t *testing.T) {
 	}
 	if _, err := os.Stat(projectHomeAdditional(g, p)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("homeadditional snapshot kept: %v", err)
+	}
+	if _, err := os.Stat(projectApacheSnapshot(g, p)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("apache snapshot kept: %v", err)
 	}
 }
 
@@ -719,6 +723,49 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(composeBase(p)); strings.Contains(string(b), "homeadditional/project") {
 		t.Errorf("still mounted:\n%s", b)
+	}
+}
+
+// Apache config runs commands (piped logs), so start mounts a copy taken after the trust gate:
+// a container Docker restarts after a git pull loads only approved config.
+func TestStartSnapshotsApacheConfig(t *testing.T) {
+	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
+	p.Webserver = "apache"
+	if err := config.SaveProject(p); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "logs.conf"), "CustomLog x\n")
+	g, _ := config.LoadGlobal()
+	snap := projectApacheSnapshot(g, p)
+	writeFile(t, filepath.Join(snap, "custom.d", "stale.conf"), "x")
+	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(snap, "custom.d", "logs.conf")); string(b) != "CustomLog x\n" {
+		t.Errorf("custom.d/logs.conf = %q", b)
+	}
+	conf, _ := os.ReadFile(WebserverConfFile(p))
+	if b, _ := os.ReadFile(filepath.Join(snap, "webserver.conf")); len(conf) == 0 || string(b) != string(conf) {
+		t.Errorf("webserver.conf = %q, want %q", b, conf)
+	}
+	if _, err := os.Stat(filepath.Join(snap, "custom.d", "stale.conf")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("stale file kept: %v", err)
+	}
+	b, _ := os.ReadFile(composeBase(p))
+	mustContain(t, string(b), `"`+snap+`/custom.d:/etc/apache2/custom.d:ro"`)
+	if strings.Contains(string(b), p.Root+"/.lodev/apache") {
+		t.Errorf("repo apache config still mounted:\n%s", b)
+	}
+
+	p.Webserver = "nginx"
+	if err := config.SaveProject(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(snap); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("apache snapshot kept for nginx: %v", err)
 	}
 }
 

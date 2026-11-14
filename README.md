@@ -474,7 +474,10 @@ and your own apache config: the files in `.lodev/apache/` (not `.example` ones) 
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
 `Run these commands? [y/N]` before running any of them, and asks again when one is added or
 changed (a changed file is shown as "review with git diff"). What you approved is stored per
-project in `~/.lodev/projects.json`.
+project in `~/.lodev/projects.json`. The web container mounts copies taken after the question
+(`<data_dir>/homeadditional-<name>`, and for apache `<data_dir>/apache-<name>` with the vhost and
+`custom.d/`), not the repo files, so a container Docker restarts after a `git pull` still runs
+only approved files.
 
 The question comes first thing on `lodev start` (and so `restart`; `start --all` asks per project),
 before any hook run by `stop`, `db-import` or `snapshot restore`, and on `lodev create` (a folder
