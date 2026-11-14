@@ -417,6 +417,12 @@ func CheckEnvKey(key string) error {
 // ReservedDomains are the shared services' domains, on the configured TLD.
 func ReservedDomains() []string { return reservedDomains(TLD()) }
 
+// ReservedDomainsFor is ReservedDomains on an explicit TLD.
+func ReservedDomainsFor(tld string) []string { return reservedDomains(tld) }
+
+// CheckHost checks the format of a route host (same rule as domains:); it does not check reservations.
+func CheckHost(host, tld string) error { return checkDomain(host, tld, domainRegexp(tld)) }
+
 func reservedDomains(tld string) []string {
 	t := "." + tld
 	return []string{"mailpit" + t, "phpmyadmin" + t, "rabbitmq" + t, "mongo" + t}
