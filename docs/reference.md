@@ -367,7 +367,8 @@ against the merged result. It edits `config.yaml` only and warns when an overrid
 `enable_xdebug` and `opcache_validate_timestamps`: `lodev xdebug on|off|toggle` and
 `lodev config --enable-xdebug=true|false` / `--opcache-validate-timestamps=true|false` write them
 to `.lodev/config.local.yaml` only (turning one off removes it there, or sets it `false`/`true` there
-when `config.yaml` or another override still says otherwise), and `lodev start` warns when
+when `config.yaml` or another override still says otherwise; an override sorting after
+`config.local.yaml` still wins, with the same warning), and `lodev start` warns when
 `config.yaml` itself holds one. lodev never edits `config.yaml` to move it. `lodev config-global --tld` also moves the
 `domains` in override files.
 

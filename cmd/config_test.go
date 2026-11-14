@@ -148,6 +148,19 @@ func TestConfigLocalKeysStayLocal(t *testing.T) {
 	}
 }
 
+// An override sorting after config.local.yaml still wins: the change is saved, and lodev says so.
+func TestConfigLocalKeyOverriddenWarns(t *testing.T) {
+	root := newShop(t)
+	writeFile(t, filepath.Join(root, ".lodev", "config.zz.yaml"), "enable_xdebug: false\n")
+	_, stderr, err := runConfig(t, newConfigCmd, "--enable-xdebug=true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, stderr, "enable_xdebug is overridden by .lodev/config.zz.yaml")
+	b, _ := os.ReadFile(filepath.Join(root, ".lodev", "config.local.yaml"))
+	mustContain(t, string(b), "enable_xdebug: true")
+}
+
 // TestConfigLocalKeysRestoredWhenNotSaved: two local keys then an invalid change leave config.local.yaml as it was.
 func TestConfigLocalKeysRestoredWhenNotSaved(t *testing.T) {
 	root := newShop(t)

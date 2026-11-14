@@ -92,7 +92,15 @@ func setLocal(root, key string, want bool) (restore func() error, err error) {
 		if err != nil {
 			return restore, err
 		}
-		if explicit || localValue(cur, key) == want {
+		if localValue(cur, key) == want {
+			return restore, nil
+		}
+		if explicit { // an override sorting after config.local.yaml sets it too
+			won, err := config.OverriddenKeys(root)
+			if err != nil {
+				return restore, err
+			}
+			ui.Warn("%s is overridden by .lodev/%s", key, won[key])
 			return restore, nil
 		}
 		explicit = true
