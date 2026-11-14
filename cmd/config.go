@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -189,11 +190,14 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 	return out, nil
 }
 
-// loadProjectForEdit reads the project config; a file that only fails validation is returned
-// as is, so the command can fix it.
+// loadProjectForEdit reads the project config with its overrides laid over; a file that only
+// fails validation is returned as is, so the command can fix it.
 func loadProjectForEdit(root string) (*config.Project, error) {
 	data, err := os.ReadFile(config.ProjectPath(root))
 	if err != nil {
+		return nil, err
+	}
+	if data, _, err = config.MergeOverrides(root, data); err != nil {
 		return nil, err
 	}
 	p, err := config.ParseProject(root, data)
@@ -203,9 +207,14 @@ func loadProjectForEdit(root string) (*config.Project, error) {
 	return p, nil
 }
 
-// applyProjectConfig writes changes to old's config file when the result is valid and differs.
+// applyProjectConfig writes changes to old's config.yaml when the result, overrides laid over it,
+// is valid and differs. A changed key that an override wins over is saved too, with a warning.
 func applyProjectConfig(old *config.Project, changes []change) (diff []string, p *config.Project, err error) {
 	d, err := config.OpenDoc(config.ProjectPath(old.Root))
+	if err != nil {
+		return nil, nil, err
+	}
+	before, err := d.Bytes()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -214,7 +223,11 @@ func applyProjectConfig(old *config.Project, changes []change) (diff []string, p
 	if err != nil {
 		return nil, nil, err
 	}
-	if p, err = config.ParseProject(old.Root, data); err != nil {
+	merged, _, err := config.MergeOverrides(old.Root, data)
+	if err != nil {
+		return nil, nil, fmt.Errorf("not saved: %w", err)
+	}
+	if p, err = config.ParseProject(old.Root, merged); err != nil {
 		return nil, nil, fmt.Errorf("not saved: %w", err)
 	}
 	reg, err := registry.Load()
@@ -225,10 +238,26 @@ func applyProjectConfig(old *config.Project, changes []change) (diff []string, p
 		return nil, nil, fmt.Errorf("not saved: %w", err)
 	}
 	diff = diffLines(projectValues(old, listForDiff), projectValues(p, listForDiff))
-	if len(diff) == 0 {
+	won, err := config.OverriddenKeys(old.Root)
+	if err != nil {
+		return nil, nil, err
+	}
+	var warns []string
+	for _, c := range changes {
+		if file, ok := won[c.key[0]]; ok && !bytes.Equal(before, data) {
+			warns = append(warns, fmt.Sprintf("%s is overridden by .lodev/%s", c.key[0], file))
+		}
+	}
+	if len(diff) == 0 && len(warns) == 0 {
 		return nil, p, nil
 	}
-	return diff, p, d.Write(data)
+	if err := d.Write(data); err != nil {
+		return nil, nil, err
+	}
+	for _, w := range warns {
+		ui.Warn("%s", w)
+	}
+	return diff, p, nil
 }
 
 func projectWarnings(c *cobra.Command, p *config.Project) {
@@ -266,6 +295,17 @@ func newConfigCmd() *cobra.Command {
 					return err
 				}
 				printTable(c.OutOrStdout(), []string{"KEY", "VALUE"}, valueRows(projectValues(p, listForTable)))
+				files, err := config.OverrideFiles(root)
+				if err != nil {
+					return err
+				}
+				if len(files) > 0 {
+					names := make([]string, len(files))
+					for i, f := range files {
+						names[i] = filepath.Base(f)
+					}
+					fmt.Fprintln(c.OutOrStdout(), "overrides: "+strings.Join(names, ", "))
+				}
 				return nil
 			}
 			return withLock(func() error {

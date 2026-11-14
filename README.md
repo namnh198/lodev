@@ -297,6 +297,11 @@ order, every time lodev reads the project. Mappings merge key by key (`environme
 only `B`); any other value, a list included, replaces the one below it. `name` cannot be overridden.
 These files are git-ignored (`.lodev/.gitignore`), so they hold per-machine settings.
 
+`lodev config` shows the merged values and the override files in use, and checks your change
+against the merged result. It edits `config.yaml` only and warns when an override wins
+(`php is overridden by .lodev/config.local.yaml`). `lodev config-global --tld` also moves the
+`domains` in override files.
+
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`
 make lodev build a project image `lodev/<name>-web` on top of the PHP image. Projects without
 any of them use the shared PHP image and build nothing. The image is rebuilt on the next

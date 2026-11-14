@@ -76,6 +76,48 @@ func TestConfigExample(t *testing.T) {
 	mustContain(t, out, "php: 8.3 → 8.4", "nodejs: (unset) → 24", "Applies on the next lodev start")
 }
 
+func writeOverride(t *testing.T, root, name, body string) string {
+	t.Helper()
+	p := filepath.Join(root, ".lodev", name)
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestConfigShowsMergedValues(t *testing.T) {
+	root := newShop(t)
+	writeOverride(t, root, "config.local.yaml", "php: \"8.4\"\n")
+	out, _, err := runConfig(t, newConfigCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "8.4", "overrides: config.local.yaml")
+}
+
+func TestConfigEditWarnsWhenOverridden(t *testing.T) {
+	root := newShop(t)
+	writeOverride(t, root, "config.local.yaml", "php: \"8.4\"\n")
+	_, stderr, err := runConfig(t, newConfigCmd, "--php-version=8.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readShop(t, root), `php: "8.2"`)
+	mustContain(t, stderr, "php is overridden by .lodev/config.local.yaml")
+}
+
+func TestConfigEditValidatesMerged(t *testing.T) {
+	root := newShop(t)
+	writeOverride(t, root, "config.local.yaml", "varnish: true\n")
+	_, _, err := runConfig(t, newConfigCmd, "--webserver=none")
+	if err == nil || err.Error() != "not saved: varnish needs a webserver (webserver is none)" {
+		t.Fatal(err)
+	}
+	if got := readShop(t, root); got != shopConf {
+		t.Errorf("config.yaml changed:\n%s", got)
+	}
+}
+
 func TestConfigRunningHint(t *testing.T) {
 	newShop(t)
 	stubDocker(t, "running")

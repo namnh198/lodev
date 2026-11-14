@@ -312,3 +312,28 @@ func TestRetargetSkippedProjectMovesItsHosts(t *testing.T) {
 		t.Errorf("registry b %+v", reg["b"])
 	}
 }
+
+func TestTLDMovesOverrideDomains(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	ov := writeOverride(t, f.roots["a"], "config.local.yaml", "# mine\ndomains: [en.a.test]\n")
+	if err := retargetTLD("test", "local", &f.out); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, f.read(ov), "# mine", "en.a.local")
+	mustContain(t, f.config("a"), "a.local, x.a.local")
+	if reg, _ := registry.Load(); !slices.Equal(reg["a"].Domains, []string{"en.a.local"}) {
+		t.Errorf("registry %+v", reg["a"])
+	}
+}
+
+func TestTLDOverrideBadDomainRefusesAll(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	ov := writeOverride(t, f.roots["a"], "config.local.yaml", "domains: [en.example]\n")
+	err := retargetTLD("test", "local", &f.out)
+	if err == nil || err.Error() != `project a: domain "en.example" does not end in .test` {
+		t.Fatalf("err = %v", err)
+	}
+	if f.config("a") != tldA || f.read(ov) != "domains: [en.example]\n" {
+		t.Error("a file was written")
+	}
+}

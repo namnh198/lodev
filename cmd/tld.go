@@ -22,6 +22,8 @@ type tldMove struct {
 	p       *config.Project
 	doc     *config.Doc // nil: the config has no domains key (its default follows the TLD)
 	domains []string
+	// overrides are the .lodev/config.*.yaml files that set domains, already edited
+	overrides []*config.Doc
 }
 
 // retargetTLD moves every registered project from oldTLD to newTLD: their configs and the
@@ -60,9 +62,14 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 	for _, m := range moves {
 		if m.doc != nil {
 			m.doc.Set([]string{"domains"}, m.domains)
-			data, err := m.doc.Bytes()
+		}
+		for _, d := range append(m.overrides, m.doc) {
+			if d == nil {
+				continue
+			}
+			data, err := d.Bytes()
 			if err == nil {
-				err = m.doc.Write(data)
+				err = d.Write(data)
 			}
 			if err != nil {
 				return err
@@ -131,40 +138,78 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 	return nil
 }
 
-// planTLDMove reads one project and works out its domains on newTLD, without writing.
+// planTLDMove reads one project, overrides included, and works out its domains on newTLD,
+// without writing.
 func planTLDMove(name, root, oldTLD, newTLD string) (tldMove, error) {
 	data, err := os.ReadFile(config.ProjectPath(root))
 	if err != nil {
 		return tldMove{}, err
 	}
-	var raw struct {
-		Domains []string `yaml:"domains"`
-	}
-	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
+	moveDomains := func(file string) (domains []string, found bool, err error) {
+		var raw struct {
+			Domains []string `yaml:"domains"`
+		}
+		if b, err := os.ReadFile(file); err != nil {
+			return nil, false, err
+		} else if err := yaml.Unmarshal(b, &raw); err != nil {
+			return nil, false, fmt.Errorf("project %s: %w", name, err)
+		}
+		for _, d := range raw.Domains {
+			if strings.HasSuffix(d, "."+newTLD) { // moved by an earlier run that failed later on
+				domains = append(domains, d)
+				continue
+			}
+			base, ok := strings.CutSuffix(d, "."+oldTLD)
+			if !ok {
+				return nil, false, fmt.Errorf("project %s: domain %q does not end in .%s", name, d, oldTLD)
+			}
+			domains = append(domains, base+"."+newTLD)
+		}
+		return domains, len(raw.Domains) > 0, nil
 	}
 	m := tldMove{name: name}
-	for _, d := range raw.Domains {
-		if strings.HasSuffix(d, "."+newTLD) { // moved by an earlier run that failed later on
-			m.domains = append(m.domains, d)
+	own, hasDomains, err := moveDomains(config.ProjectPath(root))
+	if err != nil {
+		return tldMove{}, err
+	}
+	effective := own // the last file that sets domains wins, as when the project is read
+	files, err := config.OverrideFiles(root)
+	if err != nil {
+		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
+	}
+	for _, f := range files {
+		ds, found, err := moveDomains(f)
+		if err != nil {
+			return tldMove{}, err
+		}
+		if !found {
 			continue
 		}
-		base, ok := strings.CutSuffix(d, "."+oldTLD)
-		if !ok {
-			return tldMove{}, fmt.Errorf("project %s: domain %q does not end in .%s", name, d, oldTLD)
+		d, err := config.OpenDoc(f)
+		if err != nil {
+			return tldMove{}, err
 		}
-		m.domains = append(m.domains, base+"."+newTLD)
+		d.Set([]string{"domains"}, ds)
+		m.overrides = append(m.overrides, d)
+		effective = ds
+	}
+	merged, _, err := config.MergeOverrides(root, data)
+	if err != nil {
+		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
 	}
 	var vErr *config.ValidationError
-	p, err := config.ParseProject(root, data) // validated below against newTLD, not the current one
+	p, err := config.ParseProject(root, merged) // validated below against newTLD, not the current one
 	if err != nil && !errors.As(err, &vErr) {
 		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
 	}
-	if len(raw.Domains) > 0 {
-		p.Domains = m.domains
+	if hasDomains {
+		m.domains = own
 		if m.doc, err = config.OpenDoc(config.ProjectPath(root)); err != nil {
 			return tldMove{}, err
 		}
+	}
+	if len(effective) > 0 {
+		p.Domains = effective
 	} else {
 		p.Domains = []string{p.Name + "." + newTLD}
 	}
