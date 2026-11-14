@@ -38,6 +38,7 @@ func TestCheckWebUser(t *testing.T) {
 func TestShortcutCmd(t *testing.T) {
 	cases := map[string]string{
 		"php": "php", "composer": "composer", "npm": "npm", "node": "node",
+		"pnpm": "pnpm", "yarn": "yarn", "grunt": "grunt",
 		"artisan": "php artisan", "wp": "wp", "magento": "php bin/magento", "n98": "n98-magerun2",
 	}
 	for name, want := range cases {

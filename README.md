@@ -177,8 +177,10 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 ## PHP image
 
 All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
-with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24), wp-cli, n98-magerun2, nano,
-vim-tiny and sqlite3. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
+with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24) with pnpm, Yarn 1.x and
+grunt-cli, wp-cli, n98-magerun2, nano, vim-tiny and sqlite3. For native extensions and the
+services: gcc, g++, make, autoconf, pkg-config, `phpize` and `pecl` (`php<ver>-dev` is installed),
+and the `mysql`, `redis-cli` and `mongosh` clients. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
 first `lodev start`; nightly and dev builds, a `node_version` other than 24, `--rebuild-base` or a
 failed pull build it locally instead (about a minute). PHP 7.4, 8.0 and
 8.1 add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first
@@ -704,7 +706,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev snapshot create\|list\|restore\|delete [name] [-p project]` | Save the project's databases (its MySQL/MariaDB one, plus MongoDB) to `~/.lodev/snapshots/<project>/<name>/`, list them, load one back (default: the newest; asks first, `--yes` skips; runs `post-snapshot-restore`), or delete one |
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
-| `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
+| `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL |

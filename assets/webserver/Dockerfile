@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
-       nano vim-tiny sqlite3 jq \
+       nano vim-tiny sqlite3 jq gcc g++ make autoconf pkg-config redis-tools php-pear \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
     && echo "7511384559c9ddf1d5ce5f60be429ae9d4e7d01d9480d6f1b7a30c0810cf8b60  /tmp/sury-keyring.deb" | sha256sum -c - \
     && dpkg -i /tmp/sury-keyring.deb \
@@ -51,6 +51,19 @@ RUN arch=$(dpkg --print-architecture) && case $arch in \
     && echo "$sum  /usr/local/bin/supercronic" | sha256sum -c - \
     && chmod +x /usr/local/bin/supercronic
 
+# mongosh, the MongoDB shell (the plain tarball runs on Debian's glibc and OpenSSL).
+ARG MONGOSH=2.14.2
+RUN arch=$(dpkg --print-architecture) && case $arch in \
+      amd64) mongoarch=x64; sum=1523e16da7c6902333b681bf65d83bbef59bff558c46ac5636371d13beb4de53 ;; \
+      arm64) mongoarch=arm64; sum=20f89386f74c14cb63a163eea5491dc14759bcd64229b1c099c2390585a01fd3 ;; \
+      *) echo "no mongosh for $arch" >&2; exit 1 ;; esac \
+    && curl -fsSL -o /tmp/mongosh.tgz \
+       "https://downloads.mongodb.com/compass/mongosh-$MONGOSH-linux-$mongoarch.tgz" \
+    && echo "$sum  /tmp/mongosh.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/mongosh.tgz -C /tmp "mongosh-$MONGOSH-linux-$mongoarch/bin/mongosh" \
+    && install -m 0755 "/tmp/mongosh-$MONGOSH-linux-$mongoarch/bin/mongosh" /usr/local/bin/mongosh \
+    && rm -rf /tmp/mongosh*
+
 # Node.js via n, into /usr/local like a project's nodejs: (which reinstalls over it).
 # n keeps downloaded versions in /usr/local/n: a cache mount, so a rebuild skips the download.
 ARG NODE_VERSION=24
@@ -59,6 +72,8 @@ RUN --mount=type=cache,target=/usr/local/n,sharing=locked \
     && echo "a09599719bd38af5054f87b8f8d3e45150f00b7b5675323aa36b36d324d087b9  /usr/local/bin/n" | sha256sum -c - \
     && chmod +x /usr/local/bin/n \
     && N_PREFIX=/usr/local n install "$NODE_VERSION" \
+    && npm install -g pnpm@12.18.0 yarn@1.22.22 grunt-cli@1.5.0 \
+    && npm cache clean --force \
     && rm -rf /usr/local/include/node /usr/local/share/doc/node /usr/local/share/man/man1/node.1 /usr/local/share/systemtap
 
 # Late on purpose: the PHP install only symlinks to zz-lodev.ini, so editing it reruns just these layers.

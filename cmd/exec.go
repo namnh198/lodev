@@ -198,7 +198,7 @@ func init() {
 	}
 	rootCmd.AddCommand(sshCmd, execCmd, logsCmd)
 
-	for _, name := range []string{"php", "composer", "npm", "node", "artisan", "wp", "magento", "n98"} {
+	for _, name := range []string{"php", "composer", "npm", "node", "pnpm", "yarn", "grunt", "artisan", "wp", "magento", "n98"} {
 		name := name
 		rootCmd.AddCommand(&cobra.Command{
 			Use:                name + " [args...]",
