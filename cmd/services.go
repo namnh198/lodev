@@ -351,6 +351,9 @@ func poweroff() error {
 	for _, c := range running {
 		name := strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web")
 		ui.Info("Stopping project %s", name)
+		if err := removeProjectRoutes(name); err != nil {
+			return err
+		}
 		// compose labels each container with the folder of its compose file: <root>/.lodev.
 		dir, err := dockerOutput("inspect", "-f", `{{index .Config.Labels "com.docker.compose.project.working_dir"}}`, c)
 		if err != nil {

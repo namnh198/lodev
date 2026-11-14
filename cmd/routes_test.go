@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/registry"
 	"lodev/internal/ui"
 )
 
@@ -173,5 +174,85 @@ func TestVirtualServicesErrors(t *testing.T) {
 				t.Errorf("error %q must name %q and mention %q", err, tt.service, tt.want)
 			}
 		})
+	}
+}
+
+func readRoutes(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(projectRouteFile(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestWriteProjectRoutes(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	if want := filepath.Join(config.TraefikDir(), "p-shop.yaml"); projectRouteFile("shop") != want {
+		t.Fatalf("projectRouteFile = %s", projectRouteFile("shop"))
+	}
+	p := &config.Project{Name: "shop", Webserver: "nginx", Domains: []string{"shop.test", "en.test"}}
+	svcs := []virtualService{{"adminer", "lodev-shop-adminer-1", []string{"adminer.test"}, 8080}}
+	if err := writeProjectRoutes(p, svcs); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readRoutes(t, "shop"), "p-shop:", "Host(`shop.test`) || Host(`en.test`)", "http://lodev-shop-web:80",
+		"p-shop-svc-adminer:", "Host(`adminer.test`)", "http://lodev-shop-adminer-1:8080")
+
+	p.Varnish = true
+	if err := writeProjectRoutes(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	got := readRoutes(t, "shop")
+	mustContain(t, got, "http://lodev-shop-varnish:80")
+	if strings.Contains(got, "lodev-shop-web") || strings.Contains(got, "adminer") {
+		t.Errorf("varnish routes:\n%s", got)
+	}
+
+	p.Varnish, p.Webserver = false, "none"
+	if err := writeProjectRoutes(p, svcs); err != nil {
+		t.Fatal(err)
+	}
+	got = readRoutes(t, "shop")
+	mustContain(t, got, "p-shop-svc-adminer:")
+	if strings.Contains(got, "p-shop:") {
+		t.Errorf("webserver none has a web route:\n%s", got)
+	}
+
+	if err := writeProjectRoutes(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("route file left without routes: %v", err)
+	}
+	if err := removeProjectRoutes("shop"); err != nil {
+		t.Errorf("missing file: %v", err)
+	}
+}
+
+func TestSyncProjectRoutesPrunes(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	reg := registry.Registry{}
+	for _, name := range []string{"a", "b"} {
+		p, _ := newProjectConfig(t.TempDir(), name, "php", "", "", "")
+		config.SaveProject(p)
+		writeFile(t, composeFull(p), "services:\n  web: {}\n")
+		reg.Put(p)
+	}
+	reg.Save()
+	defer func(o func(string) bool) { containerRunning = o }(containerRunning)
+	containerRunning = func(c string) bool { return c == "lodev-a-web" }
+	writeFile(t, projectRouteFile("b"), "stale")
+	mine := filepath.Join(config.TraefikDir(), "mine.yaml")
+	writeFile(t, mine, "mine")
+	if err := syncProjectRoutes(); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readRoutes(t, "a"), "http://lodev-a-web:80")
+	if _, err := os.Stat(projectRouteFile("b")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("p-b.yaml kept: %v", err)
+	}
+	if b, _ := os.ReadFile(mine); string(b) != "mine" {
+		t.Errorf("mine.yaml = %q", b)
 	}
 }

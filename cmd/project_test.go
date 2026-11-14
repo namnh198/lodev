@@ -820,3 +820,131 @@ func TestRestartChecksVersionFirst(t *testing.T) {
 		t.Errorf("restart: err = %v, calls = %q; want the version error and no calls", err, calls)
 	}
 }
+
+func TestStopRemovesRoutes(t *testing.T) {
+	newShop(t)
+	writeFile(t, projectRouteFile("shop"), "x")
+	rootCmd.SetArgs([]string{"stop", "--no-hooks"})
+	defer rootCmd.SetArgs(nil)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("route file kept: %v", err)
+	}
+}
+
+func TestDeleteRemovesRoutes(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	hf := filepath.Join(t.TempDir(), "hosts")
+	os.WriteFile(hf, []byte("127.0.0.1 localhost\n"), 0o644)
+	defer func(o string) { hosts.File = o }(hosts.File)
+	hosts.File = hf
+	stubDocker(t, "")
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
+	writeFile(t, projectRouteFile("shop"), "x")
+	if err := deleteProject(p, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("route file kept: %v", err)
+	}
+}
+
+// startStubs makes start runnable without Docker, mkcert or /etc/hosts: compose config prints full,
+// and the returned calls record the hosts given to the cert and to /etc/hosts.
+func startStubs(t *testing.T, full string) (*config.Project, *[]string) {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	t.Setenv("PATH", "") // nothing reaches a real docker or mkcert
+	writeFile(t, filepath.Join(config.Home(), "rootCA", "rootCA.pem"), "ca")
+	stubDocker(t, "")
+	_, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	var calls []string
+	oldUp, oldOld, oldPHP, oldCfg, oldCert, oldHosts, oldWait, oldUser := containerRunning, oldTraefik, ensurePHPImage, composeConfig, ensureCert, applyHosts, waitHealthyFn, userReady
+	t.Cleanup(func() {
+		containerRunning, oldTraefik, ensurePHPImage, composeConfig, ensureCert, applyHosts, waitHealthyFn, userReady = oldUp, oldOld, oldPHP, oldCfg, oldCert, oldHosts, oldWait, oldUser
+	})
+	containerRunning = func(string) bool { return true }
+	oldTraefik = func() bool { return false }
+	ensurePHPImage = func(string, string, bool) error { return nil }
+	composeConfig = func(...string) (string, error) { return full, nil }
+	ensureCert = func(name string, d []string) error {
+		calls = append(calls, "cert "+name+" "+strings.Join(d, " "))
+		return nil
+	}
+	applyHosts = func(name string, d []string) error {
+		calls = append(calls, "hosts "+name+" "+strings.Join(d, " "))
+		return nil
+	}
+	waitHealthyFn = func(string, time.Duration, string) error { return nil }
+	userReady = func(*config.Project, string) bool { return true }
+	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
+	p.Services = nil
+	if err := config.SaveProject(p); err != nil {
+		t.Fatal(err)
+	}
+	return p, &calls
+}
+
+func adminerFull(service, host string) string {
+	return "services:\n  web:\n    networks: {lodev: {}, default: {}}\n  " + service +
+		":\n    networks: {lodev: {}, default: {}}\n    environment: {VIRTUAL_HOST: " + host + ", VIRTUAL_PORT: \"8080\"}\n"
+}
+
+func TestStartRoutesVirtualHosts(t *testing.T) {
+	p, calls := startStubs(t, adminerFull("adminer", "adminer.test"))
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"cert shop shop.test adminer.test", "hosts shop shop.test adminer.test"}
+	if !slices.Equal(*calls, want) {
+		t.Errorf("calls %q, want %q", *calls, want)
+	}
+	reg, _ := registry.Load()
+	if got := reg["shop"].Domains; !slices.Equal(got, []string{"shop.test", "adminer.test"}) {
+		t.Errorf("registry domains %v", got)
+	}
+	mustContain(t, readRoutes(t, "shop"), "http://lodev-shop-web:80", "p-shop-svc-adminer:", "http://lodev-shop-adminer-1:8080")
+	// The second render puts the new host into the web container's extra_hosts.
+	b, _ := os.ReadFile(composeBase(p))
+	mustContain(t, string(b), `"adminer.test:172.30.0.2"`, `"shop.test:172.30.0.2"`)
+}
+
+func TestStartRejectsVirtualHostOfAnotherProject(t *testing.T) {
+	p, calls := startStubs(t, adminerFull("adminer", "a.test"))
+	a := t.TempDir()
+	writeFile(t, config.ProjectPath(a), "")
+	registry.Registry{"a": {Path: a, Domains: []string{"a.test"}}}.Save()
+	err := start(p, startOpts{noHooks: true})
+	if want := `domain a.test is already used by project "a" (` + a + ")"; err == nil || err.Error() != want {
+		t.Fatalf("got %v, want %s", err, want)
+	}
+	if len(*calls) != 0 {
+		t.Errorf("cert or hosts touched: %q", *calls)
+	}
+	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("route file written: %v", err)
+	}
+}
+
+func TestStartRejectsBadVirtualHosts(t *testing.T) {
+	for _, c := range []struct{ full, shared, want string }{
+		{adminerFull("adminer", "shop.test"), "", "service adminer: VIRTUAL_HOST shop.test is already a domain of project shop"},
+		{adminerFull("my_admin", "x.test"), "", "service my_admin: name must be a-z, 0-9, - to get a route"},
+		{adminerFull("adminer", "zed.test"), "services:\n  zed:\n    networks: {lodev: {}}\n    environment: {VIRTUAL_HOST: zed.test}\n",
+			"domain zed.test is already used by a shared service"},
+	} {
+		p, calls := startStubs(t, c.full)
+		if c.shared != "" {
+			writeFile(t, servicesFullFile(), c.shared)
+		}
+		if err := start(p, startOpts{noHooks: true}); err == nil || err.Error() != c.want {
+			t.Errorf("got %v, want %s", err, c.want)
+		}
+		if len(*calls) != 0 {
+			t.Errorf("cert or hosts touched: %q", *calls)
+		}
+	}
+}

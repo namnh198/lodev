@@ -149,3 +149,24 @@ func TestConflictSymlinkedSelf(t *testing.T) {
 		t.Errorf("%v", r)
 	}
 }
+
+func TestPutExtraHosts(t *testing.T) {
+	r := Registry{}
+	r.Put(project("shop", "/p", "shop.test", "en.test"), "adminer.test")
+	if got := r["shop"].Domains; !slices.Equal(got, []string{"shop.test", "en.test", "adminer.test"}) {
+		t.Fatal(got)
+	}
+}
+
+func TestConflictExtraHosts(t *testing.T) {
+	a := projectDir(t)
+	r := Registry{"a": {Path: a, Domains: []string{"a.test", "adminer.test"}}}
+	p := project("b", projectDir(t), "b.test")
+	if err := r.Conflict(p); err != nil {
+		t.Fatal(err)
+	}
+	err := r.Conflict(p, "adminer.test")
+	if want := `domain adminer.test is already used by project "a" (` + a + ")"; err == nil || err.Error() != want {
+		t.Fatalf("got %v, want %s", err, want)
+	}
+}

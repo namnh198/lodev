@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -381,7 +382,7 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err != nil {
 		return err
 	}
-	if err := docker.EnsurePHPImage(p.PHP, g.NodeVersion, rebuild.base); err != nil {
+	if err := ensurePHPImage(p.PHP, g.NodeVersion, rebuild.base); err != nil {
 		return err
 	}
 	img, err := docker.EnsureProjectImage(p, rebuild.project)
@@ -392,12 +393,6 @@ func start(p *config.Project, rebuild startOpts) error {
 		return err
 	}
 	if p.Webserver != "none" {
-		if err := certs.Ensure(p.Name, p.Domains); err != nil {
-			return err
-		}
-		if err := certs.SyncTraefik(); err != nil {
-			return err
-		}
 		if err := writeWebserverConf(p); err != nil {
 			return err
 		}
@@ -414,35 +409,6 @@ func start(p *config.Project, rebuild startOpts) error {
 		return err
 	}
 	if err := writeLodevGitignore(p); err != nil {
-		return err
-	}
-	// WebDomains is nil for CLI projects, which also clears a block left from an earlier webserver.
-	if err := hosts.Apply(p.Name, p.WebDomains()); err != nil {
-		return err
-	}
-	dropped := reg.Put(p)
-	for _, old := range dropped {
-		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
-		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
-		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
-			return err
-		}
-		if err := removeProjectImage(old); err != nil {
-			return err
-		}
-		if err := hosts.Apply(old, nil); err != nil {
-			return err
-		}
-		if err := certs.Remove(old); err != nil {
-			return err
-		}
-	}
-	if len(dropped) > 0 {
-		if err := certs.SyncTraefik(); err != nil {
-			return err
-		}
-	}
-	if err := reg.Save(); err != nil {
 		return err
 	}
 	// The web container mounts the CA: a missing one would become a root-owned folder.
@@ -465,9 +431,9 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return err
 	}
-	data, err := templates.ProjectCompose(templates.ProjectInput{
+	in := templates.ProjectInput{
 		Project:    p,
-		ExtraHosts: reg.AllDomains(),
+		ExtraHosts: union(reg.AllDomains(), p.WebDomains()),
 		CAFile:     ca,
 		Image:      img,
 		User:       user,
@@ -475,21 +441,74 @@ func start(p *config.Project, rebuild startOpts) error {
 		GID:        os.Getgid(),
 		HomeDir:    home,
 		Env:        env,
-	})
+	}
+	if err := renderProjectCompose(p, in); err != nil {
+		return err
+	}
+	// The merged file names the services' VIRTUAL_HOSTs: they need the cert, /etc/hosts and the registry.
+	svcs, svcHosts, err := projectVirtualServices(p)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(composeBase(p), data, 0o644); err != nil {
+	if err := reg.Conflict(p, svcHosts...); err != nil {
 		return err
 	}
-	if err := mergeCompose(p); err != nil {
+	routed := slices.Concat(p.WebDomains(), svcHosts)
+	if len(routed) > 0 {
+		if err := ensureCert(p.Name, routed); err != nil {
+			return err
+		}
+		if err := certs.SyncTraefik(); err != nil {
+			return err
+		}
+	}
+	// Empty for CLI projects without routed services, which also clears a block left from an earlier webserver.
+	if err := applyHosts(p.Name, routed); err != nil {
 		return err
+	}
+	dropped := reg.Put(p, svcHosts...)
+	for _, old := range dropped {
+		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
+		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
+		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
+			return err
+		}
+		if err := removeProjectImage(old); err != nil {
+			return err
+		}
+		if err := hosts.Apply(old, nil); err != nil {
+			return err
+		}
+		if err := certs.Remove(old); err != nil {
+			return err
+		}
+		if err := removeProjectRoutes(old); err != nil {
+			return err
+		}
+	}
+	if len(dropped) > 0 {
+		if err := certs.SyncTraefik(); err != nil {
+			return err
+		}
+	}
+	if err := reg.Save(); err != nil {
+		return err
+	}
+	// The virtual hosts are new to extra_hosts: render and merge again so the containers resolve them.
+	if all := reg.AllDomains(); slices.ContainsFunc(all, func(h string) bool { return !slices.Contains(in.ExtraHosts, h) }) {
+		in.ExtraHosts = all
+		if err := renderProjectCompose(p, in); err != nil {
+			return err
+		}
 	}
 	if err := os.Remove(composeLegacy(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	warnWorkDirMove(p)
 	if err := projectCompose(p, "up", "-d", "--remove-orphans"); err != nil {
+		return err
+	}
+	if err := writeProjectRoutes(p, svcs); err != nil {
 		return err
 	}
 	if err := waitWeb(p, g); err != nil {
@@ -507,6 +526,69 @@ func start(p *config.Project, rebuild startOpts) error {
 		return nil
 	}
 	return runHooks(p, "post-start")
+}
+
+// Swapped in tests.
+var (
+	ensurePHPImage = docker.EnsurePHPImage
+	ensureCert     = certs.Ensure
+	applyHosts     = hosts.Apply
+)
+
+// renderProjectCompose writes the base compose file and merges the user's *.compose.yml over it.
+func renderProjectCompose(p *config.Project, in templates.ProjectInput) error {
+	data, err := templates.ProjectCompose(in)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(composeBase(p), data, 0o644); err != nil {
+		return err
+	}
+	return mergeCompose(p)
+}
+
+var routeNameRe = regexp.MustCompile(`^[a-z0-9-]+$`)
+
+// projectVirtualServices reads the routed services of p's merged compose file and their hosts,
+// refusing a host that p's web route or a shared service already has.
+func projectVirtualServices(p *config.Project) ([]virtualService, []string, error) {
+	full, err := os.ReadFile(composeFull(p))
+	if err != nil {
+		return nil, nil, err
+	}
+	warnTraefikLabels(full)
+	svcs, err := virtualServices(full, composeProject(p), config.TLD(), []string{"web", "varnish"})
+	if err != nil {
+		return nil, nil, err
+	}
+	var svcHosts []string
+	for _, v := range svcs {
+		// Checked before compose up: TraefikRoutes refuses such a router name only after the containers run.
+		if !routeNameRe.MatchString(v.Service) {
+			return nil, nil, fmt.Errorf("service %s: name must be a-z, 0-9, - to get a route", v.Service)
+		}
+		for _, h := range v.Hosts {
+			if slices.Contains(p.WebDomains(), h) {
+				return nil, nil, fmt.Errorf("service %s: VIRTUAL_HOST %s is already a domain of project %s", v.Service, h, p.Name)
+			}
+		}
+		svcHosts = append(svcHosts, v.Hosts...)
+	}
+	shared, err := sharedVirtualHosts()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) { // no shared stack merged yet
+		return nil, nil, err
+	}
+	for _, h := range slices.Concat(p.WebDomains(), svcHosts) {
+		if slices.Contains(shared, h) {
+			return nil, nil, fmt.Errorf("domain %s is already used by a shared service", h)
+		}
+	}
+	return svcs, svcHosts, nil
+}
+
+// union is a and b sorted, without repeats.
+func union(a, b []string) []string {
+	return slices.Compact(slices.Sorted(slices.Values(slices.Concat(a, b))))
 }
 
 func announceStarted(p *config.Project) {
@@ -540,6 +622,9 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 		if err := projectCompose(p, "down"); err != nil {
 			return err
 		}
+	}
+	if err := removeProjectRoutes(p.Name); err != nil {
+		return err
 	}
 	if err := removeProjectImage(p.Name); err != nil {
 		return err
@@ -614,10 +699,18 @@ func restartProject(p *config.Project, o startOpts) error {
 			return fmt.Errorf("%w (lodev restart --no-hooks restarts anyway)", err)
 		}
 	}
-	if err := projectCompose(p, "stop"); err != nil {
+	if err := stopProject(p); err != nil {
 		return err
 	}
 	return startFn(p, o)
+}
+
+// stopProject stops p's containers and drops its routes: Traefik answers 404 for a stopped project.
+func stopProject(p *config.Project) error {
+	if err := projectCompose(p, "stop"); err != nil {
+		return err
+	}
+	return removeProjectRoutes(p.Name)
 }
 
 // forAll runs fn on every registry project; one failure does not stop the rest.
@@ -762,7 +855,7 @@ func init() {
 					return fmt.Errorf("%w (lodev stop --no-hooks stops anyway)", err)
 				}
 			}
-			return projectCompose(p, "stop")
+			return stopProject(p)
 		},
 	}
 	stopCmd.Flags().BoolVar(&stopNoHooks, "no-hooks", false, "do not run the pre-stop hooks")

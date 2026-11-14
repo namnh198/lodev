@@ -81,7 +81,8 @@ func stale(e Entry) bool {
 	return err != nil
 }
 
-func (r Registry) Conflict(p *config.Project) error {
+// Conflict refuses p's name, a web domain or an extra host (its services' VIRTUAL_HOST) that another project uses.
+func (r Registry) Conflict(p *config.Project, extra ...string) error {
 	for _, name := range r.Names() {
 		e := r[name]
 		if SamePath(e.Path, p.Root) || stale(e) {
@@ -90,7 +91,7 @@ func (r Registry) Conflict(p *config.Project) error {
 		if name == p.Name {
 			return fmt.Errorf("project name %q is already used by %s", name, e.Path)
 		}
-		for _, d := range p.WebDomains() {
+		for _, d := range slices.Concat(p.WebDomains(), extra) {
 			if slices.Contains(e.Domains, d) {
 				return fmt.Errorf("domain %s is already used by project %q (%s)", d, name, e.Path)
 			}
@@ -99,8 +100,9 @@ func (r Registry) Conflict(p *config.Project) error {
 	return nil
 }
 
-// Put records p and returns the old names dropped for the same folder (a renamed `name:`).
-func (r Registry) Put(p *config.Project) []string {
+// Put records p with its web domains and extra hosts, and returns the old names dropped for the
+// same folder (a renamed `name:`).
+func (r Registry) Put(p *config.Project, extra ...string) []string {
 	var dropped []string
 	for name, e := range r {
 		if SamePath(e.Path, p.Root) && name != p.Name {
@@ -108,7 +110,7 @@ func (r Registry) Put(p *config.Project) []string {
 			dropped = append(dropped, name)
 		}
 	}
-	r[p.Name] = Entry{Path: p.Root, Domains: p.WebDomains()}
+	r[p.Name] = Entry{Path: p.Root, Domains: slices.Concat(p.WebDomains(), extra)}
 	return dropped
 }
 

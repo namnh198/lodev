@@ -452,6 +452,28 @@ collide with the shared ones on the `lodev` network. On the `lodev` network the 
 reachable as `lodev-<name>-web` (the bare `web` alias exists on every project's `lodev` network, so
 it is ambiguous); `web` works only on the project's `default` network. `lodev create` scaffolds `example.compose.yml.example`.
 
+An extra service gets an HTTPS route by setting `VIRTUAL_HOST` in its `environment:` (one host, or
+a comma-separated list, each ending in your TLD) and `VIRTUAL_PORT` (the container port, default 80).
+It needs `networks: [lodev, default]`: Traefik reaches it on `lodev`, as `lodev-<project>-<service>-1`
+(or its `container_name`).
+
+```yaml
+# .lodev/adminer.compose.yml
+services:
+  adminer:
+    image: adminer
+    networks: [lodev, default]
+    environment:
+      VIRTUAL_HOST: adminer.test          # one host, or several: a.test,b.test
+      VIRTUAL_PORT: "8080"                # container port; default 80
+```
+
+`lodev start` adds these hosts to the project's certificate, `/etc/hosts` and the web container's
+`extra_hosts`, and fails if another project or a shared service already uses one. It writes the
+project's routes to `~/.lodev/traefik/p-<project>.yaml`; `stop`, `remove` and `poweroff` delete
+it. `traefik.*` labels are ignored since this version (Traefik no longer reads the Docker socket):
+use `VIRTUAL_HOST` / `VIRTUAL_PORT` instead.
+
 ## Customizing the shared services
 
 MySQL and MariaDB read `~/.lodev/services/mysql/lodev.cnf` and `~/.lodev/services/mariadb/lodev.cnf` (mounted as

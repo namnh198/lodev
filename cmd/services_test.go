@@ -164,10 +164,15 @@ func TestPoweroff(t *testing.T) {
 	a, _ := newProjectConfig(t.TempDir(), "a", "php", "", "", "")
 	config.SaveProject(a)
 	runs := stubPoweroff(t, map[string]string{"lodev-a-web": a.Root, "lodev-gone-web": ""})
+	writeFile(t, projectRouteFile("a"), "x")
+	writeFile(t, projectRouteFile("gone"), "x")
 	out, _, restore := ui.Capture(false)
 	defer restore()
 	if err := poweroff(); err != nil {
 		t.Fatal(err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(config.TraefikDir(), "p-*.yaml")); len(left) > 0 {
+		t.Errorf("route files kept: %v", left)
 	}
 	mustContain(t, out.String(), "Powering off lodev", "Stopping project a", "Stopping project gone", "lodev is powered off")
 	if strings.Contains(out.String(), "✔ Container") {

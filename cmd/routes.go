@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,12 +15,96 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"lodev/internal/config"
+	"lodev/internal/registry"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
 )
 
-// syncProjectRoutes writes the running projects' route files; given its body with the project routes.
-var syncProjectRoutes = func() error { return nil }
+func projectRouteFile(name string) string {
+	return filepath.Join(config.TraefikDir(), "p-"+name+".yaml")
+}
+
+// writeProjectRoutes writes p-<name>.yaml: the web route (through varnish when on) and one per
+// service with VIRTUAL_HOST. With no route at all the file is removed.
+func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
+	var rs []templates.TraefikRoute
+	if p.Webserver != "none" {
+		backend := "web"
+		if p.Varnish {
+			backend = "varnish"
+		}
+		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name, Hosts: p.WebDomains(), URL: "http://lodev-" + p.Name + "-" + backend + ":80"})
+	}
+	for _, v := range svcs {
+		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "-svc-" + v.Service, Hosts: v.Hosts, URL: fmt.Sprintf("http://%s:%d", v.Container, v.Port)})
+	}
+	if len(rs) == 0 {
+		return removeProjectRoutes(p.Name)
+	}
+	data, err := templates.TraefikRoutes(rs)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(config.TraefikDir(), 0o755); err != nil {
+		return err
+	}
+	return config.WriteFileAtomic(projectRouteFile(p.Name), data, 0o644)
+}
+
+func removeProjectRoutes(name string) error {
+	if err := os.Remove(projectRouteFile(name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// syncProjectRoutes rewrites the route file of every registry project whose web container runs,
+// from its merged compose file, and deletes the p-*.yaml of every other name. A var so tests can swap it.
+var syncProjectRoutes = func() error {
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	keep := map[string]bool{}
+	for _, name := range reg.Names() {
+		if !containerRunning("lodev-" + name + "-web") {
+			continue
+		}
+		keep[name] = true
+		if err := writeRoutesFromCompose(reg[name].Path); err != nil {
+			// One broken project must not stop the shared services; its last routes stay.
+			ui.Warn("%s: routes not updated: %v", name, err)
+		}
+	}
+	files, err := filepath.Glob(filepath.Join(config.TraefikDir(), "p-*.yaml"))
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(f), "p-"), ".yaml"); !keep[name] {
+			if err := os.Remove(f); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func writeRoutesFromCompose(root string) error {
+	p, err := config.LoadProject(root)
+	if err != nil {
+		return err
+	}
+	full, err := os.ReadFile(composeFile(p))
+	if err != nil {
+		return err
+	}
+	svcs, err := virtualServices(full, composeProject(p), config.TLD(), []string{"web", "varnish"})
+	if err != nil {
+		return err
+	}
+	return writeProjectRoutes(p, svcs)
+}
 
 func sharedVirtualServices() ([]virtualService, error) {
 	full, err := os.ReadFile(servicesFullFile())
