@@ -467,6 +467,9 @@ func start(p *config.Project, rebuild startOpts) error {
 	}
 	// Created here, not by Docker: Docker would create a missing bind source owned by root.
 	home := projectHome(g, p)
+	if err := migrateHome(g, p); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return err
 	}
@@ -664,14 +667,39 @@ func announceStarted(p *config.Project) {
 	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
 }
 
-// projectHome is the host folder mounted at /var/lib/lodev/home: the container's caches and histories.
+// projectHome is p's data folder, mounted at /var/lib/lodev/home: the container's caches and
+// histories, plus the homeadditional/ and apache/ copies start takes.
 func projectHome(g *config.Global, p *config.Project) string {
-	return filepath.Join(g.DataPath(), "home-"+p.Name)
+	return filepath.Join(g.DataPath(), "web", p.Name+"-web")
 }
 
 // projectHomeAdditional is the copy of p's .lodev/homeadditional the web container mounts.
 func projectHomeAdditional(g *config.Global, p *config.Project) string {
-	return filepath.Join(g.DataPath(), "homeadditional-"+p.Name)
+	return filepath.Join(projectHome(g, p), "homeadditional")
+}
+
+// migrateHome moves an older lodev's <data>/home-<name> to projectHome (left alone, with a warning,
+// when both exist) and drops its homeadditional-<name> and apache-<name> copies, which start retakes.
+func migrateHome(g *config.Global, p *config.Project) error {
+	old, home := filepath.Join(g.DataPath(), "home-"+p.Name), projectHome(g, p)
+	if _, err := os.Stat(old); err == nil {
+		if _, err := os.Stat(home); err == nil {
+			ui.Warn("%s is no longer used (lodev now uses %s); move what you need and delete it", old, home)
+		} else {
+			if err := os.MkdirAll(filepath.Dir(home), 0o755); err != nil {
+				return err
+			}
+			if err := os.Rename(old, home); err != nil {
+				return err
+			}
+		}
+	}
+	for _, d := range []string{"homeadditional-", "apache-"} {
+		if err := os.RemoveAll(filepath.Join(g.DataPath(), d+p.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // snapshotHomeAdditional replaces dst's contents with a copy of p's .lodev/homeadditional (a
@@ -689,7 +717,7 @@ func snapshotHomeAdditional(p *config.Project, dst string) (string, error) {
 // projectApacheSnapshot is the copy of p's apache config (webserver.conf and custom.d/) the web
 // container mounts.
 func projectApacheSnapshot(g *config.Global, p *config.Project) string {
-	return filepath.Join(g.DataPath(), "apache-"+p.Name)
+	return filepath.Join(projectHome(g, p), "apache")
 }
 
 // snapshotApache copies p's .lodev/apache-webserver.conf and .lodev/apache/ into dst as
@@ -1153,7 +1181,7 @@ func ensureProjectDB(p *config.Project, g *config.Global) error {
 	return dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName()))
 }
 
-// homeMarker says home-<project> was seen by a lodev that mounts it as caches only.
+// homeMarker says the project's home was seen by a lodev that mounts it as caches only.
 const homeMarker = ".lodev-home-v2"
 
 // warnHomeMigration lists, once per home folder, what older lodevs kept there that the container's
@@ -1171,7 +1199,7 @@ func warnHomeMigration(home string) {
 	var left []string
 	for _, e := range entries {
 		switch e.Name() {
-		case ".bash_history", ".mysql_history", ".npm", ".cache", ".local":
+		case ".bash_history", ".mysql_history", ".npm", ".cache", ".local", "homeadditional", "apache":
 		case ".config": // psysh's history lives here; the rest (composer auth...) is not kept
 			subs, _ := os.ReadDir(filepath.Join(home, ".config"))
 			for _, c := range subs {

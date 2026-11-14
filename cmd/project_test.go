@@ -644,7 +644,7 @@ func TestWriteVarnishVCL(t *testing.T) {
 func TestProjectHome(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	g, _ := config.LoadGlobal()
-	if got := projectHome(g, &config.Project{Name: "shop"}); got != filepath.Join(config.Home(), "data", "home-shop") {
+	if got := projectHome(g, &config.Project{Name: "shop"}); got != filepath.Join(config.Home(), "data", "web", "shop-web") {
 		t.Errorf("projectHome = %q", got)
 	}
 }
@@ -695,7 +695,12 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	}
 	g, _ := config.LoadGlobal()
 	snap := projectHomeAdditional(g, p)
+	if snap != filepath.Join(projectHome(g, p), "homeadditional") {
+		t.Fatalf("snap = %q", snap)
+	}
 	writeFile(t, filepath.Join(snap, "stale"), "x")
+	cache := filepath.Join(projectHome(g, p), ".npm", "x")
+	writeFile(t, cache, "c")
 	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -710,6 +715,9 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(snap, "stale")); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("stale file kept: %v", err)
+	}
+	if b, _ := os.ReadFile(cache); string(b) != "c" {
+		t.Errorf("cache lost: %q", b)
 	}
 	b, _ := os.ReadFile(composeBase(p))
 	mustContain(t, string(b), `"`+snap+`:/etc/lodev/homeadditional/project:ro"`)
@@ -737,6 +745,9 @@ func TestStartSnapshotsApacheConfig(t *testing.T) {
 	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "logs.conf"), "CustomLog x\n")
 	g, _ := config.LoadGlobal()
 	snap := projectApacheSnapshot(g, p)
+	if snap != filepath.Join(projectHome(g, p), "apache") {
+		t.Fatalf("snap = %q", snap)
+	}
 	writeFile(t, filepath.Join(snap, "custom.d", "stale.conf"), "x")
 	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
@@ -771,7 +782,7 @@ func TestStartSnapshotsApacheConfig(t *testing.T) {
 
 func TestHomeMigrationWarnsOnce(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home-shop")
-	for _, f := range []string{".bash_history", ".npm/_cacache/x", ".gitconfig", ".ssh/id_rsa", ".cache/composer/y", ".config/composer/auth.json", ".config/psysh/x"} {
+	for _, f := range []string{".bash_history", ".npm/_cacache/x", ".gitconfig", ".ssh/id_rsa", ".cache/composer/y", ".config/composer/auth.json", ".config/psysh/x", "homeadditional/.gitconfig", "apache/webserver.conf"} {
 		writeFile(t, filepath.Join(home, f), "x")
 	}
 	_, e, restore := ui.Capture(false)
@@ -1115,4 +1126,57 @@ func TestStartWarnsCommittedLocalKeys(t *testing.T) {
 	mustContain(t, stderr.String(),
 		"enable_xdebug in .lodev/config.yaml is committed with the project; move it to .lodev/config.local.yaml",
 		"opcache_validate_timestamps in .lodev/config.yaml is committed with the project; move it to .lodev/config.local.yaml")
+}
+
+func migrateShop(t *testing.T) (*config.Global, *config.Project, string) {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	g, _ := config.LoadGlobal()
+	return g, &config.Project{Name: "shop"}, filepath.Join(g.DataPath(), "home-shop")
+}
+
+func TestMigrateHomeRenames(t *testing.T) {
+	g, p, old := migrateShop(t)
+	writeFile(t, filepath.Join(old, ".bash_history"), "ls\n")
+	if err := migrateHome(g, p); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(g.DataPath(), "web", "shop-web", ".bash_history")); string(b) != "ls\n" {
+		t.Errorf("history = %q", b)
+	}
+	if _, err := os.Stat(old); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("old home kept: %v", err)
+	}
+}
+
+func TestMigrateHomeBothExist(t *testing.T) {
+	g, p, old := migrateShop(t)
+	writeFile(t, filepath.Join(old, ".bash_history"), "old\n")
+	writeFile(t, filepath.Join(projectHome(g, p), ".bash_history"), "new\n")
+	_, e, restore := ui.Capture(false)
+	defer restore()
+	if err := migrateHome(g, p); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, e.String(), old+" is no longer used (lodev now uses "+projectHome(g, p)+"); move what you need and delete it")
+	if b, _ := os.ReadFile(filepath.Join(old, ".bash_history")); string(b) != "old\n" {
+		t.Errorf("old history = %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(projectHome(g, p), ".bash_history")); string(b) != "new\n" {
+		t.Errorf("new history = %q", b)
+	}
+}
+
+func TestMigrateHomeDropsOldCopies(t *testing.T) {
+	g, p, _ := migrateShop(t)
+	writeFile(t, filepath.Join(g.DataPath(), "homeadditional-shop", "x"), "x")
+	writeFile(t, filepath.Join(g.DataPath(), "apache-shop", "webserver.conf"), "x")
+	if err := migrateHome(g, p); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"homeadditional-shop", "apache-shop"} {
+		if _, err := os.Stat(filepath.Join(g.DataPath(), d)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s kept: %v", d, err)
+		}
+	}
 }

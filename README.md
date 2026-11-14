@@ -256,17 +256,19 @@ folders are mounted read-only. Put composer's auth at
 `~/.lodev/homeadditional`, which lodev creates; the project's folder is committed with the project,
 so keep secrets out of it. It is in the [trust list](#commands-from-the-projects-repo), and the
 container never reads it from the repo: each `lodev start` copies it to
-`<data_dir>/homeadditional-<name>` and mounts that copy (only when the folder exists), so a change
-or a new folder takes effect on the next `lodev restart`, and a container Docker restarts on its
-own still gets the copy from the last start. `lodev remove` deletes the copy.
+`<data_dir>/web/<name>-web/homeadditional` and mounts that copy (only when the folder exists), so
+a change or a new folder takes effect on the next `lodev restart`, and a container Docker restarts
+on its own still gets the copy from the last start. An apache project's config is copied the same
+way, to `<data_dir>/web/<name>-web/apache`. `lodev remove` deletes both copies.
 
-Only caches and histories outlive the container: `<data_dir>/home-<name>` is mounted at
+Only caches and histories outlive the container: `<data_dir>/web/<name>-web` is mounted at
 `/var/lib/lodev/home` and keeps exactly `.bash_history`, `.mysql_history`, `.cache/composer`,
 `.npm`, `.cache/yarn`, `.local/share/pnpm/store` and `.config/psysh` (through `HISTFILE`,
 `MYSQL_HISTFILE`, `COMPOSER_CACHE_DIR`, `npm_config_cache`, `YARN_CACHE_FOLDER` and
 `pnpm_config_store_dir`, which `lodev ssh` and `lodev exec` also get, and a `~/.config/psysh`
 link); the rest of `~/.cache` and `~/.local` is not kept. lodev creates the folder on
-`lodev start`; `lodev remove` keeps it (and says where). Other entries an older lodev left in that folder (`.gitconfig`, `.ssh`, `.config/composer`
+`lodev start` (renaming an older lodev's `<data_dir>/home-<name>` to it, and deleting the old
+`homeadditional-<name>` and `apache-<name>` copies); `lodev remove` keeps it (and says where). Other entries an older lodev left in that folder (`.gitconfig`, `.ssh`, `.config/composer`
 for composer's `auth.json`...; everything except the cache paths above and `.config/psysh`) are no
 longer in the container's home: the first `lodev start` lists them in a warning, once, and moves nothing; copy the ones you need to
 `~/.lodev/homeadditional`. Paths are absolute or start with `~/`; changing `data_dir`

@@ -65,7 +65,7 @@ type ProjectInput struct {
 	Env map[string]string
 }
 
-// cacheHome is where the web container mounts the project's home-<name> folder.
+// cacheHome is where the web container mounts the project's web/<name>-web folder.
 const cacheHome = "/var/lib/lodev/home"
 
 // webEnv is the web service's KEY=value list: lodev's variables, then Env sorted by key.
