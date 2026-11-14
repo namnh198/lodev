@@ -954,3 +954,15 @@ func TestStartRejectsBadVirtualHosts(t *testing.T) {
 		}
 	}
 }
+
+func TestStartWarnsOpcacheOff(t *testing.T) {
+	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
+	_, stderr, restore := ui.Capture(false)
+	defer restore()
+	off := false
+	p.OpcacheValidateTimestamps = &off
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, stderr.String(), "opcache.validate_timestamps is off: code changes need lodev restart")
+}

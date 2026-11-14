@@ -79,6 +79,9 @@ func webEnv(in ProjectInput) []string {
 	if p.Varnish {
 		kv = append(kv, [2]string{"VARNISH_HOST", "lodev-" + p.Name + "-varnish"})
 	}
+	if p.OpcacheValidateTimestamps != nil && !*p.OpcacheValidateTimestamps {
+		kv = append(kv, [2]string{"LODEV_OPCACHE_VALIDATE", "0"})
+	}
 	if len(p.CronLines()) > 0 {
 		kv = append(kv, [2]string{"LODEV_CRON", "1"})
 	}

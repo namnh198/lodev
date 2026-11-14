@@ -832,3 +832,19 @@ func TestProjectWorkingDir(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectComposeOpcacheOffGolden(t *testing.T) {
+	off, on := false, true
+	in := projectInput("nginx")
+	in.Project.OpcacheValidateTimestamps = &off
+	b, err := ProjectCompose(in)
+	got := string(must(t)(b, err))
+	if !strings.Contains(got, "LODEV_OPCACHE_VALIDATE=0") {
+		t.Fatalf("no LODEV_OPCACHE_VALIDATE=0:\n%s", got)
+	}
+	golden(t, "project-opcache-off", []byte(got))
+	in.Project.OpcacheValidateTimestamps = &on
+	if b := string(must(t)(ProjectCompose(in))); strings.Contains(b, "LODEV_OPCACHE_VALIDATE") {
+		t.Errorf("validate on, yet:\n%s", b)
+	}
+}

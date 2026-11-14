@@ -22,6 +22,10 @@ for sapi in cli fpm; do
   for f in /etc/lodev/php.d/*.ini; do
     [ -e "$f" ] && ln -sf "$f" "$d/99-zz-$(basename "$f")"
   done
+  if [ "${LODEV_OPCACHE_VALIDATE:-}" = 0 ]; then
+    echo "opcache.validate_timestamps=0" > /etc/lodev/opcache-off.ini
+    ln -sf /etc/lodev/opcache-off.ini "$d/99-zz-lodev-opcache-off.ini"
+  fi
 done
 mkdir -p /run/php
 

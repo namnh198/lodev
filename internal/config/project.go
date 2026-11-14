@@ -64,6 +64,8 @@ type Project struct {
 	PHPIDEConfig string `yaml:"php_ide_config,omitempty"`
 	// EnableXdebug turns Xdebug on whenever the project starts; lodev xdebug on/off keeps it in step.
 	EnableXdebug bool `yaml:"enable_xdebug,omitempty"`
+	// OpcacheValidateTimestamps false turns opcache.validate_timestamps off (for benchmarking); nil keeps PHP's default (on).
+	OpcacheValidateTimestamps *bool `yaml:"opcache_validate_timestamps,omitempty"`
 	// Varnish puts a varnish container in front of the web server.
 	Varnish        bool   `yaml:"varnish,omitempty"`
 	VarnishVersion string `yaml:"varnish_version,omitempty"`

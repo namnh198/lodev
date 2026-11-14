@@ -708,3 +708,21 @@ func TestVolumeName(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestOpcacheValidateTimestamps(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
+	path := filepath.Join(root, ".lodev", "config.yaml")
+	os.WriteFile(path, []byte("name: demo\ntype: php\nphp: 8.3\nservices: [mysql]\nopcache_validate_timestamps: false\n"), 0o644)
+	p, err := LoadProject(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.OpcacheValidateTimestamps == nil || *p.OpcacheValidateTimestamps {
+		t.Fatalf("got %v, want a pointer to false", p.OpcacheValidateTimestamps)
+	}
+	os.WriteFile(path, []byte("name: demo\ntype: php\nphp: 8.3\nservices: [mysql]\n"), 0o644)
+	if p, err = LoadProject(root); err != nil || p.OpcacheValidateTimestamps != nil {
+		t.Fatalf("unset: %v %v", p.OpcacheValidateTimestamps, err)
+	}
+}

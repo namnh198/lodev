@@ -404,6 +404,9 @@ func start(p *config.Project, rebuild startOpts) error {
 	if w := userWarning(user, from); w != "" {
 		ui.Warn("%s", w)
 	}
+	if p.OpcacheValidateTimestamps != nil && !*p.OpcacheValidateTimestamps {
+		ui.Warn("opcache.validate_timestamps is off: code changes need lodev restart")
+	}
 	reg, err := registry.Load()
 	if err != nil {
 		return err

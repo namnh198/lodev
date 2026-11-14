@@ -302,6 +302,7 @@ user: kuroko                 # optional: shell user in the web container; defaul
 working_dir: /app            # optional: where the project is mounted in the web container (default /app)
 php_ide_config: myshop       # optional: PHP_IDE_CONFIG serverName for PhpStorm (default: name)
 enable_xdebug: true          # optional: Xdebug on at every start (default false); lodev xdebug on/off sets it
+opcache_validate_timestamps: false  # optional: false turns opcache.validate_timestamps off (benchmarking); put it in .lodev/config.local.yaml, and restart after code changes
 varnish: true                # optional: Varnish in front of the web server (default false)
 varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
 cron: true                   # optional: run cron jobs in the web container (default false)
