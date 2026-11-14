@@ -83,6 +83,7 @@ RUN mkdir -p /etc/lodev/php.d && touch /etc/lodev/php.d/prepend.php
 
 COPY nginx-status.conf /etc/nginx/conf.d/lodev-status.conf
 COPY apache-status.conf /etc/apache2/conf-enabled/lodev-status.conf
+COPY apache-servername.conf /etc/apache2/conf-enabled/lodev-servername.conf
 COPY healthcheck.sh /usr/local/bin/lodev-healthcheck
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/

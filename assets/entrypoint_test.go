@@ -345,3 +345,25 @@ func TestEntrypointPHPTools(t *testing.T) {
 		t.Errorf("want 8.2, 8.2.x and /usr/bin/phpize8.2, got:\n%s", got)
 	}
 }
+
+// TestApacheServerName: the image's global ServerName keeps apache from logging AH00558 on every
+// start. The conf file is mounted into a local lodev/webserver image, as the Dockerfile copies it.
+func TestApacheServerName(t *testing.T) {
+	out, err := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}", "lodev/webserver").Output()
+	image := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	if err != nil || image == "" {
+		t.Skip("needs Docker and a lodev/webserver image")
+	}
+	conf, err := filepath.Abs("webserver/apache-servername.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "apache2ctl",
+		"-v", conf+":/etc/apache2/conf-enabled/lodev-servername.conf:ro", image, "-t").CombinedOutput()
+	if err != nil {
+		t.Fatalf("apache2ctl -t: %v\n%s", err, got)
+	}
+	if strings.Contains(string(got), "AH00558") || !strings.Contains(string(got), "Syntax OK") {
+		t.Errorf("apache2ctl -t:\n%s", got)
+	}
+}
