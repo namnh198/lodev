@@ -12,6 +12,7 @@ import (
 
 	"lodev/internal/config"
 	"lodev/internal/docker"
+	"lodev/internal/dotenv"
 )
 
 // trustItem is one command the project's repo makes lodev run: a stable Key and the text shown
@@ -131,6 +132,21 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 			lines = append(lines, k+"="+p.Environment[k])
 		}
 		add("environment", "environment: "+strings.Join(lines, "\nenvironment: "))
+	}
+	// Names only: .lodev/.env is meant for secrets, and the question is printed.
+	if data, err := os.ReadFile(dotenvPath(p)); err == nil {
+		entries, err := dotenv.Parse(data)
+		if err != nil {
+			return nil, fmt.Errorf(".lodev/.env: %w", err)
+		}
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Key)
+		}
+		slices.Sort(names)
+		add(".lodev/.env", "environment (.lodev/.env): "+strings.Join(slices.Compact(names), ", "))
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
 	}
 
 	items := make([]trustItem, 0, len(byKey))

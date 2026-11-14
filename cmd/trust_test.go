@@ -160,6 +160,25 @@ func TestTrustItemsEnvironment(t *testing.T) {
 	}
 }
 
+// A repo can commit .lodev/.env: its variables reach the container, so they are listed, by name
+// only, since the file is meant for secrets.
+func TestTrustItemsDotenvNamesOnly(t *testing.T) {
+	p := hookProject(t, nil)
+	writeRepoFile(t, p, ".lodev/.env", "SECRET=hunter2\nAPP_KEY=abc\n")
+	items, err := trustItems(p)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items = %v, err = %v", items, err)
+	}
+	if it := items[0]; it.Key != ".lodev/.env" || it.Display != "environment (.lodev/.env): APP_KEY, SECRET" {
+		t.Fatalf("item = %+v", it)
+	}
+
+	writeRepoFile(t, p, ".lodev/.env", "not a line\n")
+	if _, err := trustItems(p); err == nil || !strings.HasPrefix(err.Error(), ".lodev/.env:") {
+		t.Fatalf("broken .env: err = %v", err)
+	}
+}
+
 func TestTrustItemsApacheConfig(t *testing.T) {
 	p := hookProject(t, nil)
 	writeRepoFile(t, p, ".lodev/apache/example.conf.example", "x")

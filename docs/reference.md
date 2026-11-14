@@ -479,7 +479,8 @@ itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import`
 A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
 `.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, extra `.lodev/*.compose.yml`
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
-followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides, not `.lodev/.env`),
+followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides),
+the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),
 and your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
 `Run these commands? [y/N]` once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
