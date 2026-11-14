@@ -72,9 +72,28 @@ if [ -n "${LODEV_USER:-}" ]; then
     # -K widens the system's 1000-60000 range so macOS (501) and high LDAP UIDs raise no warning.
     useradd -K UID_MIN=1 -K UID_MAX=4294967294 -m -d "/home/$LODEV_USER" -s /bin/bash -u "$LODEV_UID" -g "$group" "$LODEV_USER"
   fi
-  # The home may be a mounted, persistent folder: useradd skips /etc/skel then. Copy what is
-  # missing as the user (no chown -R over caches), never overwriting the user's files.
-  runuser -u "$LODEV_USER" -- cp -r --update=none /etc/skel/. "/home/$LODEV_USER/"
+  # home: begin
+  # useradd -m filled the home from /etc/skel (first start of this container only). On every start,
+  # as the user: the generated .my.cnf, then the read-only homeadditional folders (later wins,
+  # nothing is deleted), then the psysh link into the cache mount.
+  if [ -n "${DB_HOST:-}" ]; then
+    runuser -u "$LODEV_USER" -- sh -c 'umask 077
+      {
+        printf "[client]\nuser=root\npassword=root\nhost=%s\ndefault-character-set=utf8mb4\n" "$DB_HOST"
+        [ -z "${DB_DATABASE:-}" ] || printf "\n[mysql]\ndatabase=%s\n" "$DB_DATABASE"
+      } > "$1/.my.cnf"
+      chmod 600 "$1/.my.cnf"' sh "/home/$LODEV_USER"
+  fi
+  for d in global project; do
+    if [ -d "/etc/lodev/homeadditional/$d" ]; then
+      runuser -u "$LODEV_USER" -- cp -R "/etc/lodev/homeadditional/$d/." "/home/$LODEV_USER/"
+    fi
+  done
+  runuser -u "$LODEV_USER" -- sh -c 'mkdir -p /var/lib/lodev/home/.config/psysh "$1/.config"
+    if [ -L "$1/.config/psysh" ] || [ ! -e "$1/.config/psysh" ]; then
+      ln -sfn /var/lib/lodev/home/.config/psysh "$1/.config/psysh"
+    fi' sh "/home/$LODEV_USER"
+  # home: end
   printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$LODEV_USER" > /etc/sudoers.d/lodev
   chmod 0440 /etc/sudoers.d/lodev
   sed -i "s/^user .*;/user $LODEV_USER $group;/" /etc/nginx/nginx.conf

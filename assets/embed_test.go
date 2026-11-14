@@ -47,3 +47,45 @@ func TestHash(t *testing.T) {
 		t.Fatalf("php %q again %q mkcert %q", a, b, m)
 	}
 }
+
+// TestSkel: the lodev /etc/skel carries the history size, git and ssh defaults, and nothing from DDEV.
+func TestSkel(t *testing.T) {
+	for file, c := range map[string]struct{ want, not []string }{
+		"webserver/skel/.bashrc":     {want: []string{"HISTSIZE=10000", "HISTFILESIZE=10000", "shopt -s histappend", "HISTCONTROL=ignoreboth"}},
+		"webserver/skel/.gitconfig":  {want: []string{"autocrlf = input", "directory = *"}, not: []string{"[user]"}},
+		"webserver/skel/.ssh/config": {want: []string{"Include config.d/*.conf", "StrictHostKeyChecking=accept-new"}, not: []string{"ssh-agent", "UserKnownHostsFile"}},
+	} {
+		b, err := FS.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range c.want {
+			if !strings.Contains(string(b), w) {
+				t.Errorf("%s lacks %q", file, w)
+			}
+		}
+		for _, n := range c.not {
+			if strings.Contains(string(b), n) {
+				t.Errorf("%s has %q", file, n)
+			}
+		}
+	}
+}
+
+// TestHashCoversSkel: Hash reads every file under webserver, so the image tag changes with a skel
+// change as long as the skel files (dotfiles too) are inside the embedded tree.
+func TestHashCoversSkel(t *testing.T) {
+	for _, f := range []string{".bashrc", ".profile", ".gitconfig", ".ssh/config"} {
+		if _, err := FS.ReadFile("webserver/skel/" + f); err != nil {
+			t.Fatalf("skel/%s is not embedded: %v", f, err)
+		}
+	}
+	whole, err := Hash("webserver")
+	if err != nil {
+		t.Fatal(err)
+	}
+	skel, err := Hash("webserver/skel")
+	if err != nil || skel == whole || skel == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		t.Fatalf("skel hash %q (err %v) is empty or equals the whole tree's %q", skel, err, whole)
+	}
+}

@@ -86,8 +86,11 @@ COPY apache-status.conf /etc/apache2/conf-enabled/lodev-status.conf
 COPY healthcheck.sh /usr/local/bin/lodev-healthcheck
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/
+COPY skel/ /etc/skel/
 COPY entrypoint.sh /usr/local/bin/lodev-entrypoint
-RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck
+# The embedded files are 0644/0755: ssh refuses a config that is not private.
+RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck \
+    && chmod 700 /etc/skel/.ssh && chmod 600 /etc/skel/.ssh/config
 
 WORKDIR /app
 ENTRYPOINT ["/usr/local/bin/lodev-entrypoint"]

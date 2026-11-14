@@ -1,7 +1,9 @@
 package assets
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -202,5 +204,88 @@ func TestEntrypointUseraddQuiet(t *testing.T) {
 		if !strings.Contains(string(got), "uid="+id+"(kuroko)") {
 			t.Errorf("uid %s: user not created:\n%s", id, got)
 		}
+	}
+}
+
+// homeRun runs the entrypoint's user block (useradd through the home build) as root in a local
+// lodev/webserver image: the repo's skel replaces the image's /etc/skel, global and project (when
+// non-nil) are the read-only homeadditional mounts, and /var/lib/lodev/home is a tmpfs owned by the
+// user. It returns the script's report on the resulting home.
+func homeRun(t *testing.T, env []string, global, project map[string]string) string {
+	t.Helper()
+	image, block := entrypointBlock(t, `  group=$(getent group "$LODEV_GID"`, "  # home: end\n")
+	skel, err := filepath.Abs("webserver/skel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"run", "--rm", "--user", "0", "--entrypoint", "sh",
+		"-e", "LODEV_USER=kuroko", "-e", "LODEV_UID=501", "-e", "LODEV_GID=501",
+		"-v", skel + ":/etc/skel:ro", "--tmpfs", "/var/lib/lodev/home:uid=501,gid=501"}
+	for name, files := range map[string]map[string]string{"global": global, "project": project} {
+		if files == nil {
+			continue
+		}
+		d := t.TempDir()
+		for f, c := range files {
+			if err := os.WriteFile(filepath.Join(d, f), []byte(c), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		args = append(args, "-v", d+":/etc/lodev/homeadditional/"+name+":ro")
+	}
+	for _, e := range env {
+		args = append(args, "-e", e)
+	}
+	script := "set -e\n" + block + `cd /home/kuroko
+echo "bashrc=$(grep -c '^HISTSIZE=10000$' .bashrc)"
+echo "gitconfig=$(grep -c 'directory = \*' .gitconfig)"
+echo "x=$(cat x 2>/dev/null || echo none)"
+echo "psysh=$(readlink .config/psysh)"
+echo "foreign=$(find /home/kuroko ! -user kuroko | tr '\n' ' ')"
+if [ -e .my.cnf ]; then echo "mycnf-mode=$(stat -c '%U %a' .my.cnf)"; fi
+echo "--- .my.cnf"
+cat .my.cnf 2>/dev/null || echo none
+`
+	got, err := exec.Command("docker", append(args, image, "-c", script)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+	return string(got)
+}
+
+// TestEntrypointBuildsHome: the home is the skel, then the generated .my.cnf, then the global and
+// project homeadditional folders (later wins); every file belongs to the user. Skipped without
+// Docker or the image.
+func TestEntrypointBuildsHome(t *testing.T) {
+	// A .my.cnf in the project folder wins over the generated one; the project's x over the global's.
+	got := homeRun(t, []string{"DB_HOST=mariadb", "DB_DATABASE=shop"},
+		map[string]string{".gitconfig": "[user]\n\tname = global\n", "x": "global"},
+		map[string]string{".my.cnf": "[client]\nuser=mine\n", "x": "project"})
+	for _, want := range []string{"bashrc=1", "gitconfig=0", "x=project", "psysh=/var/lib/lodev/home/.config/psysh",
+		"foreign=\n", "[client]\nuser=mine\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "host=mariadb") {
+		t.Errorf("project .my.cnf must replace the generated one:\n%s", got)
+	}
+
+	// No homeadditional .my.cnf: the generated one, mode 600, owned by the user.
+	got = homeRun(t, []string{"DB_HOST=mariadb", "DB_DATABASE=shop"}, map[string]string{"x": "global"}, map[string]string{})
+	for _, want := range []string{"gitconfig=1", "x=global", "mycnf-mode=kuroko 600",
+		"[client]\nuser=root\npassword=root\nhost=mariadb\ndefault-character-set=utf8mb4\n\n[mysql]\ndatabase=shop\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+
+	// No database and no homeadditional folders at all: a [client]-only file. No DB_HOST: no file.
+	got = homeRun(t, []string{"DB_HOST=mariadb"}, nil, nil)
+	if !strings.Contains(got, "host=mariadb") || strings.Contains(got, "[mysql]") || !strings.Contains(got, "bashrc=1") {
+		t.Errorf("want a [client]-only .my.cnf:\n%s", got)
+	}
+	if got = homeRun(t, nil, nil, nil); !strings.HasSuffix(got, "--- .my.cnf\nnone\n") {
+		t.Errorf("no DB_HOST must leave no .my.cnf:\n%s", got)
 	}
 }
