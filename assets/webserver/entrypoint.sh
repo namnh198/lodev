@@ -32,14 +32,20 @@ mkdir -p /run/php
 # Trust lodev's local CA so https://*.test works from inside the container.
 if [ -f /etc/lodev/rootCA.pem ]; then
   cp /etc/lodev/rootCA.pem /usr/local/share/ca-certificates/lodev.crt
-  update-ca-certificates >/dev/null
+  # OrbStack injects bundle files into /etc/ssl/certs that rehash skips with a harmless warning on
+  # every start. Capture the output (sh -e has no pipefail), show a failure whole, else drop only those.
+  if ! out=$(update-ca-certificates 2>&1); then
+    echo "$out" >&2
+    exit 1
+  fi
+  echo "$out" | grep -v '^rehash: warning: skipping .*, it does not contain exactly one certificate or CRL$' >&2 || true
 fi
 
 # Run the services as the host user (created here so no image bakes in a UID).
 if [ -n "${LODEV_USER:-}" ]; then
   group=$(getent group "$LODEV_GID" | cut -d: -f1)
   if [ -z "$group" ]; then
-    groupadd -g "$LODEV_GID" "$LODEV_USER"
+    groupadd -K GID_MIN=1 -K GID_MAX=4294967294 -g "$LODEV_GID" "$LODEV_USER"
     group=$LODEV_USER
   elif [ "$group" != "$LODEV_USER" ] && [ "$group" != root ] && [ "$group" != www-data ] &&
     ! getent group "$LODEV_USER" >/dev/null; then
@@ -59,7 +65,8 @@ if [ -n "${LODEV_USER:-}" ]; then
     exit 1
   fi
   if [ -z "$by_name" ]; then
-    useradd -m -d "/home/$LODEV_USER" -s /bin/bash -u "$LODEV_UID" -g "$group" "$LODEV_USER"
+    # -K widens the system's 1000-60000 range so macOS (501) and high LDAP UIDs raise no warning.
+    useradd -K UID_MIN=1 -K UID_MAX=4294967294 -m -d "/home/$LODEV_USER" -s /bin/bash -u "$LODEV_UID" -g "$group" "$LODEV_USER"
   fi
   # The home may be a mounted, persistent folder: useradd skips /etc/skel then. Copy what is
   # missing as the user (no chown -R over caches), never overwriting the user's files.

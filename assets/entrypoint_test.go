@@ -118,3 +118,89 @@ func TestEntrypointOpcacheOff(t *testing.T) {
 		}
 	}
 }
+
+// entrypointBlock returns the entrypoint.sh text from start up to and including the first end after
+// it, plus the local lodev/webserver image to run it in (skips without Docker or the image).
+func entrypointBlock(t *testing.T, start, end string) (image, block string) {
+	t.Helper()
+	out, err := exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}", "lodev/webserver").Output()
+	image = strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	if err != nil || image == "" {
+		t.Skip("needs Docker and a lodev/webserver image")
+	}
+	b, err := FS.ReadFile("webserver/entrypoint.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	i := strings.Index(s, start)
+	j := strings.Index(s[max(i, 0):], end)
+	if i < 0 || j < 0 {
+		t.Fatalf("entrypoint.sh has no block %q", start)
+	}
+	return image, s[i : i+j+len(end)]
+}
+
+// caSetup gives the CA block a rootCA.pem to install and, in /etc/ssl/certs, a bundle file with two
+// certificates: the kind OrbStack injects, which update-ca-certificates warns about and skips.
+const caSetup = `set -e
+mkdir -p /etc/lodev
+c=/usr/share/ca-certificates/mozilla
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -subj /CN=lodev-test \
+  -keyout /dev/null -out /etc/lodev/rootCA.pem 2>/dev/null
+cat $c/ISRG_Root_X1.crt $c/ISRG_Root_X2.crt > /etc/ssl/certs/bundle.pem
+`
+
+// TestEntrypointCAQuiet: installing the local CA prints no "rehash: warning: skipping" lines for
+// bundle files in /etc/ssl/certs, and still succeeds. Skipped without Docker or the image.
+func TestEntrypointCAQuiet(t *testing.T) {
+	image, block := entrypointBlock(t, "if [ -f /etc/lodev/rootCA.pem ]; then", "\nfi\n")
+	got, err := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh", image,
+		"-c", caSetup+block).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+	if strings.Contains(string(got), "rehash: warning: skipping") {
+		t.Errorf("rehash warnings leaked:\n%s", got)
+	}
+}
+
+// TestEntrypointCAFailureShown: when update-ca-certificates fails, its output reaches stderr and the
+// block exits non-zero, so the filter never hides a real failure.
+func TestEntrypointCAFailureShown(t *testing.T) {
+	image, block := entrypointBlock(t, "if [ -f /etc/lodev/rootCA.pem ]; then", "\nfi\n")
+	stub := "mkdir -p /stub\nprintf '#!/bin/sh\\necho boom\\nexit 1\\n' > /stub/update-ca-certificates\nchmod +x /stub/update-ca-certificates\nPATH=/stub:$PATH\n"
+	cmd := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh", image,
+		"-c", caSetup+stub+block+"echo reached-after-block")
+	var stdout, stderr strings.Builder
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err == nil {
+		t.Errorf("block succeeded despite a failing update-ca-certificates:\n%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "boom") {
+		t.Errorf("stderr lacks the failure output: %q", stderr.String())
+	}
+	if strings.Contains(stdout.String(), "reached-after-block") {
+		t.Error("block did not stop on failure")
+	}
+}
+
+// TestEntrypointUseraddQuiet: a macOS UID (501) and a high LDAP UID create the user and group with
+// no useradd/groupadd range warning. Skipped without Docker or the image.
+func TestEntrypointUseraddQuiet(t *testing.T) {
+	image, block := entrypointBlock(t, `  group=$(getent group "$LODEV_GID"`, "-g \"$group\" \"$LODEV_USER\"\n  fi\n")
+	for _, id := range []string{"501", "1500000"} {
+		got, err := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh",
+			"-e", "LODEV_USER=kuroko", "-e", "LODEV_UID="+id, "-e", "LODEV_GID="+id, image,
+			"-c", "set -e\nrm -rf /home/kuroko\n"+block+"id kuroko").CombinedOutput()
+		if err != nil {
+			t.Fatalf("uid %s: %v\n%s", id, err, got)
+		}
+		if strings.Contains(string(got), "warning") || strings.Contains(string(got), "useradd:") {
+			t.Errorf("uid %s: warnings:\n%s", id, got)
+		}
+		if !strings.Contains(string(got), "uid="+id+"(kuroko)") {
+			t.Errorf("uid %s: user not created:\n%s", id, got)
+		}
+	}
+}
