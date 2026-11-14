@@ -29,7 +29,7 @@ var DownloadClient = &http.Client{Timeout: 10 * time.Minute}
 
 // releasePublicKey is the base64 ed25519 public key that checksums.txt.sig must verify against;
 // made by `go run ./tools/sign -genkey`. Rotating it is a new lodev release. Empty: no download is trusted.
-var releasePublicKey = ""
+var releasePublicKey = "VzWQQNHcrCwqy+B+ol8UDzdZw+Puvq9EllCkMPzXCvo="
 
 // errNotFound marks a 404 from fetch.
 var errNotFound = errors.New("not found")
