@@ -1128,8 +1128,11 @@ func TestPublishRetiresRenamedProject(t *testing.T) {
 	if _, err := runPublish(p); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(*runs, "compose -p lodev-old down") {
-		t.Errorf("old stack not stopped: %v", *runs)
+	// No -f: an empty project directory and no .env keep a compose file or .env in the cwd out of it.
+	if !slices.ContainsFunc(*runs, func(r string) bool {
+		return strings.HasPrefix(r, "compose --env-file "+os.DevNull+" --project-directory ") && strings.HasSuffix(r, " -p lodev-old down")
+	}) {
+		t.Errorf("old stack not stopped from an empty project directory: %v", *runs)
 	}
 	if !slices.Contains(*calls, "hosts old ") {
 		t.Errorf("old hosts block kept: %v", *calls)

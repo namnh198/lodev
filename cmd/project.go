@@ -220,6 +220,16 @@ func projectCompose(p *config.Project, sub ...string) error {
 	return dockerRun(docker.ComposeArgs(p.ComposeProject(), composeFile(p), sub...)...)
 }
 
+// composeDownByName: without -f, compose reads compose.yaml and .env from the cwd, so it gets an empty dir.
+func composeDownByName(project string) error {
+	dir, err := os.MkdirTemp("", "lodev-down-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	return dockerRun("compose", "--env-file", os.DevNull, "--project-directory", dir, "-p", project, "down")
+}
+
 // dbExec runs sql as root in the shared database db ("mysql" or "mariadb"; MariaDB 11 has no mysql client).
 func dbExec(db, sql string) error {
 	_, err := dockerOutput("exec", config.ServiceContainer(db), db, "-uroot", "-proot", "-e", sql)
@@ -618,7 +628,7 @@ func publish(p *config.Project, reg registry.Registry, in templates.ProjectInput
 	for _, old := range dropped {
 		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
 		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
-		if err := dockerRun("compose", "-p", "lodev-"+old, "down"); err != nil {
+		if err := composeDownByName("lodev-" + old); err != nil {
 			return nil, err
 		}
 		if err := retire(old); err != nil {
