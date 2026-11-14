@@ -125,6 +125,27 @@ Package settings → Change visibility → Public); until then lodev's pull fail
 `.github/workflows/nightly.yml` replaces the `nightly` pre-release on every push to `main`
 (`make dist VER=nightly CHANNEL=nightly`); it is never marked latest, so stable users are not affected.
 
+#### Signed releases
+
+Both workflows sign `dist/checksums.txt` with an ed25519 key (`go run ./tools/sign -key-env
+LODEV_SIGNING_KEY dist/checksums.txt`) and upload the result as `checksums.txt.sig`; a missing
+`LODEV_SIGNING_KEY` secret fails the job, so no release goes out unsigned. `lodev self-upgrade`
+checks that signature against the public key built into lodev (`releasePublicKey` in
+`internal/update/download.go`) before it trusts `checksums.txt`, and installs nothing if it is
+missing or wrong. That includes `nightly` and every older tag: releases made before signing
+cannot be installed with `self-upgrade`; use `install.sh` or your package manager for them.
+
+One-time setup, and key rotation (same steps):
+
+1. `go run ./tools/sign -genkey` prints `private:` and `public:`.
+2. Store the private key as the repository secret `LODEV_SIGNING_KEY`; keep it nowhere else.
+3. Paste the public key into `releasePublicKey` and commit it, before pushing `main` (nightly
+   signs on every push) and before tagging a release.
+
+Rotating the key means a new lodev release: a build only trusts the key it shipped with, so
+users on an older build must upgrade with `install.sh` or their package manager (and releases
+signed with the old key stop verifying in new builds).
+
 ## Quick start
 
 The first `lodev` command (any but `help`, `version`, `completion`, `self-upgrade`) sets lodev up in
@@ -683,7 +704,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL |
 | `lodev clean [--dry-run] [--yes] [--keep-cache]` | Remove lodev images no container uses (older versions, `lodev/php`, removed projects, and `ghcr.io/namnh198/lodev-webserver` images: older ones on a stable release, all of them on nightly, which builds its own) and Docker build cache older than 7 days; lists them and asks first; never touches volumes |
 | `lodev doctor` | Check Docker, the pinned compose/buildx, the global config, ports, the local CA, `/etc/hosts`, the shared services, the projects, userns-remap and Docker disk use; each row says how to fix it; exits 1 on a problem |
-| `lodev self-upgrade [--version vX.Y.Z]` | Replace lodev (and the completions installed next to it) with the latest release, or the given one; checks the sha256 and asks for your sudo password when the folder needs root. Homebrew, apt, AUR and Nix installs are upgraded with their package manager instead |
+| `lodev self-upgrade [--version vX.Y.Z]` | Replace lodev (and the completions installed next to it) with the latest release, or the given one; verifies the release's signature and sha256 (unsigned releases are refused) and asks for your sudo password when the folder needs root. Homebrew, apt, AUR and Nix installs are upgraded with their package manager instead |
 | `lodev version` | lodev, Docker, Docker Compose and Docker Buildx versions, OS and architecture; `lodev -v` prints only `lodev version <v>` |
 | `lodev --debug <cmd>` | Also print every docker command lodev runs (or set `LODEV_DEBUG=1`); set `NO_COLOR=1` to turn colors off |
 

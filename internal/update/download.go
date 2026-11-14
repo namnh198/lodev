@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -25,6 +27,13 @@ const maxFile = 100 << 20
 // DownloadClient fetches release files; the timeout keeps a stalled network from hanging forever.
 var DownloadClient = &http.Client{Timeout: 10 * time.Minute}
 
+// releasePublicKey is the base64 ed25519 public key that checksums.txt.sig must verify against;
+// made by `go run ./tools/sign -genkey`. Rotating it is a new lodev release. Empty: no download is trusted.
+var releasePublicKey = ""
+
+// errNotFound marks a 404 from fetch.
+var errNotFound = errors.New("not found")
+
 // archiveFiles maps the files read from a release archive to where Download puts them.
 var archiveFiles = map[string]string{
 	"lodev":                  "lodev",
@@ -33,9 +42,13 @@ var archiveFiles = map[string]string{
 	"completions/lodev.fish": filepath.Join("completions", "lodev.fish"),
 }
 
-// Download fetches the release archive for tag, checks its sha256 against checksums.txt and
-// extracts lodev and its completions into a new temp dir, which the caller removes.
+// Download fetches the release archive for tag, checks checksums.txt against its signature and the
+// archive's sha256 against checksums.txt, then extracts lodev and its completions into a new temp
+// dir, which the caller removes.
 func Download(ctx context.Context, tag, goos, goarch string) (dir string, err error) {
+	if _, err := publicKey(releasePublicKey); err != nil {
+		return "", err
+	}
 	name := fmt.Sprintf("lodev_%s_%s_%s", strings.TrimPrefix(tag, "v"), goos, goarch)
 	tgz, err := fetch(ctx, tag, name+".tar.gz")
 	if err != nil {
@@ -44,6 +57,16 @@ func Download(ctx context.Context, tag, goos, goarch string) (dir string, err er
 	sums, err := fetch(ctx, tag, "checksums.txt")
 	if err != nil {
 		return "", err
+	}
+	sig, err := fetch(ctx, tag, "checksums.txt.sig")
+	if errors.Is(err, errNotFound) {
+		return "", unsigned(tag)
+	}
+	if err != nil {
+		return "", err
+	}
+	if err := verifySignature(sums, sig); err != nil {
+		return "", unsigned(tag)
 	}
 	if err := verify(tgz, sums, name+".tar.gz"); err != nil {
 		return "", err
@@ -69,6 +92,9 @@ func fetch(ctx context.Context, tag, file string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("download %s: HTTP 404: %w", u, errNotFound)
+	}
 	if resp.StatusCode/100 != 2 {
 		return nil, fmt.Errorf("download %s: HTTP %d", u, resp.StatusCode)
 	}
@@ -77,6 +103,35 @@ func fetch(ctx context.Context, tag, file string) ([]byte, error) {
 		err = fmt.Errorf("download %s: larger than 100 MB", u)
 	}
 	return data, err
+}
+
+func unsigned(tag string) error {
+	return fmt.Errorf("release %s is not signed by lodev's release key; install older releases with install.sh or your package manager", tag)
+}
+
+// publicKey decodes the base64 key; an empty one means this build was made without a release key.
+func publicKey(b64 string) (ed25519.PublicKey, error) {
+	if b64 == "" {
+		return nil, errors.New("this lodev build has no release key")
+	}
+	k, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(k) != ed25519.PublicKeySize {
+		return nil, errors.New("this lodev build has an invalid release key")
+	}
+	return k, nil
+}
+
+// verifySignature checks sig (base64 of the raw signature, whitespace around it ignored) over sums.
+func verifySignature(sums, sig []byte) error {
+	key, err := publicKey(releasePublicKey)
+	if err != nil {
+		return err
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
+	if err != nil || !ed25519.Verify(key, sums, raw) { // Verify is false for a wrong-length signature
+		return errors.New("bad signature")
+	}
+	return nil
 }
 
 func verify(data, sums []byte, file string) error {

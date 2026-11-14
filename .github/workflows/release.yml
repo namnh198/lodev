@@ -90,6 +90,11 @@ jobs:
           go-version-file: go.mod
       - run: go test ./...
       - run: make packages VERSION="$GITHUB_REF_NAME" # env var, not ${{ }}: no shell injection from tag names
+      # A missing secret fails the job: lodev self-upgrade refuses unsigned releases.
+      - name: Sign checksums.txt
+        env:
+          LODEV_SIGNING_KEY: ${{ secrets.LODEV_SIGNING_KEY }}
+        run: go run ./tools/sign -key-env LODEV_SIGNING_KEY dist/checksums.txt
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,7 +103,7 @@ jobs:
           case "$GITHUB_REF_NAME" in *-*) flags=--prerelease ;; esac
           gh release create "$GITHUB_REF_NAME" $flags \
             --title "$GITHUB_REF_NAME" --generate-notes \
-            dist/*.tar.gz dist/*.zip dist/*.deb dist/checksums.txt \
+            dist/*.tar.gz dist/*.zip dist/*.deb dist/checksums.txt dist/checksums.txt.sig \
             dist/packaging/lodev.rb dist/packaging/PKGBUILD dist/packaging/.SRCINFO
       # Stable releases only; after the release step, since the formula points at its archives.
       # HOMEBREW_TAP_TOKEN: a token that can push to namnh198/homebrew-tap (GITHUB_TOKEN cannot).
