@@ -41,13 +41,10 @@ func TestWebImageTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(b)
-	for _, w := range []string{"redis-tools", "gcc", "g++", "make", "mongosh"} {
+	for _, w := range []string{"redis-tools", "gcc", "g++", "make"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("webserver/Dockerfile does not mention %s", w)
 		}
-	}
-	if !strings.Contains(s, `mongosh.tgz" | sha256sum -c`) {
-		t.Error("mongosh is installed without a sha256sum -c check")
 	}
 	install := regexp.MustCompile(`npm install -g ([^\n\\&]+)`).FindStringSubmatch(s)
 	if install == nil {

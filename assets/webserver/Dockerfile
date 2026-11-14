@@ -51,19 +51,6 @@ RUN arch=$(dpkg --print-architecture) && case $arch in \
     && echo "$sum  /usr/local/bin/supercronic" | sha256sum -c - \
     && chmod +x /usr/local/bin/supercronic
 
-# mongosh, the MongoDB shell (the plain tarball runs on Debian's glibc and OpenSSL).
-ARG MONGOSH=2.14.2
-RUN arch=$(dpkg --print-architecture) && case $arch in \
-      amd64) mongoarch=x64; sum=1523e16da7c6902333b681bf65d83bbef59bff558c46ac5636371d13beb4de53 ;; \
-      arm64) mongoarch=arm64; sum=20f89386f74c14cb63a163eea5491dc14759bcd64229b1c099c2390585a01fd3 ;; \
-      *) echo "no mongosh for $arch" >&2; exit 1 ;; esac \
-    && curl -fsSL -o /tmp/mongosh.tgz \
-       "https://downloads.mongodb.com/compass/mongosh-$MONGOSH-linux-$mongoarch.tgz" \
-    && echo "$sum  /tmp/mongosh.tgz" | sha256sum -c - \
-    && tar -xzf /tmp/mongosh.tgz -C /tmp "mongosh-$MONGOSH-linux-$mongoarch/bin/mongosh" \
-    && install -m 0755 "/tmp/mongosh-$MONGOSH-linux-$mongoarch/bin/mongosh" /usr/local/bin/mongosh \
-    && rm -rf /tmp/mongosh*
-
 # Node.js via n, into /usr/local like a project's nodejs: (which reinstalls over it).
 # n keeps downloaded versions in /usr/local/n: a cache mount, so a rebuild skips the download.
 ARG NODE_VERSION=24

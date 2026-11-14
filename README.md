@@ -180,7 +180,7 @@ All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/web
 with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24) with pnpm, Yarn 1.x and
 grunt-cli, wp-cli, n98-magerun2, nano, vim-tiny and sqlite3. For native extensions and the
 services: gcc, g++, make, autoconf, pkg-config, `phpize` and `pecl` (`php<ver>-dev` is installed),
-and the `mysql`, `redis-cli` and `mongosh` clients. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
+and the `mysql` and `redis-cli` clients. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
 first `lodev start`; nightly and dev builds, a `node_version` other than 24, `--rebuild-base` or a
 failed pull build it locally instead (about a minute). PHP 7.4, 8.0 and
 8.1 add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first
