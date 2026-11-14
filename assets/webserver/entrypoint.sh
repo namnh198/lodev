@@ -33,12 +33,16 @@ mkdir -p /run/php
 if [ -f /etc/lodev/rootCA.pem ]; then
   cp /etc/lodev/rootCA.pem /usr/local/share/ca-certificates/lodev.crt
   # OrbStack injects bundle files into /etc/ssl/certs that rehash skips with a harmless warning on
-  # every start. Capture the output (sh -e has no pipefail), show a failure whole, else drop only those.
-  if ! out=$(update-ca-certificates 2>&1); then
-    echo "$out" >&2
+  # every start. Capture the output (sh -e has no pipefail): a failure shows all of it, a success
+  # drops stdout and the rehash skip warnings and shows any other stderr line.
+  ca_out=$(mktemp)
+  ca_err=$(mktemp)
+  if ! update-ca-certificates >"$ca_out" 2>"$ca_err"; then
+    cat "$ca_out" "$ca_err" >&2
     exit 1
   fi
-  echo "$out" | grep -v '^rehash: warning: skipping .*, it does not contain exactly one certificate or CRL$' >&2 || true
+  grep -v '^rehash: warning: skipping' "$ca_err" >&2 || true
+  rm -f "$ca_out" "$ca_err"
 fi
 
 # Run the services as the host user (created here so no image bakes in a UID).

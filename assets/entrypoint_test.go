@@ -151,8 +151,8 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -subj 
 cat $c/ISRG_Root_X1.crt $c/ISRG_Root_X2.crt > /etc/ssl/certs/bundle.pem
 `
 
-// TestEntrypointCAQuiet: installing the local CA prints no "rehash: warning: skipping" lines for
-// bundle files in /etc/ssl/certs, and still succeeds. Skipped without Docker or the image.
+// TestEntrypointCAQuiet: installing the local CA prints nothing at all, even with a multi-cert
+// bundle file in /etc/ssl/certs that rehash warns about, and succeeds. Skipped without Docker or the image.
 func TestEntrypointCAQuiet(t *testing.T) {
 	image, block := entrypointBlock(t, "if [ -f /etc/lodev/rootCA.pem ]; then", "\nfi\n")
 	got, err := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh", image,
@@ -160,8 +160,8 @@ func TestEntrypointCAQuiet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, got)
 	}
-	if strings.Contains(string(got), "rehash: warning: skipping") {
-		t.Errorf("rehash warnings leaked:\n%s", got)
+	if len(got) != 0 {
+		t.Errorf("want no output, got:\n%s", got)
 	}
 }
 
