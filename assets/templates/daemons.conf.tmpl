@@ -5,6 +5,8 @@ user=%(ENV_LODEV_USER)s
 ; supervisord does not set HOME for user=; npm and composer need it.
 environment=HOME="/home/%(ENV_LODEV_USER)s",USER="%(ENV_LODEV_USER)s"
 autorestart=true
+; supervisor waits 1s longer per retry: a dev server comes back once npm install has filled node_modules.
+startretries=100
 ; npm spawns children: stop the whole group.
 stopasgroup=true
 killasgroup=true

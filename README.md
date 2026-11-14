@@ -340,7 +340,7 @@ when each job runs.
 
 `web_extra_daemons` runs long-lived dev processes (a Vite dev server, a queue worker) in the web
 container under supervisor, as your user, in `directory` (default `working_dir`). A crashed
-process is restarted. `lodev start` writes `.lodev/daemons/` (generated, git-ignored); output
+process is retried with a growing backoff, up to 100 times (`lodev restart` starts it afresh). `lodev start` writes `.lodev/daemons/` (generated, git-ignored); output
 appears in `lodev logs`. Daemons are not health-checked, so a crashing one never fails
 `lodev start`. Changes apply on `lodev restart`.
 

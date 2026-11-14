@@ -69,6 +69,9 @@ func ensureVolumes(p *config.Project, g *config.Global, img string) ([]templates
 			hint = append(hint, "lodev magento setup:di:compile if you need generated code up front")
 		}
 		hint = append(hint, "lodev config --performance-mode=none turns it off")
+		if len(p.WebExtraDaemons) > 0 {
+			hint = append(hint, "daemons retry on their own, lodev restart forces it")
+		}
 		ui.Info("hint: %s", strings.Join(hint, "; "))
 	}
 	have, err := projectVolumes(p.Name)

@@ -81,6 +81,24 @@ func TestEnsureVolumesCreatesAndSeeds(t *testing.T) {
 		"lodev config --performance-mode=none turns it off")
 }
 
+func TestEnsureVolumesHintDaemons(t *testing.T) {
+	p, g, _ := volumeFixture(t, missing)
+	out, _, restore := ui.Capture(false)
+	defer restore()
+	if _, err := ensureVolumes(p, g, "img"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "daemons retry") {
+		t.Errorf("daemon hint without daemons: %s", out)
+	}
+	p.WebExtraDaemons = []config.Daemon{{Name: "vite", Command: "npm run dev"}}
+	p.Name = "shop2" // its volumes are new again
+	if _, err := ensureVolumes(p, g, "img"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out.String(), "lodev config --performance-mode=none turns it off; daemons retry on their own, lodev restart forces it")
+}
+
 func TestEnsureVolumesSeedFolderMissingOnHost(t *testing.T) {
 	p, g, calls := volumeFixture(t, missing)
 	if _, err := ensureVolumes(p, g, "img"); err != nil {
