@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(go test *)",
+      "Bash(go vet *)",
+      "Bash(go build *)",
+      "Bash(go env *)",
+      "Bash(gofmt *)",
+      "Bash(make test)",
+      "Bash(make build)",
+      "Bash(rg *)",
+      "Bash(fd *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(docker ps *)",
+      "Bash(docker images *)",
+      "Bash(docker logs *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git commit --amend *)",
+      "Bash(gh secret *)",
+      "Bash(gh release *)",
+      "Bash(git tag *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; case \"$f\" in *.go) gofmt -w \"$f\";; esac; } 2>/dev/null || true",
+            "statusMessage": "gofmt"
+          }
+        ]
+      }
+    ]
+  }
+}
