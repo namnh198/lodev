@@ -140,7 +140,7 @@ func runDoctor() ([]checkResult, bool) {
 
 	if dockerOK {
 		for _, svc := range append([]string{"traefik"}, g.EnabledServices()...) {
-			s, err := inspectState("lodev-" + svc)
+			s, err := inspectState(config.ServiceContainer(svc))
 			switch {
 			case err != nil || s.Status != "running":
 				add("service "+svc, levelFail, "not running", "lodev service start")
@@ -169,7 +169,7 @@ func runDoctor() ([]checkResult, bool) {
 			continue
 		}
 		if dockerOK {
-			if s, err := inspectState("lodev-" + p.Name + "-web"); err == nil && s.Health != nil && s.Health.Status == "unhealthy" {
+			if s, err := inspectState(p.WebContainer()); err == nil && s.Health != nil && s.Health.Status == "unhealthy" {
 				add("project "+name, levelFail, s.lastCheck(), "lodev logs -s web (in the project)")
 				continue
 			}

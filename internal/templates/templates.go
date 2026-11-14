@@ -94,7 +94,7 @@ func webEnv(in ProjectInput) []string {
 		{"YARN_CACHE_FOLDER", cacheHome + "/.cache/yarn"}, {"pnpm_config_store_dir", cacheHome + "/.local/share/pnpm/store"},
 	}
 	if p.Varnish {
-		kv = append(kv, [2]string{"VARNISH_HOST", "lodev-" + p.Name + "-varnish"})
+		kv = append(kv, [2]string{"VARNISH_HOST", p.VarnishContainer()})
 	}
 	if p.OpcacheValidateTimestamps != nil && !*p.OpcacheValidateTimestamps {
 		kv = append(kv, [2]string{"LODEV_OPCACHE_VALIDATE", "0"})
@@ -214,7 +214,10 @@ func WebBuildDockerfile(p *config.Project, parts []UserPart) ([]byte, error) {
 
 // VarnishVCL is p's default .lodev/varnish.vcl; its first line is GeneratedMarker.
 func VarnishVCL(p *config.Project) ([]byte, error) {
-	return render("varnish.vcl.tmpl", struct{ Marker, Name string }{GeneratedMarker, p.Name})
+	return render("varnish.vcl.tmpl", struct {
+		Marker string
+		P      *config.Project
+	}{GeneratedMarker, p})
 }
 
 func TraefikDynamic(certNames []string) ([]byte, error) {

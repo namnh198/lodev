@@ -26,11 +26,11 @@ func magentoSQL(db, prefix, url string) []string {
 
 // magentoAfterImport runs after db-import into a Magento project's own database.
 func magentoAfterImport(p *config.Project, t dbTarget) error {
-	webUp := containerRunning("lodev-" + p.Name + "-web")
+	webUp := containerRunning(p.WebContainer())
 	prefix := ""
 	if webUp {
 		user, _ := p.ContainerUser()
-		out, err := dockerOutput(docker.ExecArgs(composeProject(p), composeFile(p), "web", user, p.WorkDir(), false,
+		out, err := dockerOutput(docker.ExecArgs(p.ComposeProject(), composeFile(p), "web", user, p.WorkDir(), false,
 			// lodev's php shows errors on stdout: a missing env.php must not read as the prefix.
 			[]string{"php", "-d", "display_errors=stderr", "-r", magentoPrefixPHP})...)
 		if err != nil {
@@ -39,7 +39,7 @@ func magentoAfterImport(p *config.Project, t dbTarget) error {
 		}
 		prefix = out
 	} else {
-		ui.Info("Magento: lodev-%s-web is not running; assuming no table prefix", p.Name)
+		ui.Info("Magento: %s is not running; assuming no table prefix", p.WebContainer())
 	}
 	if !magentoPrefixRe.MatchString(prefix) {
 		return fmt.Errorf("Magento: table prefix %q is not valid", prefix)

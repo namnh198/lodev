@@ -636,6 +636,8 @@ func TestWriteVarnishVCL(t *testing.T) {
 			t.Fatalf("from %q: %q", before, b)
 		}
 	}
+	b, _ := os.ReadFile(vcl)
+	mustContain(t, string(b), `.host = "`+p.WebContainer()+`";`, "http_cache_hosts="+p.VarnishContainer()+":80")
 	os.WriteFile(vcl, []byte("mine\n"), 0o644)
 	if err := writeVarnishVCL(p); err != nil {
 		t.Fatal(err)

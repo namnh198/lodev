@@ -114,13 +114,13 @@ func waitServicesHealthy(services []string, timeout time.Duration) error {
 			gerrs := make([]error, len(g.services))
 			var wg sync.WaitGroup
 			for i, svc := range g.services {
-				wg.Go(func() { gerrs[i] = waitHealthy("lodev-"+svc, timeout, "lodev service logs "+svc) })
+				wg.Go(func() { gerrs[i] = waitHealthy(config.ServiceContainer(svc), timeout, "lodev service logs "+svc) })
 			}
 			wg.Wait()
 			var failed []string
 			for i, err := range gerrs {
 				if err != nil {
-					failed = append(failed, "lodev-"+g.services[i])
+					failed = append(failed, config.ServiceContainer(g.services[i]))
 				}
 			}
 			if errs[gi] = errors.Join(gerrs...); len(failed) > 0 {
@@ -137,13 +137,13 @@ func waitServicesHealthy(services []string, timeout time.Duration) error {
 
 // waitWeb waits for the project's web container (its lodev-healthcheck).
 func waitWeb(p *config.Project, g *config.Global) error {
-	c := "lodev-" + p.Name + "-web"
+	c := p.WebContainer()
 	return waitShown(c, func() error { return waitHealthyFn(c, g.ContainerWait(), "lodev logs -s web") })
 }
 
 // waitDB waits for the shared database a project uses.
 func waitDB(db string, g *config.Global) error {
-	c := "lodev-" + db
+	c := config.ServiceContainer(db)
 	return waitShown(c, func() error { return waitHealthyFn(c, g.ContainerWait(), "lodev service logs "+db) })
 }
 

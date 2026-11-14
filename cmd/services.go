@@ -279,12 +279,12 @@ func customServices(full string) ([]string, error) {
 // warnImageChange warns before a database container is recreated on another image (e.g. a version change).
 func warnImageChange(g *config.Global) {
 	for _, svc := range []string{"mysql", "mariadb", "mongodb"} {
-		cur, err := dockerOutput("inspect", "-f", "{{.Config.Image}}", "lodev-"+svc)
+		cur, err := dockerOutput("inspect", "-f", "{{.Config.Image}}", config.ServiceContainer(svc))
 		if err != nil { // no container yet
 			continue
 		}
 		if want := g.Image(svc); cur != want {
-			ui.Warn("lodev-%s: %s → %s; a major downgrade may not read the existing data, dump it first", svc, cur, want)
+			ui.Warn("%s: %s → %s; a major downgrade may not read the existing data, dump it first", config.ServiceContainer(svc), cur, want)
 		}
 	}
 }
@@ -419,7 +419,7 @@ func poweroff() error {
 		return err
 	}
 	for _, c := range running {
-		name := strings.TrimSuffix(strings.TrimPrefix(c, "lodev-"), "-web")
+		name := config.ProjectOfWebContainer(c)
 		ui.Info("Stopping project %s", name)
 		if err := removeProjectRoutes(name); err != nil {
 			return err

@@ -129,7 +129,7 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 		fmt.Fprintf(out, "could not list running projects (%v); start them to use the new domains\n", err)
 	}
 	for _, m := range moves {
-		if containsString(running, "lodev-"+m.name+"-web") {
+		if containsString(running, config.WebContainer(m.name)) {
 			if err := restartFn(m.p, startOpts{}); err != nil { // keep going: the others still need their new domains
 				errs = append(errs, fmt.Errorf("restart %s: %w", m.name, err))
 			}

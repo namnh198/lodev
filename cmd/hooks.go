@@ -54,7 +54,7 @@ func runHooks(p *config.Project, event string) error {
 	if err != nil || len(steps) == 0 {
 		return err
 	}
-	if web := "lodev-" + p.Name + "-web"; !containerRunning(web) {
+	if web := p.WebContainer(); !containerRunning(web) {
 		return fmt.Errorf("hook %s: %s is not running", event, web)
 	}
 	for _, s := range steps {

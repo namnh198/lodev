@@ -36,7 +36,7 @@ func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
 		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name, Hosts: p.Domains, URL: "http://lodev-" + p.Name + "-" + backend + ":80"})
 		hosts := p.ExposedHosts()
 		for i, e := range p.WebExtraExposedPorts {
-			rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "_" + e.Name, Hosts: hosts[i : i+1], URL: fmt.Sprintf("http://lodev-%s-web:%d", p.Name, e.ContainerPort)})
+			rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "_" + e.Name, Hosts: hosts[i : i+1], URL: fmt.Sprintf("http://%s:%d", p.WebContainer(), e.ContainerPort)})
 		}
 	}
 	for _, v := range svcs {
@@ -71,7 +71,7 @@ var syncProjectRoutes = func() error {
 	}
 	keep := map[string]bool{}
 	for _, name := range reg.Names() {
-		if !containerRunning("lodev-" + name + "-web") {
+		if !containerRunning(config.WebContainer(name)) {
 			continue
 		}
 		keep[name] = true
@@ -107,7 +107,7 @@ func writeRoutesFromCompose(root string) (string, error) {
 	if err != nil {
 		return p.Name, err
 	}
-	svcs, err := virtualServices(full, composeProject(p), config.TLD(), []string{"web", "varnish"})
+	svcs, err := virtualServices(full, p.ComposeProject(), config.TLD(), []string{"web", "varnish"})
 	if err != nil {
 		return p.Name, err
 	}

@@ -87,7 +87,7 @@ func execIn(p *config.Project, service, user string, cmd []string) error {
 			return err
 		}
 	}
-	return dockerRun(docker.ExecArgs(composeProject(p), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
+	return dockerRun(docker.ExecArgs(p.ComposeProject(), composeFile(p), service, user, workdir, stdinTTY(), cmd)...)
 }
 
 // showLogs follows a service's logs: shared services (and traefik) by container, others via the project's compose.
@@ -101,8 +101,8 @@ func showLogsJSON(service string) error {
 	if err != nil {
 		return err
 	}
-	return dockerPipe(docker.ComposeArgs(composeProject(p), composeFile(p), "logs", "-f", "--no-log-prefix", "web"),
-		[]string{"exec", "-i", "lodev-" + p.Name + "-web", "jq", "-R", "-r", "--unbuffered", "fromjson? // ."})
+	return dockerPipe(docker.ComposeArgs(p.ComposeProject(), composeFile(p), "logs", "-f", "--no-log-prefix", "web"),
+		[]string{"exec", "-i", p.WebContainer(), "jq", "-R", "-r", "--unbuffered", "fromjson? // ."})
 }
 
 func showLogs(service string) error {
@@ -110,13 +110,13 @@ func showLogs(service string) error {
 		return errServiceName
 	}
 	if service == "traefik" || slices.Contains(config.SharedServices, service) {
-		return dockerRun("logs", "-f", "lodev-"+service)
+		return dockerRun("logs", "-f", config.ServiceContainer(service))
 	}
 	p, err := currentProject()
 	if err != nil {
 		return err
 	}
-	return dockerRun(docker.ComposeArgs(composeProject(p), composeFile(p), "logs", "-f", service)...)
+	return dockerRun(docker.ComposeArgs(p.ComposeProject(), composeFile(p), "logs", "-f", service)...)
 }
 
 // checkWebUser fails early for containers started by an older lodev, which lack the host user.
@@ -244,7 +244,7 @@ func xdebugTarget(action string, p *config.Project) bool {
 // .lodev/config.local.yaml so the next start keeps it; a stopped project only gets the setting.
 func setXdebug(p *config.Project, on bool) error {
 	state := map[bool]string{true: "on", false: "off"}[on]
-	if containerRunning("lodev-" + p.Name + "-web") {
+	if containerRunning(p.WebContainer()) {
 		if err := execIn(p, "web", "root", []string{"sh", "-c", xdebugScript(state)}); err != nil {
 			return err
 		}

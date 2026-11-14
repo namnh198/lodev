@@ -130,8 +130,7 @@ func composeFile(p *config.Project) string {
 	}
 	return full
 }
-func composeLegacy(p *config.Project) string  { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
-func composeProject(p *config.Project) string { return "lodev-" + p.Name }
+func composeLegacy(p *config.Project) string { return filepath.Join(p.Root, ".lodev", "compose.yaml") }
 
 var composeConfig = func(args ...string) (string, error) { return docker.Output(args...) }
 
@@ -168,7 +167,7 @@ func mergeCompose(p *config.Project) error {
 	if err != nil {
 		return err
 	}
-	return mergeComposeFiles(composeProject(p), composeBase(p), composeFull(p), extra)
+	return mergeComposeFiles(p.ComposeProject(), composeBase(p), composeFull(p), extra)
 }
 
 var dockerOutput = docker.Output
@@ -201,7 +200,7 @@ var userPoll = time.Second
 
 // userReady reports whether the entrypoint has created user in the web container.
 var userReady = func(p *config.Project, user string) bool {
-	_, err := docker.Output(docker.ExecArgs(composeProject(p), composeFile(p), "web", "", "", false, []string{"id", "-u", user})...)
+	_, err := docker.Output(docker.ExecArgs(p.ComposeProject(), composeFile(p), "web", "", "", false, []string{"id", "-u", user})...)
 	return err == nil
 }
 
@@ -212,18 +211,18 @@ func waitForUser(p *config.Project, user string, timeout time.Duration) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("user %q was not created in the web container; check: docker logs lodev-%s-web", user, p.Name)
+			return fmt.Errorf("user %q was not created in the web container; check: docker logs %s", user, p.WebContainer())
 		}
 	}
 }
 
 func projectCompose(p *config.Project, sub ...string) error {
-	return dockerRun(docker.ComposeArgs(composeProject(p), composeFile(p), sub...)...)
+	return dockerRun(docker.ComposeArgs(p.ComposeProject(), composeFile(p), sub...)...)
 }
 
 // dbExec runs sql as root in the shared database db ("mysql" or "mariadb"; MariaDB 11 has no mysql client).
 func dbExec(db, sql string) error {
-	_, err := dockerOutput("exec", "lodev-"+db, db, "-uroot", "-proot", "-e", sql)
+	_, err := dockerOutput("exec", config.ServiceContainer(db), db, "-uroot", "-proot", "-e", sql)
 	return err
 }
 
@@ -368,7 +367,7 @@ func ensureServices(p *config.Project) error {
 		return err
 	}
 	needed := append(append([]string{"traefik"}, g.EnabledServices()...), p.Services...)
-	if !slices.ContainsFunc(needed, func(svc string) bool { return !containerRunning("lodev-" + svc) }) {
+	if !slices.ContainsFunc(needed, func(svc string) bool { return !containerRunning(config.ServiceContainer(svc)) }) {
 		if !oldTraefik() {
 			return nil
 		}
@@ -595,7 +594,7 @@ func projectVirtualServices(p *config.Project) ([]virtualService, []string, erro
 		return nil, nil, err
 	}
 	warnTraefikLabels(full)
-	svcs, err := virtualServices(full, composeProject(p), config.TLD(), []string{"web", "varnish"})
+	svcs, err := virtualServices(full, p.ComposeProject(), config.TLD(), []string{"web", "varnish"})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -724,7 +723,7 @@ func restartProject(p *config.Project, o startOpts) error {
 		return err
 	}
 	// A stopped project has nothing to prepare for its stop.
-	if !o.noHooks && containerRunning("lodev-"+p.Name+"-web") {
+	if !o.noHooks && containerRunning(p.WebContainer()) {
 		if err := runHooks(p, "pre-stop"); err != nil {
 			return fmt.Errorf("%w (lodev restart --no-hooks restarts anyway)", err)
 		}
@@ -887,7 +886,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			if !stopNoHooks && containerRunning("lodev-"+p.Name+"-web") {
+			if !stopNoHooks && containerRunning(p.WebContainer()) {
 				// Nothing is stopped yet: a failing pre-stop hook keeps the project running.
 				if err := runHooks(p, "pre-stop"); err != nil {
 					return fmt.Errorf("%w (lodev stop --no-hooks stops anyway)", err)
@@ -980,7 +979,7 @@ func init() {
 // warnWorkDirMove warns once, before the web container is recreated, when it ran the project in
 // another folder: paths cached by the app and the IDE's path mapping still point there.
 func warnWorkDirMove(p *config.Project) {
-	cur, err := dockerOutput("inspect", "--format", "{{.Config.WorkingDir}}", "lodev-"+p.Name+"-web")
+	cur, err := dockerOutput("inspect", "--format", "{{.Config.WorkingDir}}", p.WebContainer())
 	if err != nil || cur == "" || cur == p.WorkDir() {
 		return
 	}

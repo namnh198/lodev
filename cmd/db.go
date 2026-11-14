@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"lodev/internal/config"
 )
 
 var dbServices = []string{"mysql", "mariadb", "mongodb"}
@@ -72,7 +74,7 @@ func dbExecArgs(t dbTarget, cmd ...string) []string {
 	if t.service != "mongodb" {
 		args = append(args, "-e", "MYSQL_PWD=root")
 	}
-	return append(append(args, "lodev-"+t.service), cmd...)
+	return append(append(args, config.ServiceContainer(t.service)), cmd...)
 }
 
 // dbDumpArgs is the dump command; extra (--extra-command) goes before the SQL database name, or
@@ -212,8 +214,8 @@ func dbFlags(c *cobra.Command, args []string) (dbTarget, bool, error) {
 	if err != nil {
 		return dbTarget{}, false, err
 	}
-	if !containerRunning("lodev-" + t.service) {
-		return dbTarget{}, false, fmt.Errorf("lodev-%s is not running (lodev service enable %s)", t.service, t.service)
+	if !containerRunning(config.ServiceContainer(t.service)) {
+		return dbTarget{}, false, fmt.Errorf("%s is not running (lodev service enable %s)", config.ServiceContainer(t.service), t.service)
 	}
 	return t, compress == "gz", nil
 }

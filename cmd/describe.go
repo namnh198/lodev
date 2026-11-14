@@ -57,14 +57,14 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 		perf += " (" + strings.Join(names, ", ") + ")"
 	}
 	info = append(info, "Performance: "+perf)
-	rows := [][]string{{"web", stat(state("lodev-" + p.Name + "-web")), strings.Join(web, "\n"), strings.Join(info, "\n")}}
+	rows := [][]string{{"web", stat(state(p.WebContainer())), strings.Join(web, "\n"), strings.Join(info, "\n")}}
 
 	if db := p.DB(); db != "" {
 		port := "InDocker: " + db + ":3306"
 		if host := map[string]string{"mysql": g.Ports.MySQL, "mariadb": g.Ports.MariaDB}[db]; host != "" {
 			port += "\nHost: 127.0.0.1:" + host
 		}
-		rows = append(rows, []string{db, stat(state("lodev-" + db)), port,
+		rows = append(rows, []string{db, stat(state(config.ServiceContainer(db))), port,
 			g.Image(db) + "\nUser/Pass: 'root/root'\nDatabase: " + p.DBName()})
 	}
 	if p.Uses("mongodb") {
@@ -82,7 +82,7 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 		if svc == "rabbitmq" {
 			port, inf = "https://rabbitmq."+g.TLD+"\n"+port, inf+"\nUser/Pass: 'guest/guest'"
 		}
-		rows = append(rows, []string{svc, stat(state("lodev-" + svc)), port, inf})
+		rows = append(rows, []string{svc, stat(state(config.ServiceContainer(svc))), port, inf})
 	}
 	for _, s := range extra {
 		port := "InDocker: " + s.Name

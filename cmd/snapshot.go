@@ -127,8 +127,8 @@ func snapshotCreate(c *cobra.Command, args []string) error {
 		return fmt.Errorf("project %s has no database to snapshot", p.Name)
 	}
 	for _, t := range targets {
-		if !containerRunning("lodev-" + t.service) {
-			return fmt.Errorf("lodev-%s is not running (lodev service enable %s)", t.service, t.service)
+		if !containerRunning(config.ServiceContainer(t.service)) {
+			return fmt.Errorf("%s is not running (lodev service enable %s)", config.ServiceContainer(t.service), t.service)
 		}
 	}
 	dir := snapshotDir(p.Name, name)
