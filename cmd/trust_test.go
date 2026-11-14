@@ -10,6 +10,7 @@ import (
 
 	"lodev/internal/config"
 	"lodev/internal/registry"
+	"lodev/internal/templates"
 )
 
 func writeRepoFile(t *testing.T, p *config.Project, rel, content string) {
@@ -441,5 +442,111 @@ func TestCreateFreshRecordsEmpty(t *testing.T) {
 	}
 	if got := approvedSet(t, "fresh"); got == nil {
 		t.Error("a fresh project must be recorded as approved, not pre-upgrade")
+	}
+}
+
+// start mounts what a symlinked .lodev/homeadditional points to: its files are listed and hashed.
+func TestTrustItemsFollowsSymlinkedHomeAdditional(t *testing.T) {
+	p := hookProject(t, nil)
+	target := filepath.Join(t.TempDir(), "dotfiles")
+	os.MkdirAll(target, 0o755)
+	os.WriteFile(filepath.Join(target, ".gitconfig"), []byte("one"), 0o644)
+	os.MkdirAll(filepath.Join(p.Root, ".lodev"), 0o755)
+	if err := os.Symlink(target, filepath.Join(p.Root, ".lodev", "homeadditional")); err != nil {
+		t.Fatal(err)
+	}
+	before, err := trustItems(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(target, ".gitconfig"), []byte("two"), 0o644)
+	after, _ := trustItems(p)
+	r := diffTrust(trustSums(before), after)
+	if len(r.Changed) != 1 || r.Changed[0].Key != ".lodev/homeadditional/.gitconfig" || len(r.Added)+len(r.Removed) != 0 {
+		t.Fatalf("report = %+v", r)
+	}
+}
+
+func TestTrustItemsEnvironment(t *testing.T) {
+	p := hookProject(t, nil)
+	p.Environment = map[string]string{"B": "2", "A": "1"}
+	items, err := trustItems(p)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items = %v, err = %v", items, err)
+	}
+	if it := items[0]; it.Key != "environment" || it.Display != "environment: A=1\nenvironment: B=2" || it.Sum != sha([]byte("A=1\nB=2\n")) {
+		t.Fatalf("item = %+v", it)
+	}
+	if !isConfigKey("environment") {
+		t.Error("environment is config, not a file")
+	}
+}
+
+func TestTrustItemsApacheConfig(t *testing.T) {
+	p := hookProject(t, nil)
+	writeRepoFile(t, p, ".lodev/apache/example.conf.example", "x")
+	writeRepoFile(t, p, ".lodev/apache-webserver.conf", templates.GeneratedMarker+"\n")
+	if got := trustKeys(t, p); len(got) != 0 {
+		t.Fatalf("examples and the generated conf must not be listed: %v", got)
+	}
+	writeRepoFile(t, p, ".lodev/apache/log.conf", `CustomLog "|/bin/sh -c x" common`)
+	writeRepoFile(t, p, ".lodev/apache/sub/x.conf", "x")
+	writeRepoFile(t, p, ".lodev/apache-webserver.conf", "<VirtualHost *:80>\n")
+	want := []string{".lodev/apache-webserver.conf", ".lodev/apache/log.conf", ".lodev/apache/sub/x.conf"}
+	if got := trustKeys(t, p); !slices.Equal(got, want) {
+		t.Fatalf("keys = %v, want %v", got, want)
+	}
+}
+
+func TestTrustItemsSkipsFileNamedLikeHookFolder(t *testing.T) {
+	p := hookProject(t, map[string][]config.HookStep{"post-start": {{Run: "echo hi"}}})
+	writeRepoFile(t, p, ".lodev/hooks/pre-stop.d", "not a folder")
+	if got := trustKeys(t, p); !slices.Equal(got, []string{"hooks.post-start[0]"}) {
+		t.Fatalf("keys = %v", got)
+	}
+}
+
+// writeFreshHook puts a hook script in the current folder, which has no .lodev/config.yaml yet.
+func writeFreshHook(t *testing.T) {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	os.MkdirAll(".lodev/hooks/post-start.d", 0o755)
+	if err := os.WriteFile(".lodev/hooks/post-start.d/a.sh", []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	asTTY(t, false, "")
+}
+
+func TestCreateFreshAsksForRepoCommands(t *testing.T) {
+	writeFreshHook(t)
+	if err := runRoot(t, "create", "--no-ask", "--name", "fresh"); err == nil || !strings.Contains(err.Error(), "have not approved") {
+		t.Fatalf("err = %v", err)
+	}
+	if reg, _ := registry.Load(); len(reg) != 0 {
+		t.Fatalf("registered anyway: %v", reg)
+	}
+}
+
+func TestCreateFreshYesRecords(t *testing.T) {
+	writeFreshHook(t)
+	if err := runRoot(t, "create", "--no-ask", "--name", "fresh", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "fresh"); got[".lodev/hooks/post-start.d/a.sh"] == "" {
+		t.Errorf("sums not recorded: %v", got)
+	}
+}
+
+// A fresh apache project has only lodev's scaffolded examples: nothing to ask about.
+func TestCreateFreshApacheNothingToAsk(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	asTTY(t, false, "")
+	if err := runRoot(t, "create", "--no-ask", "--name", "fresh", "--webserver", "apache"); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "fresh"); got == nil || len(got) != 0 {
+		t.Errorf("want {}, got %#v", got)
 	}
 }

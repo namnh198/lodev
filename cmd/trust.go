@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -54,6 +55,9 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 		return nil, err
 	}
 	for _, d := range dirs {
+		if fi, err := os.Stat(d); err != nil || !fi.IsDir() { // a file named *.d is no hook folder
+			continue
+		}
 		if ev := strings.TrimSuffix(filepath.Base(d), ".d"); !slices.Contains(events, ev) {
 			events = append(events, ev)
 		}
@@ -107,32 +111,50 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 		add(part.Name, "web image: "+part.Name, part.Content)
 	}
 
-	home := filepath.Join(p.Root, ".lodev", "homeadditional")
-	err = filepath.WalkDir(home, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel := ".lodev/homeadditional/" + filepath.ToSlash(strings.TrimPrefix(path, home+string(filepath.Separator)))
-		var b []byte
-		switch {
-		case d.Type()&fs.ModeSymlink != 0:
-			t, err := os.Readlink(path)
+	// addTree lists the files below the repo folder dir (symlinks by their target text).
+	addTree := func(dir, label string, skipExamples bool) error {
+		return walkTree(filepath.Join(p.Root, dir), func(path, rel string, d fs.DirEntry) error {
+			if skipExamples && strings.HasSuffix(rel, ".example") {
+				return nil
+			}
+			var b []byte
+			var err error
+			switch {
+			case d.Type()&fs.ModeSymlink != 0:
+				var t string
+				t, err = os.Readlink(path)
+				b = []byte(t)
+			case d.Type().IsRegular():
+				b, err = os.ReadFile(path)
+			default:
+				return nil
+			}
 			if err != nil {
 				return err
 			}
-			b = []byte(t)
-		case d.Type().IsRegular():
-			if b, err = os.ReadFile(path); err != nil {
-				return err
-			}
-		default:
+			key := dir + "/" + rel
+			add(key, label+key, b)
 			return nil
-		}
-		add(rel, "home file: "+rel, b)
-		return nil
-	})
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		})
+	}
+	if err := addTree(".lodev/homeadditional", "home file: ", false); err != nil {
 		return nil, err
+	}
+	// Apache runs piped logs and other commands from its config; nginx's config cannot.
+	if err := addTree(".lodev/apache", "apache config: ", true); err != nil {
+		return nil, err
+	}
+	if conf := ".lodev/apache-webserver.conf"; !generated(filepath.Join(p.Root, conf)) {
+		if err := addFile(conf, "apache config: "+conf); err != nil {
+			return nil, err
+		}
+	}
+	if len(p.Environment) > 0 {
+		var lines []string
+		for _, k := range slices.Sorted(maps.Keys(p.Environment)) {
+			lines = append(lines, k+"="+p.Environment[k])
+		}
+		add("environment", "environment: "+strings.Join(lines, "\nenvironment: "), []byte(strings.Join(lines, "\n")+"\n"))
 	}
 
 	items := make([]trustItem, 0, len(byKey))
@@ -141,6 +163,28 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 	}
 	slices.SortFunc(items, func(a, b trustItem) int { return strings.Compare(a.Key, b.Key) })
 	return items, nil
+}
+
+// walkTree calls fn for every entry below dir with its slash path relative to dir, following dir
+// itself when it is a symlink (start mounts what it points to). A missing dir has no entries.
+func walkTree(dir string, fn func(path, rel string, d fs.DirEntry) error) error {
+	root, err := filepath.EvalSymlinks(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == root {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		return fn(path, filepath.ToSlash(rel), d)
+	})
 }
 
 // trustSums is the key to sum map the registry stores; never nil, so "approved nothing" is kept.
@@ -210,7 +254,7 @@ func (r trustReport) String() string {
 }
 
 func isConfigKey(k string) bool {
-	return k == "cron" || strings.HasPrefix(k, "hooks.") || strings.HasPrefix(k, "web_extra_daemons.")
+	return k == "cron" || k == "environment" || strings.HasPrefix(k, "hooks.") || strings.HasPrefix(k, "web_extra_daemons.")
 }
 
 // trustTTY reports whether lodev can ask; swapped in tests.

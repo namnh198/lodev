@@ -862,10 +862,11 @@ func init() {
 				return err
 			}
 			err = withLock(func() error {
-				if err := registerProject(p); err != nil {
+				// The folder may already hold a repo's .lodev files: ask as registerExisting does.
+				if err := ensureTrusted(p, createYes, true); err != nil {
 					return err
 				}
-				return ensureTrusted(p, true, true) // a fresh project's own commands: record, do not ask
+				return registerProject(p)
 			})
 			if err != nil {
 				return err
