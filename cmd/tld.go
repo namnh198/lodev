@@ -104,7 +104,8 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 
 	// The configs are on newTLD now: from here on a failure is finished by rerunning with --from-tld.
 	rerun := fmt.Sprintf("rerun: lodev config-global --tld=%s --from-tld=%s", newTLD, oldTLD)
-	blocks := []hosts.Block{{Name: "lodev-services", Domains: config.ReservedDomains()}}
+	// The same list servicesUp writes on newTLD, so its later write changes nothing (no second sudo prompt).
+	blocks := []hosts.Block{{Name: "lodev-services", Domains: union(config.ReservedDomainsFor(newTLD), movedSharedHosts(oldTLD, newTLD))}}
 	for _, m := range moves {
 		blocks = append(blocks, hosts.Block{Name: m.name, Domains: m.p.WebDomains()})
 	}
@@ -136,6 +137,26 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 		return fmt.Errorf("%w; %s", errors.Join(errs...), rerun)
 	}
 	return nil
+}
+
+// movedSharedHosts is the shared VIRTUAL_HOSTs of the merged services file moved from oldTLD to newTLD;
+// none without that file or when it does not read on oldTLD (servicesUp then reports why).
+func movedSharedHosts(oldTLD, newTLD string) []string {
+	full, err := os.ReadFile(servicesFullFile())
+	if err != nil {
+		return nil
+	}
+	vs, err := virtualServices(full, "lodev-services", oldTLD, nil)
+	if err != nil {
+		return nil
+	}
+	var hs []string
+	for _, v := range vs {
+		for _, h := range v.Hosts {
+			hs = append(hs, strings.TrimSuffix(h, "."+oldTLD)+"."+newTLD)
+		}
+	}
+	return hs
 }
 
 // planTLDMove reads one project, overrides included, and works out its domains on newTLD,

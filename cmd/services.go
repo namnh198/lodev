@@ -121,24 +121,9 @@ func servicesUp() error {
 		return err
 	}
 	warnTraefikLabels(full)
-	vs, err := virtualServices(full, "lodev-services", config.TLD(), nil)
+	domains, err := servicesDomains(full)
 	if err != nil {
 		return err
-	}
-	reg, err := registry.Load()
-	if err != nil {
-		return err
-	}
-	domains := config.ReservedDomains()
-	for _, v := range vs {
-		for _, h := range v.Hosts {
-			for _, name := range reg.Names() {
-				if slices.Contains(reg[name].Domains, h) {
-					return fmt.Errorf("VIRTUAL_HOST %s of shared service %s is already used by project %q", h, v.Service, name)
-				}
-			}
-			domains = append(domains, h)
-		}
 	}
 	if err := certs.Ensure("lodev-services", domains); err != nil {
 		return err
@@ -171,6 +156,31 @@ func servicesUp() error {
 		return err
 	}
 	return syncProjectRoutes()
+}
+
+// servicesDomains is the lodev-services cert and hosts block of a merged services file: the reserved
+// UIs and every shared VIRTUAL_HOST, sorted and without repeats. A host a project has is refused.
+func servicesDomains(full []byte) ([]string, error) {
+	vs, err := virtualServices(full, "lodev-services", config.TLD(), nil)
+	if err != nil {
+		return nil, err
+	}
+	reg, err := registry.Load()
+	if err != nil {
+		return nil, err
+	}
+	var hs []string
+	for _, v := range vs {
+		for _, h := range v.Hosts {
+			for _, name := range reg.Names() {
+				if slices.Contains(reg[name].Domains, h) {
+					return nil, fmt.Errorf("VIRTUAL_HOST %s of shared service %s is already used by project %q", h, v.Service, name)
+				}
+			}
+			hs = append(hs, h)
+		}
+	}
+	return union(config.ReservedDomains(), hs), nil
 }
 
 // servicesComposeUp runs compose up, then drops the old Traefik's certs file: kept until up succeeds.

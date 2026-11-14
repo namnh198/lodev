@@ -326,6 +326,16 @@ func TestTLDMovesOverrideDomains(t *testing.T) {
 	}
 }
 
+func TestRetargetServicesBlockMatchesServicesUp(t *testing.T) {
+	f := newTLDFixture(t, nil, nil, false)
+	writeFile(t, servicesFullFile(), mergedServices)
+	if err := retargetTLD("test", "local", &f.out); err != nil {
+		t.Fatal(err)
+	}
+	// servicesDomains' list on .local, one line: the later services up rewrites nothing.
+	mustContain(t, f.read(f.hosts), "# lodev:lodev-services begin\n127.0.0.1 adminer.local mailpit.local mongo.local phpmyadmin.local rabbitmq.local\n")
+}
+
 func TestTLDOverrideBadDomainRefusesAll(t *testing.T) {
 	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
 	ov := writeOverride(t, f.roots["a"], "config.local.yaml", "domains: [en.example]\n")

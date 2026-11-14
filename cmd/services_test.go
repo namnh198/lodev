@@ -617,6 +617,27 @@ func TestCustomServices(t *testing.T) {
 	}
 }
 
+// mergedServices is a merged services file on tld test: the four UIs as the template routes them, and a custom adminer.
+const mergedServices = `services:
+  mailpit: {environment: {VIRTUAL_HOST: mailpit.test, VIRTUAL_PORT: "8025"}, networks: {lodev: null}}
+  phpmyadmin: {environment: {VIRTUAL_HOST: phpmyadmin.test}, networks: {lodev: null}}
+  rabbitmq: {environment: {VIRTUAL_HOST: rabbitmq.test, VIRTUAL_PORT: "15672"}, networks: {lodev: null}}
+  mongo-express: {environment: {VIRTUAL_HOST: mongo.test, VIRTUAL_PORT: "8081"}, networks: {lodev: null}}
+  adminer: {environment: {VIRTUAL_HOST: adminer.test, VIRTUAL_PORT: "8080"}, networks: {lodev: null}}
+`
+
+func TestServicesDomainsNoRepeats(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	got, err := servicesDomains([]byte(mergedServices))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"adminer.test", "mailpit.test", "mongo.test", "phpmyadmin.test", "rabbitmq.test"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 func TestServicesComposeUpKeepsOldCertsUntilUp(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	old := filepath.Join(config.Home(), "certs", "dynamic.yaml")
