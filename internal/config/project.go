@@ -179,9 +179,8 @@ func (p *Project) VolumeDirsFor(g *Global) []VolumeDir {
 			out = append(out, VolumeDir{d, false})
 		}
 	}
-	n := len(out)
 	for _, d := range p.VolumeDirs {
-		if !slices.ContainsFunc(out[:n], func(v VolumeDir) bool { return v.Path == d }) {
+		if !slices.ContainsFunc(out, func(v VolumeDir) bool { return v.Path == d }) {
 			out = append(out, VolumeDir{d, true})
 		}
 	}

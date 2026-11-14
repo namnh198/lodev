@@ -558,6 +558,8 @@ func TestVolumeDirsFor(t *testing.T) {
 			[]VolumeDir{{"node_modules", false}, {"storage", true}, {"var", true}}},
 		{"duplicate of a default dropped", &Project{Type: "magento", Root: volumeRoot(t, false), VolumeDirs: []string{"var", "pub/media"}},
 			[]VolumeDir{{"var", false}, {"generated", false}, {"pub/media", true}}},
+		{"repeated own entry", &Project{Type: "php", Root: volumeRoot(t, false), VolumeDirs: []string{"pub", "pub"}},
+			[]VolumeDir{{"pub", true}}},
 		{"php without package.json", &Project{Type: "php", Root: volumeRoot(t, false)}, nil},
 		{"none", &Project{Type: "magento", Root: volumeRoot(t, true), PerformanceMode: "none"}, nil},
 	}
