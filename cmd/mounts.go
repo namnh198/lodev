@@ -134,7 +134,7 @@ func snapshotApache(p *config.Project, dst string) (string, error) {
 	if err := os.WriteFile(filepath.Join(dst, "webserver.conf"), conf, 0o644); err != nil {
 		return "", err
 	}
-	return dst, snapshotTree(filepath.Join(p.Root, ".lodev", "apache"), custom, false)
+	return dst, snapshotTree(filepath.Join(p.Root, ".lodev", "apache"), custom, true)
 }
 
 // snapshotTree replaces dst's contents with a copy of src (a symlinked src followed; regular files

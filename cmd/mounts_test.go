@@ -98,6 +98,7 @@ func TestPrepareMountsSnapshotsApacheConfig(t *testing.T) {
 	p.Webserver = "apache"
 	writeFile(t, WebserverConfFile(p), "<VirtualHost>\n")
 	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "logs.conf"), "CustomLog x\n")
+	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "example.conf.example"), "# x\n")
 	snap := filepath.Join(config.Home(), "data", "web", "shop-web", "apache")
 	writeFile(t, filepath.Join(snap, "custom.d", "stale.conf"), "x")
 
@@ -116,6 +117,9 @@ func TestPrepareMountsSnapshotsApacheConfig(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(snap, "custom.d", "stale.conf")); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("stale file kept: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(snap, "custom.d", "example.conf.example")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("example copied: %v", err)
 	}
 
 	p.Webserver = "nginx"
