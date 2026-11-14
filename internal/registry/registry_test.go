@@ -150,6 +150,48 @@ func TestConflictSymlinkedSelf(t *testing.T) {
 	}
 }
 
+func TestTrustedEmptyRoundTrip(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	dir := projectDir(t)
+	r := Registry{"a": Entry{Path: dir, Trusted: map[string]string{}}}
+	if err := r.Save(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load()
+	if err != nil || got["a"].Trusted == nil || len(got["a"].Trusted) != 0 {
+		t.Fatalf("got %#v, %v", got["a"].Trusted, err)
+	}
+}
+
+func TestTrustedMissingIsNil(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	if err := os.WriteFile(file(), []byte(`{"a":{"path":"/a","domains":[]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load()
+	if err != nil || got["a"].Trusted != nil {
+		t.Fatalf("got %#v, %v", got["a"].Trusted, err)
+	}
+}
+
+func TestPutKeepsTrustedOnRename(t *testing.T) {
+	d := projectDir(t)
+	r := Registry{"old": {Path: d, Trusted: map[string]string{"k": "s"}}}
+	r.Put(project("new", d))
+	if _, ok := r["old"]; ok || r["new"].Trusted["k"] != "s" {
+		t.Fatalf("%v", r)
+	}
+}
+
+func TestPutKeepsTrustedOnSameName(t *testing.T) {
+	d := projectDir(t)
+	r := Registry{"shop": {Path: d, Trusted: map[string]string{"k": "s"}}}
+	r.Put(project("shop", d))
+	if r["shop"].Trusted["k"] != "s" {
+		t.Fatalf("%v", r)
+	}
+}
+
 func TestPutExtraHosts(t *testing.T) {
 	r := Registry{}
 	r.Put(project("shop", "/p", "shop.test", "en.test"), "adminer.test")
