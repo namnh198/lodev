@@ -48,16 +48,25 @@ func localValue(p *config.Project, key string) bool {
 
 // setLocal makes the merged value of local key true or false by editing config.local.yaml only:
 // the key is removed when want is its default, and written explicitly when it is not or when
-// config.yaml or another override would still win. restore puts the file back as it was.
-func setLocal(root, key string, want bool) (restore func(), err error) {
+// config.yaml or another override would still win. restore puts the file back as it was;
+// with several keys, run the restores in reverse.
+func setLocal(root, key string, want bool) (restore func() error, err error) {
 	path := localConfigPath(root)
 	prev, rerr := os.ReadFile(path)
-	restore = func() {
-		if rerr == nil {
-			config.WriteFileAtomic(path, prev, 0o644)
-		} else {
-			os.Remove(path)
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	restore = func() error {
+		switch {
+		case rerr == nil:
+			return config.WriteFileAtomic(path, prev, mode)
+		case errors.Is(rerr, os.ErrNotExist):
+			if err := os.Remove(path); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 		}
+		return nil
 	}
 	d, err := config.OpenDoc(path)
 	if err != nil {
@@ -310,11 +319,14 @@ func loadProjectForEdit(root string) (*config.Project, error) {
 // Local keys go to config.local.yaml instead, and are put back if the result is not saved.
 func applyProjectConfig(old *config.Project, all []change) (diff []string, p *config.Project, err error) {
 	var changes []change
-	var restores []func()
+	var restores []func() error
 	defer func() {
-		if err != nil {
-			for _, r := range restores {
-				r()
+		if err == nil {
+			return
+		}
+		for i := len(restores) - 1; i >= 0; i-- {
+			if rerr := restores[i](); rerr != nil {
+				err = errors.Join(err, rerr)
 			}
 		}
 	}()

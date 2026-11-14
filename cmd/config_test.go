@@ -148,6 +148,27 @@ func TestConfigLocalKeysStayLocal(t *testing.T) {
 	}
 }
 
+// TestConfigLocalKeysRestoredWhenNotSaved: two local keys then an invalid change leave config.local.yaml as it was.
+func TestConfigLocalKeysRestoredWhenNotSaved(t *testing.T) {
+	root := newShop(t)
+	local := filepath.Join(root, ".lodev", "config.local.yaml")
+	args := []string{"--enable-xdebug=true", "--opcache-validate-timestamps=false", "--php-version=9.9"}
+	if _, _, err := runConfig(t, newConfigCmd, args...); err == nil || !strings.HasPrefix(err.Error(), "not saved: ") {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(local); !os.IsNotExist(err) {
+		t.Errorf("config.local.yaml left behind: %v", err)
+	}
+	const before = "# keep\nnodejs: \"20\"\n"
+	writeOverride(t, root, "config.local.yaml", before)
+	if _, _, err := runConfig(t, newConfigCmd, args...); err == nil {
+		t.Fatal("no error")
+	}
+	if b, _ := os.ReadFile(local); string(b) != before {
+		t.Errorf("config.local.yaml changed:\n%s", b)
+	}
+}
+
 func TestConfigRunningHint(t *testing.T) {
 	newShop(t)
 	stubDocker(t, "running")
