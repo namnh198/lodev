@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -68,12 +69,15 @@ func serveRelease(t *testing.T, tgz []byte, checksums string) {
 }
 
 // serveReleaseSig is serveRelease with the signature chosen by sig; ok=false means no .sig file.
-func serveReleaseSig(t *testing.T, tgz []byte, checksums string, sig func(sums string) (string, bool)) {
+// It returns the paths requested so far.
+func serveReleaseSig(t *testing.T, tgz []byte, checksums string, sig func(sums string) (string, bool)) *[]string {
 	t.Helper()
 	if checksums == "" {
 		checksums = fmt.Sprintf("%x  %s\n", sha256.Sum256(tgz), testArchive)
 	}
+	var paths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
 		switch r.URL.Path {
 		case "/v1.3.0/" + testArchive:
 			if tgz != nil {
@@ -95,6 +99,7 @@ func serveReleaseSig(t *testing.T, tgz []byte, checksums string, sig func(sums s
 	old := DownloadBase
 	DownloadBase = srv.URL
 	t.Cleanup(func() { DownloadBase = old })
+	return &paths
 }
 
 func download(t *testing.T) (string, error) {
@@ -195,9 +200,13 @@ const notSigned = "release v1.3.0 is not signed by lodev's release key"
 
 func TestDownloadRejectsUnsigned(t *testing.T) {
 	testKey(t)
-	serveReleaseSig(t, release(t, map[string]string{"lodev": "bin"}), "", func(string) (string, bool) { return "", false })
+	got := serveReleaseSig(t, release(t, map[string]string{"lodev": "bin"}), "", func(string) (string, bool) { return "", false })
 	if dir, err := download(t); err == nil || !strings.Contains(err.Error(), notSigned) || dir != "" {
 		t.Errorf("got %q, %v", dir, err)
+	}
+	// Fail fast: the signature is checked before the archive is downloaded.
+	if slices.Contains(*got, "/v1.3.0/"+testArchive) {
+		t.Errorf("archive downloaded for an unsigned release: %v", *got)
 	}
 }
 

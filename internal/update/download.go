@@ -42,18 +42,14 @@ var archiveFiles = map[string]string{
 	"completions/lodev.fish": filepath.Join("completions", "lodev.fish"),
 }
 
-// Download fetches the release archive for tag, checks checksums.txt against its signature and the
+// Download checks tag's checksums.txt against its signature, fetches the release archive, checks the
 // archive's sha256 against checksums.txt, then extracts lodev and its completions into a new temp
 // dir, which the caller removes.
 func Download(ctx context.Context, tag, goos, goarch string) (dir string, err error) {
 	if _, err := publicKey(releasePublicKey); err != nil {
 		return "", err
 	}
-	name := fmt.Sprintf("lodev_%s_%s_%s", strings.TrimPrefix(tag, "v"), goos, goarch)
-	tgz, err := fetch(ctx, tag, name+".tar.gz")
-	if err != nil {
-		return "", err
-	}
+	// The signature first: an unsigned tag fails before the archive is downloaded.
 	sums, err := fetch(ctx, tag, "checksums.txt")
 	if err != nil {
 		return "", err
@@ -67,6 +63,11 @@ func Download(ctx context.Context, tag, goos, goarch string) (dir string, err er
 	}
 	if err := verifySignature(sums, sig); err != nil {
 		return "", unsigned(tag)
+	}
+	name := fmt.Sprintf("lodev_%s_%s_%s", strings.TrimPrefix(tag, "v"), goos, goarch)
+	tgz, err := fetch(ctx, tag, name+".tar.gz")
+	if err != nil {
+		return "", err
 	}
 	if err := verify(tgz, sums, name+".tar.gz"); err != nil {
 		return "", err
