@@ -133,6 +133,10 @@ func scaffold(root, webserver string) error {
 	if webserver == "nginx" || webserver == "apache" {
 		files[webserver+"/example.conf.example"] = "# Rename to <name>.conf to extend the " + webserver + " config.\n# location /api { ... }\n"
 	}
+	// A symlinked homeadditional (a teammate's dotfiles) may not exist here: never write through it.
+	if fi, err := os.Lstat(filepath.Join(root, ".lodev", "homeadditional")); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		delete(files, "homeadditional/.bash_aliases.example")
+	}
 	for rel, body := range files {
 		path := filepath.Join(root, ".lodev", rel)
 		if _, err := os.Stat(path); err == nil {

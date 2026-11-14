@@ -1186,3 +1186,20 @@ func TestMigrateHomeDropsOldCopies(t *testing.T) {
 		}
 	}
 }
+
+// A committed .lodev/homeadditional symlink to a teammate's dotfiles may not exist here: scaffold
+// leaves it alone instead of failing start and create.
+func TestScaffoldSkipsSymlinkedHomeAdditional(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".lodev"), 0o755)
+	link := filepath.Join(root, ".lodev", "homeadditional")
+	if err := os.Symlink(filepath.Join(root, "missing"), link); err != nil {
+		t.Fatal(err)
+	}
+	if err := scaffold(root, "nginx"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "missing")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("wrote through the symlink: %v", err)
+	}
+}
