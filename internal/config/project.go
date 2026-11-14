@@ -161,6 +161,10 @@ func LoadProject(root string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
+	data, _, err = MergeOverrides(root, data)
+	if err != nil {
+		return nil, err
+	}
 	p, err := ParseProject(root, data)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", ProjectPath(root), err)

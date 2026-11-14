@@ -290,6 +290,13 @@ environment:                 # optional: variables for the web container (see En
 lodev_version_constraint: ">= 1.4.0, < 2"   # optional: start/restart refuse another lodev
 ```
 
+### Local overrides — `.lodev/config.*.yaml`
+
+Any `.lodev/config.<something>.yaml` (e.g. `config.local.yaml`) is laid over `config.yaml`, in name
+order, every time lodev reads the project. Mappings merge key by key (`environment: {B: "3"}` changes
+only `B`); any other value, a list included, replaces the one below it. `name` cannot be overridden.
+These files are git-ignored (`.lodev/.gitignore`), so they hold per-machine settings.
+
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`
 make lodev build a project image `lodev/<name>-web` on top of the PHP image. Projects without
 any of them use the shared PHP image and build nothing. The image is rebuilt on the next
