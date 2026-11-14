@@ -228,29 +228,32 @@ func (r trustReport) Empty() bool {
 
 // String lists config items by their command text and files by path plus what happened to them.
 func (r trustReport) String() string {
-	var b strings.Builder
+	var lines []string
 	section := func(title, fileSuffix string, items []trustItem) {
 		if len(items) == 0 {
 			return
 		}
-		b.WriteString(title + ":\n")
+		lines = append(lines, title+":")
 		for _, it := range items {
 			text := strings.ReplaceAll(it.Display, "\n", "\n  ")
 			if !isConfigKey(it.Key) {
 				text += fileSuffix
 			}
-			b.WriteString("  " + text + "\n")
+			lines = append(lines, "  "+text)
 		}
 	}
 	section("added", " (new)", r.Added)
 	section("changed", " (changed — review with git diff)", r.Changed)
 	if len(r.Removed) > 0 {
-		b.WriteString("removed:\n")
+		lines = append(lines, "removed:")
 		for _, k := range r.Removed {
-			b.WriteString("  " + k + "\n")
+			lines = append(lines, "  "+k)
 		}
 	}
-	return b.String()
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func isConfigKey(k string) bool {
