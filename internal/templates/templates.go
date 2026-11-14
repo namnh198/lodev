@@ -46,14 +46,9 @@ var customDirs = map[string]string{"nginx": "/etc/nginx/custom.d", "apache": "/e
 // Volume is a named Docker volume lodev created for the project folder Dir (relative to the root).
 type Volume struct{ Name, Dir string }
 
-type ProjectInput struct {
-	Project    *config.Project
-	ExtraHosts []string
-	CAFile     string
-	Image      string
-	User       string
-	UID, GID   int
-	HomeDir    string // host folder mounted as /var/lib/lodev/home: caches and histories only
+// Mounts is the web container's web mounts: the host folders and volumes start prepares for it.
+type Mounts struct {
+	HomeDir string // host folder mounted as /var/lib/lodev/home: caches and histories only
 	// GlobalHomeAdditional and ProjectHomeAdditional are copied into the container's home at every start;
 	// the project one is start's copy of .lodev/homeadditional, empty when the project has none.
 	GlobalHomeAdditional, ProjectHomeAdditional string
@@ -61,6 +56,16 @@ type ProjectInput struct {
 	// instead of the repo files; empty for nginx, whose config stays mounted from .lodev/.
 	ApacheSnapshot string
 	Volumes        []Volume
+}
+
+type ProjectInput struct {
+	Project    *config.Project
+	ExtraHosts []string
+	CAFile     string
+	Image      string
+	User       string
+	UID, GID   int
+	Mounts
 	// Env is the project's own variables (config.yaml, then .lodev/.env); they override lodev's.
 	Env map[string]string
 }
@@ -131,21 +136,18 @@ func webEnv(in ProjectInput) []string {
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
 	return render("project-compose.yaml.tmpl", struct {
-		P                                           *config.Project
-		ExtraHosts                                  []string
-		CAFile                                      string
-		Image                                       string
-		User                                        string
-		UID, GID                                    int
-		HomeDir                                     string
-		GlobalHomeAdditional, ProjectHomeAdditional string
-		ApacheSnapshot                              string
-		CustomDir                                   map[string]string
-		Env                                         []string
-		Cron                                        bool
-		Volumes                                     []Volume
-	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, in.GlobalHomeAdditional, in.ProjectHomeAdditional, in.ApacheSnapshot, customDirs,
-		webEnv(in), len(in.Project.CronLines()) > 0, in.Volumes})
+		P          *config.Project
+		ExtraHosts []string
+		CAFile     string
+		Image      string
+		User       string
+		UID, GID   int
+		Mounts
+		CustomDir map[string]string
+		Env       []string
+		Cron      bool
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.Mounts, customDirs,
+		webEnv(in), len(in.Project.CronLines()) > 0})
 }
 
 // DaemonsConf is the supervisor program file for p's web_extra_daemons.

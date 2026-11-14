@@ -68,7 +68,7 @@ func projectInput(webserver string) ProjectInput {
 		CAFile:     home + "/rootCA/rootCA.pem",
 		Image:      "lodev/shop-web",
 		User:       "kuroko", UID: 501, GID: 20,
-		HomeDir: home + "/data/home-shop", GlobalHomeAdditional: home + "/homeadditional",
+		Mounts: Mounts{HomeDir: home + "/data/home-shop", GlobalHomeAdditional: home + "/homeadditional"},
 	}
 }
 

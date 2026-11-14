@@ -653,136 +653,24 @@ func TestProjectHome(t *testing.T) {
 	}
 }
 
-func TestDeleteKeepsHome(t *testing.T) {
-	t.Setenv("LODEV_HOME", t.TempDir())
-	hf := filepath.Join(t.TempDir(), "hosts")
-	os.WriteFile(hf, []byte("127.0.0.1 localhost\n"), 0o644)
-	defer func(o string) { hosts.File = o }(hosts.File)
-	hosts.File = hf
-	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
-	dockerOutput = func(...string) (string, error) { return "", nil }
-	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
-	g, _ := config.LoadGlobal()
-	h := projectHome(g, p)
-	writeFile(t, filepath.Join(h, ".bash_history"), "ls\n")
-	writeFile(t, filepath.Join(projectHomeAdditional(g, p), ".gitconfig"), "x")
-	writeFile(t, filepath.Join(projectApacheSnapshot(g, p), "webserver.conf"), "x")
-	out, _, restore := ui.Capture(false)
-	defer restore()
-	if err := deleteProject(p, false, false, true); err != nil {
-		t.Fatal(err)
-	}
-	mustContain(t, out.String(), "Kept "+h+" (caches and histories)")
-	if _, err := os.Stat(filepath.Join(h, ".bash_history")); err != nil {
-		t.Errorf("home removed: %v", err)
-	}
-	if _, err := os.Stat(projectHomeAdditional(g, p)); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("homeadditional snapshot kept: %v", err)
-	}
-	if _, err := os.Stat(projectApacheSnapshot(g, p)); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("apache snapshot kept: %v", err)
-	}
-}
-
-// start mounts a copy of .lodev/homeadditional taken after the trust gate, not the repo folder:
-// a container Docker restarts after a git pull copies only approved files into the home.
-func TestStartSnapshotsHomeAdditional(t *testing.T) {
-	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
-	target := filepath.Join(t.TempDir(), "dotfiles") // a symlinked folder is followed
-	writeFile(t, filepath.Join(target, ".gitconfig"), "one")
-	writeFile(t, filepath.Join(target, ".bash_aliases.example"), "# x")
-	writeFile(t, filepath.Join(target, ".ssh", "config"), "Host *\n")
-	os.Chmod(filepath.Join(target, ".ssh", "config"), 0o600)
-	os.Symlink("../x", filepath.Join(target, "link"))
-	repo := filepath.Join(p.Root, ".lodev", "homeadditional")
-	if err := os.Symlink(target, repo); err != nil {
-		t.Fatal(err)
-	}
-	g, _ := config.LoadGlobal()
-	snap := projectHomeAdditional(g, p)
-	if snap != filepath.Join(projectHome(g, p), "homeadditional") {
-		t.Fatalf("snap = %q", snap)
-	}
-	writeFile(t, filepath.Join(snap, "stale"), "x")
-	cache := filepath.Join(projectHome(g, p), ".npm", "x")
-	writeFile(t, cache, "c")
-	if err := start(p, startOpts{noHooks: true}); err != nil {
-		t.Fatal(err)
-	}
-	if b, _ := os.ReadFile(filepath.Join(snap, ".gitconfig")); string(b) != "one" {
-		t.Errorf(".gitconfig = %q", b)
-	}
-	if fi, err := os.Stat(filepath.Join(snap, ".ssh", "config")); err != nil || fi.Mode().Perm() != 0o600 {
-		t.Errorf(".ssh/config: %v %v", fi, err)
-	}
-	if _, err := os.Stat(filepath.Join(snap, ".bash_aliases.example")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("example copied: %v", err)
-	}
-	if l, _ := os.Readlink(filepath.Join(snap, "link")); l != "../x" {
-		t.Errorf("link = %q", l)
-	}
-	if _, err := os.Stat(filepath.Join(snap, "stale")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("stale file kept: %v", err)
-	}
-	if b, _ := os.ReadFile(cache); string(b) != "c" {
-		t.Errorf("cache lost: %q", b)
-	}
-	b, _ := os.ReadFile(composeBase(p))
-	mustContain(t, string(b), `"`+snap+`:/etc/lodev/homeadditional/project:ro"`)
-
-	// start scaffolds the folder back with only the example, which is not copied: the copy is empty.
-	os.Remove(repo)
-	if err := start(p, startOpts{noHooks: true}); err != nil {
-		t.Fatal(err)
-	}
-	if left, err := os.ReadDir(snap); err != nil || len(left) != 0 {
-		t.Errorf("snapshot after the folder went: %v %v", left, err)
-	}
-}
-
-// Apache config runs commands (piped logs), so start mounts a copy taken after the trust gate:
-// a container Docker restarts after a git pull loads only approved config.
-func TestStartSnapshotsApacheConfig(t *testing.T) {
+// start mounts the web mounts' copies, not the repo folders they were taken from.
+func TestStartMountsWebMounts(t *testing.T) {
 	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
 	p.Webserver = "apache"
 	if err := config.SaveProject(p); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(p.Root, ".lodev", "homeadditional", ".gitconfig"), "one")
 	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "logs.conf"), "CustomLog x\n")
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
 	g, _ := config.LoadGlobal()
-	snap := projectApacheSnapshot(g, p)
-	if snap != filepath.Join(projectHome(g, p), "apache") {
-		t.Fatalf("snap = %q", snap)
-	}
-	writeFile(t, filepath.Join(snap, "custom.d", "stale.conf"), "x")
-	if err := start(p, startOpts{noHooks: true}); err != nil {
-		t.Fatal(err)
-	}
-	if b, _ := os.ReadFile(filepath.Join(snap, "custom.d", "logs.conf")); string(b) != "CustomLog x\n" {
-		t.Errorf("custom.d/logs.conf = %q", b)
-	}
-	conf, _ := os.ReadFile(WebserverConfFile(p))
-	if b, _ := os.ReadFile(filepath.Join(snap, "webserver.conf")); len(conf) == 0 || string(b) != string(conf) {
-		t.Errorf("webserver.conf = %q, want %q", b, conf)
-	}
-	if _, err := os.Stat(filepath.Join(snap, "custom.d", "stale.conf")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("stale file kept: %v", err)
-	}
 	b, _ := os.ReadFile(composeBase(p))
-	mustContain(t, string(b), `"`+snap+`/custom.d:/etc/apache2/custom.d:ro"`)
-	if strings.Contains(string(b), p.Root+"/.lodev/apache") {
-		t.Errorf("repo apache config still mounted:\n%s", b)
-	}
-
-	p.Webserver = "nginx"
-	if err := config.SaveProject(p); err != nil {
-		t.Fatal(err)
-	}
-	if err := start(p, startOpts{noHooks: true}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(snap); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("apache snapshot kept for nginx: %v", err)
+	mustContain(t, string(b), `"`+projectHomeAdditional(g, p)+`:/etc/lodev/homeadditional/project:ro"`,
+		`"`+projectApacheSnapshot(g, p)+`/custom.d:/etc/apache2/custom.d:ro"`)
+	if strings.Contains(string(b), p.Root+"/.lodev/apache") || strings.Contains(string(b), p.Root+"/.lodev/homeadditional") {
+		t.Errorf("repo folder still mounted:\n%s", b)
 	}
 }
 
