@@ -232,12 +232,8 @@ func planTLDMove(name, root, oldTLD, newTLD string) (tldMove, error) {
 		m.overrides = append(m.overrides, d)
 		effective = ds
 	}
-	merged, _, err := config.MergeOverrides(root, data)
-	if err != nil {
-		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
-	}
 	var vErr *config.ValidationError
-	p, err := config.ParseProject(root, merged) // validated below against newTLD, not the current one
+	p, err := config.ParseWithOverrides(root, data) // validated below against newTLD, not the current one
 	if err != nil && !errors.As(err, &vErr) {
 		return tldMove{}, fmt.Errorf("project %s: %w", name, err)
 	}

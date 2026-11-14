@@ -308,16 +308,9 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 // loadProjectForEdit reads the project config with its overrides laid over; a file that only
 // fails validation is returned as is, so the command can fix it.
 func loadProjectForEdit(root string) (*config.Project, error) {
-	data, err := os.ReadFile(config.ProjectPath(root))
-	if err != nil {
-		return nil, err
-	}
-	if data, _, err = config.MergeOverrides(root, data); err != nil {
-		return nil, err
-	}
-	p, err := config.ParseProject(root, data)
+	p, err := config.LoadProject(root)
 	if ve := (*config.ValidationError)(nil); err != nil && !errors.As(err, &ve) {
-		return nil, fmt.Errorf("%s: %w", config.ProjectPath(root), err)
+		return nil, err
 	}
 	return p, nil
 }
@@ -362,11 +355,7 @@ func applyProjectConfig(old *config.Project, all []change) (diff []string, p *co
 	if err != nil {
 		return nil, nil, err
 	}
-	merged, _, err := config.MergeOverrides(old.Root, data)
-	if err != nil {
-		return nil, nil, fmt.Errorf("not saved: %w", err)
-	}
-	if p, err = config.ParseProject(old.Root, merged); err != nil {
+	if p, err = config.ParseWithOverrides(old.Root, data); err != nil {
 		return nil, nil, fmt.Errorf("not saved: %w", err)
 	}
 	reg, err := registry.Load()

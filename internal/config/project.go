@@ -307,6 +307,8 @@ func FindRoot(start string) (string, error) {
 	}
 }
 
+// LoadProject reads root's config with its overrides laid over. A config that only fails validation
+// comes back with the wrapped *ValidationError, for the commands that fix it.
 func LoadProject(root string) (*Project, error) {
 	data, err := os.ReadFile(ProjectPath(root))
 	if err != nil {
@@ -318,9 +320,19 @@ func LoadProject(root string) (*Project, error) {
 	}
 	p, err := ParseProject(root, data)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ProjectPath(root), err)
+		return p, fmt.Errorf("%s: %w", ProjectPath(root), err)
 	}
 	return p, nil
+}
+
+// ParseWithOverrides lays .lodev/config.*.yaml over base, a config.yaml not yet written, and parses
+// the result; like ParseProject, a *ValidationError comes with the project.
+func ParseWithOverrides(root string, base []byte) (*Project, error) {
+	data, _, err := MergeOverrides(root, base)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProject(root, data)
 }
 
 // ParseProject decodes a project config, applies defaults and validates it.

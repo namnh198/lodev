@@ -129,3 +129,26 @@ func TestOverriddenKeys(t *testing.T) {
 		t.Fatalf("%v want %v", got, want)
 	}
 }
+
+func TestParseWithOverrides(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	root := t.TempDir()
+	writeLodev(t, root, "config.local.yaml", "php: \"8.4\"\n")
+	p, err := ParseWithOverrides(root, []byte(overrideBase))
+	if err != nil || p.PHP != "8.4" || p.Root != root {
+		t.Fatalf("p = %+v, err = %v", p, err)
+	}
+
+	// A file that only fails validation still comes back, so a command can fix it.
+	writeLodev(t, root, "config.local.yaml", "php: \"1.0\"\n")
+	p, err = ParseWithOverrides(root, []byte(overrideBase))
+	var ve *ValidationError
+	if !errors.As(err, &ve) || p == nil || p.PHP != "1.0" {
+		t.Fatalf("p = %+v, err = %v", p, err)
+	}
+
+	writeLodev(t, root, "config.local.yaml", "name: other\n")
+	if _, err := ParseWithOverrides(root, []byte(overrideBase)); err == nil || !strings.Contains(err.Error(), "name cannot be overridden") {
+		t.Fatalf("err = %v", err)
+	}
+}
