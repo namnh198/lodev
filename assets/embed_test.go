@@ -48,12 +48,13 @@ func TestHash(t *testing.T) {
 	}
 }
 
-// TestSkel: the lodev /etc/skel carries the history size, git and ssh defaults, and nothing from DDEV.
+// TestSkel: the lodev /etc/skel carries the history size, git defaults and the ll alias, nothing
+// from DDEV, and no .ssh (the image has no ssh client).
 func TestSkel(t *testing.T) {
 	for file, c := range map[string]struct{ want, not []string }{
-		"webserver/skel/.bashrc":     {want: []string{"HISTSIZE=10000", "HISTFILESIZE=10000", "shopt -s histappend", "HISTCONTROL=ignoreboth"}},
-		"webserver/skel/.gitconfig":  {want: []string{"autocrlf = input", "directory = *"}, not: []string{"[user]"}},
-		"webserver/skel/.ssh/config": {want: []string{"Include config.d/*.conf", "StrictHostKeyChecking=accept-new"}, not: []string{"ssh-agent", "UserKnownHostsFile"}},
+		"webserver/skel/.bashrc":       {want: []string{"HISTSIZE=10000", "HISTFILESIZE=10000", "shopt -s histappend", "HISTCONTROL=ignoreboth"}},
+		"webserver/skel/.gitconfig":    {want: []string{"autocrlf = input", "directory = *"}, not: []string{"[user]"}},
+		"webserver/skel/.bash_aliases": {want: []string{"alias ll='ls -la'"}},
 	} {
 		b, err := FS.ReadFile(file)
 		if err != nil {
@@ -70,12 +71,15 @@ func TestSkel(t *testing.T) {
 			}
 		}
 	}
+	if _, err := FS.ReadFile("webserver/skel/.ssh/config"); err == nil {
+		t.Error("skel has .ssh/config, but the image has no ssh client")
+	}
 }
 
 // TestHashCoversSkel: Hash reads every file under webserver, so the image tag changes with a skel
 // change as long as the skel files (dotfiles too) are inside the embedded tree.
 func TestHashCoversSkel(t *testing.T) {
-	for _, f := range []string{".bashrc", ".profile", ".gitconfig", ".ssh/config"} {
+	for _, f := range []string{".bashrc", ".profile", ".gitconfig", ".bash_aliases"} {
 		if _, err := FS.ReadFile("webserver/skel/" + f); err != nil {
 			t.Fatalf("skel/%s is not embedded: %v", f, err)
 		}

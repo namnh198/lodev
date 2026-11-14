@@ -247,12 +247,12 @@ mount_paths:                      # optional, per service: mysql mariadb redis o
 ### Project homes and data folders
 
 The container's home (`/home/<user>`) is rebuilt every time the container is created: from the
-image's `/etc/skel` (a bashrc with a 10000-line history, `.gitconfig`, `.ssh/config`), a generated
+image's `/etc/skel` (a bashrc with a 10000-line history, `.gitconfig`, a `.bash_aliases` with `ll`), a generated
 `~/.my.cnf`, then the files of `~/.lodev/homeadditional` and last those of the project's
 `.lodev/homeadditional` (later ones win; nothing is deleted from the home, and the copies are
 repeated on every container start; a file the user cannot read is skipped with a warning). Both
 folders are mounted read-only. Put composer's auth at
-`~/.lodev/homeadditional/.config/composer/auth.json`, ssh keys and your own `.gitconfig` in
+`~/.lodev/homeadditional/.config/composer/auth.json` and your own `.gitconfig` in
 `~/.lodev/homeadditional`, which lodev creates; the project's folder is committed with the project,
 so keep secrets out of it. It is in the [trust list](#commands-from-the-projects-repo), and the
 container never reads it from the repo: each `lodev start` copies it, once approved, to
