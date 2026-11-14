@@ -43,3 +43,26 @@ func TestEntrypointGroup(t *testing.T) {
 		}
 	}
 }
+
+// TestEntrypointChownsVolumeDirs: a new volume is root-owned, so after the user is created the
+// entrypoint hands each LODEV_VOLUME_DIRS top folder to the host user (not recursively).
+func TestEntrypointChownsVolumeDirs(t *testing.T) {
+	b, err := FS.ReadFile("webserver/entrypoint.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	loop := strings.Index(s, "for d in ${LODEV_VOLUME_DIRS:-}; do")
+	if loop < 0 || loop < strings.Index(s, "useradd ") {
+		t.Fatal("entrypoint.sh has no LODEV_VOLUME_DIRS loop after the user block")
+	}
+	body := s[loop : loop+strings.Index(s[loop:], "\ndone\n")]
+	for _, want := range []string{`t="$LODEV_WORKDIR/$d"`, `stat -c %u "$t"`, `chown "$LODEV_UID:$LODEV_GID" "$t"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("loop lacks %s:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "chown -R") {
+		t.Error("loop must not chown recursively")
+	}
+}

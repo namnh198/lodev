@@ -43,6 +43,9 @@ const GeneratedMarker = "# lodev-generated: delete this line to manage this file
 // customDirs is where each webserver reads user snippets inside the container.
 var customDirs = map[string]string{"nginx": "/etc/nginx/custom.d", "apache": "/etc/apache2/custom.d"}
 
+// Volume is a named Docker volume lodev created for the project folder Dir (relative to the root).
+type Volume struct{ Name, Dir string }
+
 type ProjectInput struct {
 	Project    *config.Project
 	ExtraHosts []string
@@ -51,6 +54,7 @@ type ProjectInput struct {
 	User       string
 	UID, GID   int
 	HomeDir    string // host folder mounted as /home/<User>
+	Volumes    []Volume
 	// Env is the project's own variables (config.yaml, then .lodev/.env); they override lodev's.
 	Env map[string]string
 }
@@ -77,6 +81,13 @@ func webEnv(in ProjectInput) []string {
 	}
 	if len(p.CronLines()) > 0 {
 		kv = append(kv, [2]string{"LODEV_CRON", "1"})
+	}
+	if len(in.Volumes) > 0 {
+		dirs := make([]string, len(in.Volumes))
+		for i, v := range in.Volumes {
+			dirs[i] = v.Dir
+		}
+		kv = append(kv, [2]string{"LODEV_VOLUME_DIRS", strings.Join(dirs, " ")})
 	}
 	extra := maps.Clone(in.Env)
 	for i := range kv {
@@ -107,8 +118,9 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		CustomDir  map[string]string
 		Env        []string
 		Cron       bool
+		Volumes    []Volume
 	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, customDirs,
-		webEnv(in), len(in.Project.CronLines()) > 0})
+		webEnv(in), len(in.Project.CronLines()) > 0, in.Volumes})
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

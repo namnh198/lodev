@@ -67,6 +67,15 @@ if [ -n "${LODEV_USER:-}" ]; then
   sed -i -e "s/^export APACHE_RUN_USER=.*/export APACHE_RUN_USER=$LODEV_USER/" -e "s/^export APACHE_RUN_GROUP=.*/export APACHE_RUN_GROUP=$group/" /etc/apache2/envvars
 fi
 
+# A new volume is root-owned and PHP runs as the host user. Top level only: a seeded volume keeps
+# the host's ownership, and a recursive chown of a large tree on every start would be slow.
+for d in ${LODEV_VOLUME_DIRS:-}; do
+  t="$LODEV_WORKDIR/$d"
+  if [ "$(stat -c %u "$t")" = 0 ]; then
+    chown "$LODEV_UID:$LODEV_GID" "$t"
+  fi
+done
+
 rm -f /etc/supervisor/conf.d/*.conf
 case "${LODEV_WEBSERVER:-nginx}" in
   nginx)

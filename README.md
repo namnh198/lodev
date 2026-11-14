@@ -409,6 +409,12 @@ that map to the same volume name (`lodev-<name>-<folder with / as ->`).
   from the host once, when its volume is created.
 - The host no longer sees what the container has in these folders: read logs with `lodev logs` or
   `lodev exec tail`, and host-side `npm` or IDE indexing of `generated/` need `performance_mode: none`.
+- `lodev start` creates the volumes (labelled `lodev.project=<name>`) before the containers and prints
+  what each folder got. A folder that is a symlink on the host is skipped with a warning.
+- Files the container writes into a seeded folder (e.g. uploads in `pub/media`) live only in its volume.
+  `lodev remove` keeps the volumes and lists them; `lodev remove --volumes` deletes them after asking.
+  Switching to `none` or dropping a folder from `volume_dirs` also leaves the volume: `start` lists
+  those as unused.
 - `lodev describe` shows the effective mode and folders.
 
 ## Varnish
@@ -595,7 +601,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`, `--auto-create-db=false`); apply with `lodev service start` |
 | `lodev start [--rebuild \| --rebuild-base \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder. `start` and `restart` need a project made by `lodev create` (a `.lodev/config.yaml` registered in `~/.lodev/projects.json`) |
 | `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
-| `lodev remove [--db] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database |
+| `lodev remove [--db] [--volumes] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database; `--volumes` deletes the performance_mode volumes (they are kept and listed otherwise) |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
 | `lodev db-export [db \| -n db] [-s svc] [-f file] [-c gz] [-e 'options']` | Dump a database of the shared `mysql`, `mariadb` or `mongodb` (default: the project's database and service) to `<db>-<time>.sql[.gz]` (`.archive` for MongoDB), or `-f -` for stdout. `-e` adds options to mysqldump / mariadb-dump / mongodump, split like a shell (quotes work, repeatable), e.g. `lodev db-export -c gz -f dump.sql.gz -e '--skip-add-locks'` |

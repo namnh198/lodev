@@ -431,6 +431,10 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return err
 	}
+	vols, err := ensureVolumes(p, g, img)
+	if err != nil {
+		return err
+	}
 	in := templates.ProjectInput{
 		Project:    p,
 		ExtraHosts: union(reg.AllDomains(), p.WebDomains()),
@@ -440,6 +444,7 @@ func start(p *config.Project, rebuild startOpts) error {
 		UID:        os.Getuid(),
 		GID:        os.Getgid(),
 		HomeDir:    home,
+		Volumes:    vols,
 		Env:        env,
 	}
 	if err := renderProjectCompose(p, in); err != nil {
@@ -608,7 +613,7 @@ func projectHome(g *config.Global, p *config.Project) string {
 	return filepath.Join(g.DataPath(), "home-"+p.Name)
 }
 
-func deleteProject(p *config.Project, dropDB, yes bool) error {
+func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 	reg, err := registry.Load()
 	if err != nil {
 		return err
@@ -647,6 +652,9 @@ func deleteProject(p *config.Project, dropDB, yes bool) error {
 		if _, err := os.Stat(h); err == nil {
 			ui.Info("Kept %s (bash history, composer and npm caches)", h)
 		}
+	}
+	if err := removeVolumes(p.Name, dropVolumes, yes); err != nil {
+		return err
 	}
 	if dropDB && p.DB() != "" && confirm(fmt.Sprintf("Drop database %s?", p.DBName()), yes) {
 		if err := dbExec(p.DB(), fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", p.DBName())); err != nil {
@@ -889,7 +897,7 @@ func init() {
 	restartCmd.Flags().BoolVar(&restartAll, "all", false, "restart every project lodev knows")
 	restartCmd.Flags().BoolVar(&restartNoHooks, "no-hooks", false, "do not run the pre-stop and post-start hooks")
 
-	var dropDB, yes bool
+	var dropDB, dropVolumes, yes bool
 	removeCmd := &cobra.Command{
 		Use:     "remove [name]",
 		Aliases: []string{"down"},
@@ -900,10 +908,11 @@ func init() {
 			if err != nil {
 				return err
 			}
-			return withLock(func() error { return deleteProject(p, dropDB, yes) })
+			return withLock(func() error { return deleteProject(p, dropDB, dropVolumes, yes) })
 		},
 	}
 	removeCmd.Flags().BoolVar(&dropDB, "db", false, "also drop the project database")
+	removeCmd.Flags().BoolVar(&dropVolumes, "volumes", false, "also delete the project's performance_mode volumes (asks first)")
 	removeCmd.Flags().BoolVar(&yes, "yes", false, "skip confirmation")
 
 	listCmd := &cobra.Command{

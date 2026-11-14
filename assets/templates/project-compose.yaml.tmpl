@@ -5,6 +5,13 @@ name: lodev-{{.P.Name}}
 networks:
   lodev:
     external: true
+{{- if .Volumes}}
+
+volumes:
+{{- range .Volumes}}
+  {{.Name}}: {name: {{.Name}}, external: true}
+{{- end}}
+{{- end}}
 
 services:
   web:
@@ -41,6 +48,9 @@ services:
 {{- end}}
     volumes:
       - {{q (print .P.Root ":" .P.WorkDir)}}
+{{- range .Volumes}}
+      - {{q (print .Name ":" $.P.WorkDir "/" .Dir)}}
+{{- end}}
       - {{q (print .CAFile ":/etc/lodev/rootCA.pem:ro")}}
       - {{q (print .P.Root "/.lodev/php:/etc/lodev/php.d:ro")}}
 {{- if .Cron}}

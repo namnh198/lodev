@@ -164,7 +164,7 @@ func TestDeleteRefusesCopyOfAnotherProject(t *testing.T) {
 	reg.Save()
 
 	copyP, _ := newProjectConfig(t.TempDir(), "shop", "php", "", "", "")
-	err := deleteProject(copyP, true, true)
+	err := deleteProject(copyP, true, false, true)
 	if err == nil || !strings.Contains(err.Error(), orig) {
 		t.Fatalf("delete of a copy must refuse and name the original: %v", err)
 	}
@@ -185,8 +185,14 @@ func TestDeleteRemovesProjectImage(t *testing.T) {
 	var got []string
 	for _, rmiErr := range []error{nil, errors.New("Error response from daemon: No such image: lodev/shop-web:latest")} {
 		got = nil
-		dockerOutput = func(a ...string) (string, error) { got = a; return "", rmiErr }
-		if err := deleteProject(p, false, true); err != nil {
+		dockerOutput = func(a ...string) (string, error) {
+			if a[0] != "rmi" { // the volume listing
+				return "", nil
+			}
+			got = a
+			return "", rmiErr
+		}
+		if err := deleteProject(p, false, false, true); err != nil {
 			t.Fatalf("delete failed with rmi err %v: %v", rmiErr, err)
 		}
 		if strings.Join(got, " ") != "rmi lodev/shop-web" {
@@ -194,7 +200,7 @@ func TestDeleteRemovesProjectImage(t *testing.T) {
 		}
 	}
 	dockerOutput = func(...string) (string, error) { return "", errors.New("conflict: image in use") }
-	if err := deleteProject(p, false, true); err == nil {
+	if err := deleteProject(p, false, false, true); err == nil {
 		t.Fatal("other rmi errors must surface")
 	}
 }
@@ -657,7 +663,7 @@ func TestDeleteKeepsHome(t *testing.T) {
 	writeFile(t, filepath.Join(h, ".bash_history"), "ls\n")
 	out, _, restore := ui.Capture(false)
 	defer restore()
-	if err := deleteProject(p, false, true); err != nil {
+	if err := deleteProject(p, false, false, true); err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, out.String(), "Kept "+h+" (bash history, composer and npm caches)")
@@ -843,7 +849,7 @@ func TestDeleteRemovesRoutes(t *testing.T) {
 	stubDocker(t, "")
 	p, _ := newProjectConfig(t.TempDir(), "shop", "php", "8.3", "", "")
 	writeFile(t, projectRouteFile("shop"), "x")
-	if err := deleteProject(p, false, true); err != nil {
+	if err := deleteProject(p, false, false, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, fs.ErrNotExist) {

@@ -91,6 +91,15 @@ func TestProjectComposeGolden(t *testing.T) {
 	}
 }
 
+func TestProjectComposeVolumes(t *testing.T) {
+	in := projectInput("nginx")
+	in.Volumes = []Volume{{"lodev-shop-var", "var"}, {"lodev-shop-pub-media", "pub/media"}}
+	golden(t, "project-volumes", must(t)(ProjectCompose(in)))
+	if b := string(must(t)(ProjectCompose(projectInput("nginx")))); strings.Contains(b, "LODEV_VOLUME_DIRS") || strings.Contains(b, "\nvolumes:") {
+		t.Errorf("no volumes, yet:\n%s", b)
+	}
+}
+
 func must(t *testing.T) func([]byte, error) []byte {
 	return func(b []byte, err error) []byte {
 		t.Helper()
