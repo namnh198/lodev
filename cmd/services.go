@@ -19,8 +19,6 @@ import (
 	"lodev/assets"
 	"lodev/internal/certs"
 	"lodev/internal/config"
-	"lodev/internal/docker"
-	"lodev/internal/hosts"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
@@ -88,15 +86,15 @@ func ensureDBConfig() error {
 var portCheck = checkPort
 
 func servicesUp() error {
-	if err := docker.Ping(); err != nil {
+	if err := dockerPing(); err != nil {
 		return err
 	}
 	g, err := config.LoadGlobal()
 	if err != nil {
 		return err
 	}
-	for _, p := range PortsToCheck(g, docker.Running("lodev-traefik"), docker.Running("lodev-mysql"), docker.Running("lodev-mariadb"), docker.Running("lodev-mongodb")) {
-		if err := checkPort(p); err != nil {
+	for _, p := range PortsToCheck(g, containerRunning("lodev-traefik"), containerRunning("lodev-mysql"), containerRunning("lodev-mariadb"), containerRunning("lodev-mongodb")) {
+		if err := portCheck(p); err != nil {
 			return err
 		}
 	}
@@ -125,13 +123,13 @@ func servicesUp() error {
 	if err != nil {
 		return err
 	}
-	if err := certs.Ensure("lodev-services", domains); err != nil {
+	if err := ensureCert("lodev-services", domains); err != nil {
 		return err
 	}
 	if err := certs.SyncTraefik(); err != nil {
 		return err
 	}
-	if err := hosts.Apply("lodev-services", domains); err != nil {
+	if err := applyHosts("lodev-services", domains); err != nil {
 		return err
 	}
 	if err := ensureDBConfig(); err != nil {

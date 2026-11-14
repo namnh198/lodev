@@ -63,8 +63,8 @@ func removeProjectRoutes(name string) error {
 }
 
 // syncProjectRoutes rewrites the route file of every registry project whose web container runs,
-// from its merged compose file, and deletes the p-*.yaml of every other name. A var so tests can swap it.
-var syncProjectRoutes = func() error {
+// from its merged compose file, and deletes the p-*.yaml of every other name.
+func syncProjectRoutes() error {
 	reg, err := registry.Load()
 	if err != nil {
 		return err

@@ -507,13 +507,13 @@ func start(p *config.Project, rebuild startOpts) error {
 	for _, old := range dropped {
 		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
 		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
-		if err := docker.Run("compose", "-p", "lodev-"+old, "down"); err != nil {
+		if err := dockerRun("compose", "-p", "lodev-"+old, "down"); err != nil {
 			return err
 		}
 		if err := removeProjectImage(old); err != nil {
 			return err
 		}
-		if err := hosts.Apply(old, nil); err != nil {
+		if err := applyHosts(old, nil); err != nil {
 			return err
 		}
 		if err := certs.Remove(old); err != nil {

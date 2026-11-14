@@ -1093,3 +1093,36 @@ func TestScaffoldSkipsSymlinkedHomeAdditional(t *testing.T) {
 		t.Errorf("wrote through the symlink: %v", err)
 	}
 }
+
+// A project started under a new name in the same folder retires the old name's stack, hosts block,
+// cert and route.
+func TestStartRetiresRenamedProject(t *testing.T) {
+	p, calls := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
+	runs := stubDocker(t, "")
+	reg, _ := registry.Load()
+	reg["old"] = registry.Entry{Path: p.Root, Domains: []string{"old.test"}}
+	if err := reg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	certDir := filepath.Join(config.Home(), "certs")
+	writeFile(t, filepath.Join(certDir, "old.pem"), "x")
+	writeFile(t, filepath.Join(certDir, "old.domains"), "x")
+	writeFile(t, projectRouteFile("old"), "x")
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(*runs, "compose -p lodev-old down") {
+		t.Errorf("old stack not stopped: %v", *runs)
+	}
+	if !slices.Contains(*calls, "hosts old ") {
+		t.Errorf("old hosts block kept: %v", *calls)
+	}
+	for _, f := range []string{filepath.Join(certDir, "old.pem"), filepath.Join(certDir, "old.domains"), projectRouteFile("old")} {
+		if _, err := os.Stat(f); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s kept: %v", f, err)
+		}
+	}
+	if reg, _ := registry.Load(); slices.Contains(reg.Names(), "old") {
+		t.Errorf("old name still registered: %v", reg.Names())
+	}
+}
