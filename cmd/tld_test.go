@@ -316,6 +316,9 @@ func TestRetargetSkippedProjectMovesItsHosts(t *testing.T) {
 func TestTLDMovesOverrideDomains(t *testing.T) {
 	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
 	ov := writeOverride(t, f.roots["a"], "config.local.yaml", "# mine\ndomains: [en.a.test]\n")
+	reg, _ := registry.Load() // as after a start with the override: the registry has its domains
+	reg["a"] = registry.Entry{Path: f.roots["a"], Domains: []string{"en.a.test"}}
+	reg.Save()
 	if err := retargetTLD("test", "local", &f.out); err != nil {
 		t.Fatal(err)
 	}
@@ -334,6 +337,22 @@ func TestRetargetServicesBlockMatchesServicesUp(t *testing.T) {
 	}
 	// servicesDomains' list on .local, one line: the later services up rewrites nothing.
 	mustContain(t, f.read(f.hosts), "# lodev:lodev-services begin\n127.0.0.1 adminer.local mailpit.local mongo.local phpmyadmin.local rabbitmq.local\n")
+}
+
+func TestRetargetKeepsVirtualHosts(t *testing.T) {
+	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
+	reg, _ := registry.Load()
+	e := reg["a"]
+	e.Domains = append(e.Domains, "adminer.a.test")
+	reg["a"] = e
+	reg.Save()
+	if err := retargetTLD("test", "local", &f.out); err != nil {
+		t.Fatal(err)
+	}
+	if reg, _ := registry.Load(); !slices.Equal(reg["a"].Domains, []string{"a.local", "x.a.local", "adminer.a.local"}) {
+		t.Errorf("registry %+v", reg["a"])
+	}
+	mustContain(t, f.read(f.hosts), "127.0.0.1 a.local x.a.local adminer.a.local")
 }
 
 func TestTLDOverrideBadDomainRefusesAll(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -22,6 +23,8 @@ type tldMove struct {
 	p       *config.Project
 	doc     *config.Doc // nil: the config has no domains key (its default follows the TLD)
 	domains []string
+	// oldWeb is the web domains before the move: the rest of the registry entry is VIRTUAL_HOSTs
+	oldWeb []string
 	// overrides are the .lodev/config.*.yaml files that set domains, already edited
 	overrides []*config.Doc
 }
@@ -75,7 +78,7 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 				return err
 			}
 		}
-		reg[m.name] = registry.Entry{Path: m.p.Root, Domains: m.p.WebDomains()}
+		reg[m.name] = registry.Entry{Path: m.p.Root, Domains: slices.Concat(m.p.WebDomains(), m.extraHosts(reg[m.name].Domains, oldTLD, newTLD))}
 	}
 	for _, name := range skipped { // no config to read: move what the registry remembers
 		e := reg[name]
@@ -107,7 +110,7 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 	// The same list servicesUp writes on newTLD, so its later write changes nothing (no second sudo prompt).
 	blocks := []hosts.Block{{Name: "lodev-services", Domains: union(config.ReservedDomainsFor(newTLD), movedSharedHosts(oldTLD, newTLD))}}
 	for _, m := range moves {
-		blocks = append(blocks, hosts.Block{Name: m.name, Domains: m.p.WebDomains()})
+		blocks = append(blocks, hosts.Block{Name: m.name, Domains: reg[m.name].Domains})
 	}
 	for _, name := range skipped {
 		blocks = append(blocks, hosts.Block{Name: name, Domains: reg[name].Domains})
@@ -157,6 +160,21 @@ func movedSharedHosts(oldTLD, newTLD string) []string {
 		}
 	}
 	return hs
+}
+
+// extraHosts is the services' VIRTUAL_HOSTs among the registry entry's domains, moved to newTLD.
+func (m tldMove) extraHosts(entry []string, oldTLD, newTLD string) []string {
+	var out []string
+	for _, d := range entry {
+		if slices.Contains(m.oldWeb, d) || slices.Contains(m.p.WebDomains(), d) {
+			continue
+		}
+		if base, ok := strings.CutSuffix(d, "."+oldTLD); ok {
+			d = base + "." + newTLD
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // planTLDMove reads one project, overrides included, and works out its domains on newTLD,
@@ -229,6 +247,7 @@ func planTLDMove(name, root, oldTLD, newTLD string) (tldMove, error) {
 			return tldMove{}, err
 		}
 	}
+	m.oldWeb = p.WebDomains()
 	if len(effective) > 0 {
 		p.Domains = effective
 	} else {
