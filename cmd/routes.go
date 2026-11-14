@@ -24,8 +24,8 @@ func projectRouteFile(name string) string {
 	return filepath.Join(config.TraefikDir(), "p-"+name+".yaml")
 }
 
-// writeProjectRoutes writes p-<name>.yaml: the web route (through varnish when on) and one per
-// service with VIRTUAL_HOST. With no route at all the file is removed.
+// writeProjectRoutes writes p-<name>.yaml: the web route (through varnish when on), one per exposed
+// port (straight to the web container) and one per service with VIRTUAL_HOST. With no route at all the file is removed.
 func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
 	var rs []templates.TraefikRoute
 	if p.Webserver != "none" {
@@ -33,7 +33,11 @@ func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
 		if p.Varnish {
 			backend = "varnish"
 		}
-		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name, Hosts: p.WebDomains(), URL: "http://lodev-" + p.Name + "-" + backend + ":80"})
+		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name, Hosts: p.Domains, URL: "http://lodev-" + p.Name + "-" + backend + ":80"})
+		hosts := p.ExposedHosts()
+		for i, e := range p.WebExtraExposedPorts {
+			rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "-" + e.Name, Hosts: hosts[i : i+1], URL: fmt.Sprintf("http://lodev-%s-web:%d", p.Name, e.ContainerPort)})
+		}
 	}
 	for _, v := range svcs {
 		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "-svc-" + v.Service, Hosts: v.Hosts, URL: fmt.Sprintf("http://%s:%d", v.Container, v.Port)})

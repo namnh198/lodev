@@ -226,6 +226,64 @@ func TestWebDomainsNone(t *testing.T) {
 	}
 }
 
+func TestWebDomainsIncludesExposed(t *testing.T) {
+	p := valid()
+	p.Webserver, p.Domains = "nginx", []string{"shop.test", "en.test"}
+	p.WebExtraExposedPorts = []ExposedPort{{Name: "vite", ContainerPort: 5173}}
+	if want := []string{"shop.test", "en.test", "vite.shop.test"}; !reflect.DeepEqual(p.WebDomains(), want) {
+		t.Fatal(p.WebDomains())
+	}
+	if want := []string{"vite.shop.test"}; !reflect.DeepEqual(p.ExposedHosts(), want) {
+		t.Fatal(p.ExposedHosts())
+	}
+	if len(p.Domains) != 2 {
+		t.Fatalf("Domains grew: %v", p.Domains)
+	}
+	p.Webserver = "none"
+	if p.ExposedHosts() != nil {
+		t.Fatal(p.ExposedHosts())
+	}
+}
+
+func TestValidateExposedPorts(t *testing.T) {
+	vite := ExposedPort{Name: "vite", ContainerPort: 5173}
+	bad := map[string][]ExposedPort{
+		"underscore": {{Name: "my_app", ContainerPort: 5173}},
+		"upper":      {{Name: "Vite", ContainerPort: 5173}},
+		"dash start": {{Name: "-vite", ContainerPort: 5173}},
+		"dash end":   {{Name: "vite-", ContainerPort: 5173}},
+		"empty":      {{Name: "", ContainerPort: 5173}},
+		"svc prefix": {{Name: "svc-x", ContainerPort: 5173}},
+		"dup name":   {vite, {Name: "vite", ContainerPort: 5174}},
+		"port 0":     {{Name: "vite", ContainerPort: 0}},
+		"port 80":    {{Name: "vite", ContainerPort: 80}},
+		"port 65536": {{Name: "vite", ContainerPort: 65536}},
+		"dup port":   {vite, {Name: "hmr", ContainerPort: 5173}},
+	}
+	for name, ports := range bad {
+		p := valid()
+		p.Webserver, p.WebExtraExposedPorts = "nginx", ports
+		if p.Validate() == nil {
+			t.Errorf("%s: expected error", name)
+		}
+	}
+	p := valid()
+	p.Webserver, p.WebExtraExposedPorts = "nginx", []ExposedPort{vite, {Name: "a1-b", ContainerPort: 65535}}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	p.Webserver = "none"
+	if err := p.Validate(); err == nil || err.Error() != "web_extra_exposed_ports needs a webserver (webserver is none)" {
+		t.Errorf("err = %v", err)
+	}
+	p = valid()
+	p.Webserver, p.Domains = "nginx", []string{"shop.test", "vite.shop.test"}
+	p.WebExtraExposedPorts = []ExposedPort{vite}
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "vite.shop.test") {
+		t.Errorf("err = %v", err)
+	}
+}
+
 func TestSaveLoadProject(t *testing.T) {
 	p := valid()
 	p.Root = t.TempDir()

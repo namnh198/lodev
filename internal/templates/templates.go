@@ -85,6 +85,11 @@ func webEnv(in ProjectInput) []string {
 	if len(p.WebExtraDaemons) > 0 {
 		kv = append(kv, [2]string{"LODEV_DAEMONS", "1"})
 	}
+	if len(p.ExposedHosts()) > 0 {
+		for _, e := range slices.SortedFunc(slices.Values(p.WebExtraExposedPorts), func(a, b config.ExposedPort) int { return strings.Compare(a.Name, b.Name) }) {
+			kv = append(kv, [2]string{"LODEV_EXPOSED_" + strings.ToUpper(strings.ReplaceAll(e.Name, "-", "_")) + "_URL", "https://" + e.Name + "." + p.Domains[0]})
+		}
+	}
 	if len(in.Volumes) > 0 {
 		dirs := make([]string, len(in.Volumes))
 		for i, v := range in.Volumes {

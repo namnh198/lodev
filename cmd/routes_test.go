@@ -186,6 +186,21 @@ func readRoutes(t *testing.T, name string) string {
 	return string(b)
 }
 
+func TestWriteProjectRoutesExposed(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	p := &config.Project{Name: "shop", Webserver: "nginx", Varnish: true, Domains: []string{"shop.test", "en.test"},
+		WebExtraExposedPorts: []config.ExposedPort{{Name: "vite", ContainerPort: 5173}}}
+	if err := writeProjectRoutes(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	got := readRoutes(t, "shop")
+	mustContain(t, got, "p-shop:", "Host(`shop.test`) || Host(`en.test`)", "http://lodev-shop-varnish:80",
+		"p-shop-vite:", "Host(`vite.shop.test`)", "http://lodev-shop-web:5173")
+	if strings.Contains(got, "Host(`shop.test`) || Host(`en.test`) || Host(`vite.shop.test`)") {
+		t.Errorf("exposed host in the main rule:\n%s", got)
+	}
+}
+
 func TestWriteProjectRoutes(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	if want := filepath.Join(config.TraefikDir(), "p-shop.yaml"); projectRouteFile("shop") != want {

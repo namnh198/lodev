@@ -664,6 +664,13 @@ func TestProjectComposeDaemons(t *testing.T) {
 	}
 }
 
+func TestProjectComposeExposedGolden(t *testing.T) {
+	in := projectInput("nginx")
+	in.Project.WebExtraExposedPorts = []config.ExposedPort{{Name: "vite", ContainerPort: 5173}, {Name: "my-app", ContainerPort: 3000}}
+	in.ExtraHosts = append(in.ExtraHosts, "vite.shop.test", "my-app.shop.test")
+	golden(t, "project-exposed", must(t)(ProjectCompose(in)))
+}
+
 func TestProjectComposeCronEnvGolden(t *testing.T) {
 	in := projectInput("nginx")
 	in.Project.Cron = true

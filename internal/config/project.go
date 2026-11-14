@@ -76,6 +76,8 @@ type Project struct {
 	VolumeDirs      []string `yaml:"volume_dirs,omitempty"`
 	// WebExtraDaemons are long-running processes (e.g. Vite) supervisor runs in the web container as the user.
 	WebExtraDaemons []Daemon `yaml:"web_extra_daemons,omitempty"`
+	// WebExtraExposedPorts route <name>.<first domain> through Traefik to a web container port.
+	WebExtraExposedPorts []ExposedPort `yaml:"web_extra_exposed_ports,omitempty"`
 	// Environment is set in the web container; .lodev/.env overrides it.
 	Environment map[string]string `yaml:"environment,omitempty"`
 	// LodevVersionConstraint makes start and restart refuse a lodev outside it, e.g. ">= 1.4.0, < 2".
@@ -110,6 +112,33 @@ func checkDaemons(ds []Daemon) error {
 			return fmt.Errorf("web_extra_daemons %q directory %q must be a clean absolute path like /app", d.Name, d.Directory)
 		}
 		seen[d.Name] = true
+	}
+	return nil
+}
+
+// ExposedPort is one web_extra_exposed_ports entry.
+type ExposedPort struct {
+	Name          string `yaml:"name"`
+	ContainerPort int    `yaml:"container_port"`
+}
+
+var labelRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// checkExposedPorts validates the entries; the host rules need the domains and live in ValidateTLD.
+func checkExposedPorts(ps []ExposedPort) error {
+	names, ports := map[string]bool{}, map[int]bool{}
+	for i, e := range ps {
+		switch {
+		case !labelRe.MatchString(e.Name) || len(e.Name) > 63 || strings.HasPrefix(e.Name, "svc-"):
+			return fmt.Errorf("web_extra_exposed_ports[%d] name %q is invalid (a host name label: a-z, 0-9, -; not starting or ending with -, not starting with svc-)", i, e.Name)
+		case names[e.Name]:
+			return fmt.Errorf("web_extra_exposed_ports name %q is used twice", e.Name)
+		case e.ContainerPort < 1 || e.ContainerPort > 65535 || e.ContainerPort == 80:
+			return fmt.Errorf("web_extra_exposed_ports %q container_port %d must be from 1 to 65535, not 80", e.Name, e.ContainerPort)
+		case ports[e.ContainerPort]:
+			return fmt.Errorf("web_extra_exposed_ports container_port %d is used twice", e.ContainerPort)
+		}
+		names[e.Name], ports[e.ContainerPort] = true, true
 	}
 	return nil
 }
@@ -436,6 +465,17 @@ func (p *Project) ValidateTLD(tld string) error {
 	if p.Varnish && p.Webserver == "none" {
 		return errors.New("varnish needs a webserver (webserver is none)")
 	}
+	if len(p.WebExtraExposedPorts) > 0 && p.Webserver == "none" {
+		return errors.New("web_extra_exposed_ports needs a webserver (webserver is none)")
+	}
+	if err := checkExposedPorts(p.WebExtraExposedPorts); err != nil {
+		return err
+	}
+	for _, h := range p.ExposedHosts() {
+		if slices.Contains(p.Domains, h) || slices.Contains(reservedDomains(tld), h) {
+			return fmt.Errorf("web_extra_exposed_ports host %q is already a domain or reserved by lodev", h)
+		}
+	}
 	if v := p.VarnishVersion; v != "" && !versionRe.MatchString(v) {
 		return fmt.Errorf("varnish_version %q is invalid (e.g. 7.6, 9)", v)
 	}
@@ -490,12 +530,24 @@ func (p *Project) DB() string {
 	return ""
 }
 
-// WebDomains is the routed domains; CLI-only projects have none.
+// WebDomains is the routed host names (domains plus exposed hosts); CLI-only projects have none.
 func (p *Project) WebDomains() []string {
 	if p.Webserver == "none" {
 		return nil
 	}
-	return p.Domains
+	return slices.Concat(p.Domains, p.ExposedHosts())
+}
+
+// ExposedHosts is <name>.<first domain> for each exposed port; none without a webserver.
+func (p *Project) ExposedHosts() []string {
+	if p.Webserver == "none" || len(p.Domains) == 0 {
+		return nil
+	}
+	var hs []string
+	for _, e := range p.WebExtraExposedPorts {
+		hs = append(hs, e.Name+"."+p.Domains[0])
+	}
+	return hs
 }
 
 func exists(path string) bool { _, err := os.Stat(path); return err == nil }
