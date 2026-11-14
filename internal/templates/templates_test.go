@@ -566,9 +566,9 @@ func TestProjectComposeHome(t *testing.T) {
 			t.Errorf("web environment lacks %s", want)
 		}
 	}
-	in.ProjectHomeAdditional = "/work/shop/.lodev/homeadditional"
+	in.ProjectHomeAdditional = home + "/data/homeadditional-shop"
 	web = parse(t, must(t)(ProjectCompose(in)))["web"]
-	if want := "/work/shop/.lodev/homeadditional:/etc/lodev/homeadditional/project:ro"; !slices.Contains(web.Volumes, want) {
+	if want := home + "/data/homeadditional-shop:/etc/lodev/homeadditional/project:ro"; !slices.Contains(web.Volumes, want) {
 		t.Errorf("web volumes %v lack %s", web.Volumes, want)
 	}
 }

@@ -479,9 +479,9 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := os.MkdirAll(globalAdd, 0o755); err != nil {
 		return err
 	}
-	projectAdd := filepath.Join(p.Root, ".lodev", "homeadditional")
-	if fi, err := os.Stat(projectAdd); err != nil || !fi.IsDir() {
-		projectAdd = ""
+	projectAdd, err := snapshotHomeAdditional(p, projectHomeAdditional(g, p))
+	if err != nil {
+		return err
 	}
 	vols, err := ensureVolumes(p, g, img)
 	if err != nil {
@@ -668,6 +668,60 @@ func projectHome(g *config.Global, p *config.Project) string {
 	return filepath.Join(g.DataPath(), "home-"+p.Name)
 }
 
+// projectHomeAdditional is the copy of p's .lodev/homeadditional the web container mounts.
+func projectHomeAdditional(g *config.Global, p *config.Project) string {
+	return filepath.Join(g.DataPath(), "homeadditional-"+p.Name)
+}
+
+// snapshotHomeAdditional replaces dst's contents with a copy of p's .lodev/homeadditional (a
+// symlinked folder followed; regular files and symlinks, as trustItems lists them) and returns dst.
+// Mounting the copy, not the repo folder, keeps a restart by Docker (restart: unless-stopped) after
+// a git pull from copying files nobody approved. No folder: dst is removed and "" returned.
+func snapshotHomeAdditional(p *config.Project, dst string) (string, error) {
+	src := filepath.Join(p.Root, ".lodev", "homeadditional")
+	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
+		return "", os.RemoveAll(dst)
+	}
+	// Contents only: a running container bind-mounts dst, and a new inode would leave it on a deleted folder.
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return "", err
+	}
+	old, err := os.ReadDir(dst)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range old {
+		if err := os.RemoveAll(filepath.Join(dst, e.Name())); err != nil {
+			return "", err
+		}
+	}
+	err = walkTree(src, func(path, rel string, d fs.DirEntry) error {
+		to := filepath.Join(dst, filepath.FromSlash(rel))
+		fi, err := d.Info()
+		if err != nil {
+			return err
+		}
+		switch {
+		case d.IsDir():
+			return os.Mkdir(to, fi.Mode().Perm()|0o700) // writable, so the next start can clear it
+		case d.Type()&fs.ModeSymlink != 0:
+			t, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(t, to)
+		case d.Type().IsRegular():
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(to, b, fi.Mode().Perm())
+		}
+		return nil
+	})
+	return dst, err
+}
+
 func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 	reg, err := registry.Load()
 	if err != nil {
@@ -706,6 +760,9 @@ func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 		h := projectHome(g, p)
 		if _, err := os.Stat(h); err == nil {
 			ui.Info("Kept %s (caches and histories)", h)
+		}
+		if err := os.RemoveAll(projectHomeAdditional(g, p)); err != nil {
+			return err
 		}
 	}
 	if err := removeVolumes(p.Name, dropVolumes, yes); err != nil {

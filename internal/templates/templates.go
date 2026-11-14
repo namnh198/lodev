@@ -55,7 +55,7 @@ type ProjectInput struct {
 	UID, GID   int
 	HomeDir    string // host folder mounted as /var/lib/lodev/home: caches and histories only
 	// GlobalHomeAdditional and ProjectHomeAdditional are copied into the container's home at every start;
-	// the project one is empty when the project has no .lodev/homeadditional.
+	// the project one is start's copy of .lodev/homeadditional, empty when the project has none.
 	GlobalHomeAdditional, ProjectHomeAdditional string
 	Volumes                                     []Volume
 	// Env is the project's own variables (config.yaml, then .lodev/.env); they override lodev's.
