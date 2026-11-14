@@ -666,9 +666,46 @@ func TestDeleteKeepsHome(t *testing.T) {
 	if err := deleteProject(p, false, false, true); err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out.String(), "Kept "+h+" (bash history, composer and npm caches)")
+	mustContain(t, out.String(), "Kept "+h+" (caches and histories)")
 	if _, err := os.Stat(filepath.Join(h, ".bash_history")); err != nil {
 		t.Errorf("home removed: %v", err)
+	}
+}
+
+func TestHomeMigrationWarnsOnce(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home-shop")
+	for _, f := range []string{".bash_history", ".npm/_cacache/x", ".gitconfig", ".ssh/id_rsa", ".cache/composer/y"} {
+		writeFile(t, filepath.Join(home, f), "x")
+	}
+	_, e, restore := ui.Capture(false)
+	defer restore()
+	warnHomeMigration(home)
+	mustContain(t, e.String(), "these files in "+home+" are no longer in the container's home: .gitconfig, .ssh; move the ones you need to ~/.lodev/homeadditional")
+	if _, err := os.Stat(filepath.Join(home, ".lodev-home-v2")); err != nil {
+		t.Errorf("no marker: %v", err)
+	}
+	e.Reset()
+	warnHomeMigration(home)
+	if e.Len() != 0 {
+		t.Errorf("second call warned: %s", e)
+	}
+	for _, f := range []string{".bash_history", ".gitconfig", ".ssh/id_rsa"} {
+		if _, err := os.Stat(filepath.Join(home, f)); err != nil {
+			t.Errorf("%s removed: %v", f, err)
+		}
+	}
+}
+
+func TestHomeMigrationQuietForNewHome(t *testing.T) {
+	home := t.TempDir()
+	_, e, restore := ui.Capture(false)
+	defer restore()
+	warnHomeMigration(home)
+	if e.Len() != 0 {
+		t.Errorf("warned: %s", e)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".lodev-home-v2")); err != nil {
+		t.Errorf("no marker: %v", err)
 	}
 }
 

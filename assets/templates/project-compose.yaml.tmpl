@@ -59,7 +59,11 @@ services:
 {{- if .P.WebExtraDaemons}}
       - {{q (print .P.Root "/.lodev/daemons:/etc/lodev/daemons:ro")}}
 {{- end}}
-      - {{q (print .HomeDir ":/home/" .User)}}
+      - {{q (print .HomeDir ":/var/lib/lodev/home")}}
+      - {{q (print .GlobalHomeAdditional ":/etc/lodev/homeadditional/global:ro")}}
+{{- if .ProjectHomeAdditional}}
+      - {{q (print .ProjectHomeAdditional ":/etc/lodev/homeadditional/project:ro")}}
+{{- end}}
 {{- if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver ":" (index .CustomDir .P.Webserver) ":ro")}}

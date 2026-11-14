@@ -53,11 +53,17 @@ type ProjectInput struct {
 	Image      string
 	User       string
 	UID, GID   int
-	HomeDir    string // host folder mounted as /home/<User>
-	Volumes    []Volume
+	HomeDir    string // host folder mounted as /var/lib/lodev/home: caches and histories only
+	// GlobalHomeAdditional and ProjectHomeAdditional are copied into the container's home at every start;
+	// the project one is empty when the project has no .lodev/homeadditional.
+	GlobalHomeAdditional, ProjectHomeAdditional string
+	Volumes                                     []Volume
 	// Env is the project's own variables (config.yaml, then .lodev/.env); they override lodev's.
 	Env map[string]string
 }
+
+// cacheHome is where the web container mounts the project's home-<name> folder.
+const cacheHome = "/var/lib/lodev/home"
 
 // webEnv is the web service's KEY=value list: lodev's variables, then Env sorted by key.
 // A $ is doubled so compose does not interpolate it.
@@ -75,6 +81,9 @@ func webEnv(in ProjectInput) []string {
 		{"REDIS_HOST", "redis"}, {"OPENSEARCH_HOST", "opensearch"},
 		{"MONGODB_URI", "mongodb://root:root@mongodb:27017/?authSource=admin"},
 		{"MAIL_HOST", "mailpit"}, {"MAIL_PORT", "1025"},
+		{"HISTFILE", cacheHome + "/.bash_history"}, {"MYSQL_HISTFILE", cacheHome + "/.mysql_history"},
+		{"COMPOSER_CACHE_DIR", cacheHome + "/.cache/composer"}, {"npm_config_cache", cacheHome + "/.npm"},
+		{"YARN_CACHE_FOLDER", cacheHome + "/.cache/yarn"}, {"pnpm_config_store_dir", cacheHome + "/.local/share/pnpm/store"},
 	}
 	if p.Varnish {
 		kv = append(kv, [2]string{"VARNISH_HOST", "lodev-" + p.Name + "-varnish"})
@@ -119,18 +128,19 @@ func webEnv(in ProjectInput) []string {
 
 func ProjectCompose(in ProjectInput) ([]byte, error) {
 	return render("project-compose.yaml.tmpl", struct {
-		P          *config.Project
-		ExtraHosts []string
-		CAFile     string
-		Image      string
-		User       string
-		UID, GID   int
-		HomeDir    string
-		CustomDir  map[string]string
-		Env        []string
-		Cron       bool
-		Volumes    []Volume
-	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, customDirs,
+		P                                           *config.Project
+		ExtraHosts                                  []string
+		CAFile                                      string
+		Image                                       string
+		User                                        string
+		UID, GID                                    int
+		HomeDir                                     string
+		GlobalHomeAdditional, ProjectHomeAdditional string
+		CustomDir                                   map[string]string
+		Env                                         []string
+		Cron                                        bool
+		Volumes                                     []Volume
+	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, in.GlobalHomeAdditional, in.ProjectHomeAdditional, customDirs,
 		webEnv(in), len(in.Project.CronLines()) > 0, in.Volumes})
 }
 

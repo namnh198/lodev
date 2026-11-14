@@ -246,11 +246,26 @@ mount_paths:                      # optional, per service: mysql mariadb redis o
 
 ### Project homes and data folders
 
-Each project's web container mounts `<data_dir>/home-<name>` as the user's home, so bash and
-mysql history, composer auth (`~/.config/composer/auth.json`), the composer and npm caches and
-anything else in the home survive container re-creates. lodev creates the folder on
-`lodev start`; `lodev remove` keeps it (and says where). Paths are absolute or start with `~/`;
-changing `data_dir` (`lodev config-global --data-dir=<path>`) moves nothing.
+The container's home (`/home/<user>`) is rebuilt every time the container is created: from the
+image's `/etc/skel` (a bashrc with a 10000-line history, `.gitconfig`, `.ssh/config`), a generated
+`~/.my.cnf`, then the files of `~/.lodev/homeadditional` and last those of the project's
+`.lodev/homeadditional` (later ones win; nothing is deleted from the home, and the copies are
+repeated on every container start). Both folders are mounted read-only. Put `auth.json`
+(composer), ssh keys and your own `.gitconfig` in `~/.lodev/homeadditional`, which lodev creates;
+the project's folder is committed with the project, so keep secrets out of it. It is in the
+[trust list](#commands-from-the-projects-repo) and is mounted only when it exists, so adding it
+takes effect on the next `lodev restart`.
+
+Only caches and histories outlive the container: `<data_dir>/home-<name>` is mounted at
+`/var/lib/lodev/home` and bash and mysql history, the composer, npm, yarn and pnpm caches and
+psysh's history are kept there (through `HISTFILE`, `MYSQL_HISTFILE`, `COMPOSER_CACHE_DIR`,
+`npm_config_cache`, `YARN_CACHE_FOLDER` and `pnpm_config_store_dir`, which `lodev ssh` and
+`lodev exec` also get). lodev creates the folder on `lodev start`; `lodev remove` keeps it (and
+says where). Other files an older lodev left in that folder (`.gitconfig`, `.ssh`,
+`.config/composer/auth.json`...) are no longer in the container's home: the first `lodev start`
+lists them in a warning, once, and moves nothing; copy the ones you need to
+`~/.lodev/homeadditional`. Paths are absolute or start with `~/`; changing `data_dir`
+(`lodev config-global --data-dir=<path>`) moves nothing.
 
 `lodev config-global --mount-volume=true` (and optionally `--mysql-mount-path=<path>`, likewise
 for the other data services) then `lodev service start` keeps the shared services' data in folders.

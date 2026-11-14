@@ -474,6 +474,15 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return err
 	}
+	warnHomeMigration(home)
+	globalAdd := filepath.Join(config.Home(), "homeadditional")
+	if err := os.MkdirAll(globalAdd, 0o755); err != nil {
+		return err
+	}
+	projectAdd := filepath.Join(p.Root, ".lodev", "homeadditional")
+	if fi, err := os.Stat(projectAdd); err != nil || !fi.IsDir() {
+		projectAdd = ""
+	}
 	vols, err := ensureVolumes(p, g, img)
 	if err != nil {
 		return err
@@ -488,7 +497,10 @@ func start(p *config.Project, rebuild startOpts) error {
 		GID:        os.Getgid(),
 		HomeDir:    home,
 		Volumes:    vols,
-		Env:        env,
+
+		GlobalHomeAdditional:  globalAdd,
+		ProjectHomeAdditional: projectAdd,
+		Env:                   env,
 	}
 	if err := renderProjectCompose(p, in); err != nil {
 		return err
@@ -651,7 +663,7 @@ func announceStarted(p *config.Project) {
 	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
 }
 
-// projectHome is the host folder mounted as the container user's home.
+// projectHome is the host folder mounted at /var/lib/lodev/home: the container's caches and histories.
 func projectHome(g *config.Global, p *config.Project) string {
 	return filepath.Join(g.DataPath(), "home-"+p.Name)
 }
@@ -693,7 +705,7 @@ func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 	if g, err := config.LoadGlobal(); err == nil {
 		h := projectHome(g, p)
 		if _, err := os.Stat(h); err == nil {
-			ui.Info("Kept %s (bash history, composer and npm caches)", h)
+			ui.Info("Kept %s (caches and histories)", h)
 		}
 	}
 	if err := removeVolumes(p.Name, dropVolumes, yes); err != nil {
@@ -1052,4 +1064,29 @@ func ensureProjectDB(p *config.Project, g *config.Global) error {
 		return err
 	}
 	return dbExec(db, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", p.DBName()))
+}
+
+// homeMarker says home-<project> was seen by a lodev that mounts it as caches only.
+const homeMarker = ".lodev-home-v2"
+
+// warnHomeMigration lists, once per home folder, what older lodevs kept there that the container's
+// home no longer shows. Nothing is moved or deleted.
+func warnHomeMigration(home string) {
+	marker := filepath.Join(home, homeMarker)
+	if _, err := os.Stat(marker); err == nil {
+		return
+	}
+	entries, _ := os.ReadDir(home) // sorted by name
+	var left []string
+	for _, e := range entries {
+		if !slices.Contains([]string{".bash_history", ".mysql_history", ".npm", ".cache", ".local", ".config"}, e.Name()) {
+			left = append(left, e.Name())
+		}
+	}
+	if len(left) > 0 {
+		ui.Warn("these files in %s are no longer in the container's home: %s; move the ones you need to ~/.lodev/homeadditional", home, strings.Join(left, ", "))
+	}
+	if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		ui.Warn("%v", err)
+	}
 }

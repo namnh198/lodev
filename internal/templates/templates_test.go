@@ -68,7 +68,7 @@ func projectInput(webserver string) ProjectInput {
 		CAFile:     home + "/rootCA/rootCA.pem",
 		Image:      "lodev/shop-web",
 		User:       "kuroko", UID: 501, GID: 20,
-		HomeDir: home + "/data/home-shop",
+		HomeDir: home + "/data/home-shop", GlobalHomeAdditional: home + "/homeadditional",
 	}
 }
 
@@ -547,9 +547,29 @@ func TestSharedComposeMountVolume(t *testing.T) {
 }
 
 func TestProjectComposeHome(t *testing.T) {
-	web := parse(t, must(t)(ProjectCompose(projectInput("nginx"))))["web"]
-	if !slices.Contains(web.Volumes, home+"/data/home-shop:/home/kuroko") {
-		t.Errorf("web volumes %v", web.Volumes)
+	in := projectInput("nginx")
+	web := parse(t, must(t)(ProjectCompose(in)))["web"]
+	for _, v := range web.Volumes {
+		if strings.Contains(v, ":/home/") || strings.Contains(v, "/homeadditional/project") {
+			t.Errorf("unexpected mount %q in %v", v, web.Volumes)
+		}
+	}
+	for _, want := range []string{home + "/data/home-shop:/var/lib/lodev/home", home + "/homeadditional:/etc/lodev/homeadditional/global:ro"} {
+		if !slices.Contains(web.Volumes, want) {
+			t.Errorf("web volumes %v lack %s", web.Volumes, want)
+		}
+	}
+	for _, want := range []string{"HISTFILE=/var/lib/lodev/home/.bash_history", "MYSQL_HISTFILE=/var/lib/lodev/home/.mysql_history",
+		"COMPOSER_CACHE_DIR=/var/lib/lodev/home/.cache/composer", "npm_config_cache=/var/lib/lodev/home/.npm",
+		"YARN_CACHE_FOLDER=/var/lib/lodev/home/.cache/yarn", "pnpm_config_store_dir=/var/lib/lodev/home/.local/share/pnpm/store"} {
+		if !slices.Contains(web.Environment, want) {
+			t.Errorf("web environment lacks %s", want)
+		}
+	}
+	in.ProjectHomeAdditional = "/work/shop/.lodev/homeadditional"
+	web = parse(t, must(t)(ProjectCompose(in)))["web"]
+	if want := "/work/shop/.lodev/homeadditional:/etc/lodev/homeadditional/project:ro"; !slices.Contains(web.Volumes, want) {
+		t.Errorf("web volumes %v lack %s", web.Volumes, want)
 	}
 }
 
