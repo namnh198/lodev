@@ -183,6 +183,17 @@ func servicesDomains(full []byte) ([]string, error) {
 	return union(config.ReservedDomains(), hs), nil
 }
 
+// removeServices removes the shared services' containers and their routes: Traefik answers 404, not 502.
+func removeServices(svcs []string) error {
+	if err := servicesCompose(append([]string{"rm", "-sf"}, svcs...)...); err != nil {
+		return err
+	}
+	if err := writeServicesRoutes(); err != nil && !errors.Is(err, fs.ErrNotExist) { // no merged file: no routes to drop
+		return err
+	}
+	return nil
+}
+
 // servicesComposeUp runs compose up, then drops the old Traefik's certs file: kept until up succeeds.
 func servicesComposeUp(up []string) error {
 	if err := servicesCompose(up...); err != nil {
@@ -526,7 +537,7 @@ func init() {
 			if err := withLock(func() error { return setServices(svcs, false) }); err != nil {
 				return err
 			}
-			if err := servicesCompose(append([]string{"rm", "-sf"}, svcs...)...); err != nil {
+			if err := withLock(func() error { return removeServices(svcs) }); err != nil {
 				return err
 			}
 			// phpMyAdmin's server list (PMA_HOSTS) follows the enabled databases.

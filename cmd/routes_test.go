@@ -58,6 +58,21 @@ func TestWriteServicesRoutesOnlyRunning(t *testing.T) {
 	}
 }
 
+func TestRemoveServicesDropsRoute(t *testing.T) {
+	writeSharedFull(t)
+	removed := false
+	defer func(r func(...string) error, c func(string) bool) { dockerRun, containerRunning = r, c }(dockerRun, containerRunning)
+	dockerRun = func(a ...string) error { removed = slices.Contains(a, "rm"); return nil }
+	containerRunning = func(c string) bool { return c == "lodev-mailpit" && !removed }
+	writeServicesRoutes()
+	if err := removeServices([]string{"mailpit"}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(config.TraefikDir(), "lodev-services.yaml")); strings.Contains(string(b), "s-mailpit") {
+		t.Errorf("removed mailpit keeps its route:\n%s", b)
+	}
+}
+
 func TestOldTraefik(t *testing.T) {
 	defer func(o func(...string) (string, error)) { dockerOutput = o }(dockerOutput)
 	for _, c := range []struct {
