@@ -84,14 +84,13 @@ func TestOldTraefik(t *testing.T) {
 func TestWarnTraefikLabels(t *testing.T) {
 	_, stderr, restore := ui.Capture(false)
 	defer restore()
-	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      traefik.http.routers.x.rule: Host(`a`)\n"), "use VIRTUAL_HOST")
-	for _, want := range []string{"traefik labels are ignored", "VIRTUAL_HOST"} {
-		if !strings.Contains(stderr.String(), want) {
-			t.Errorf("warning %q lacks %q", stderr, want)
-		}
+	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      traefik.http.routers.x.rule: Host(`a`)\n"))
+	want := "warning: service web: traefik labels are ignored; set VIRTUAL_HOST / VIRTUAL_PORT in the service's environment instead\n"
+	if stderr.String() != want {
+		t.Errorf("warning %q, want %q", stderr, want)
 	}
 	stderr.Reset()
-	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      a.b: c\n"), "x")
+	warnTraefikLabels([]byte("services:\n  web:\n    labels:\n      a.b: c\n"))
 	if stderr.Len() != 0 {
 		t.Errorf("unexpected warning %q", stderr)
 	}

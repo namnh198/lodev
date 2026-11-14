@@ -120,7 +120,7 @@ func servicesUp() error {
 	if err != nil {
 		return err
 	}
-	warnTraefikLabels(full, "set VIRTUAL_HOST (and VIRTUAL_PORT) in its environment instead")
+	warnTraefikLabels(full)
 	vs, err := virtualServices(full, "lodev-services", config.TLD(), nil)
 	if err != nil {
 		return err

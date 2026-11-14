@@ -85,7 +85,7 @@ var oldTraefik = func() bool {
 }
 
 // warnTraefikLabels warns for each service of a merged compose file that still carries traefik.* labels.
-func warnTraefikLabels(full []byte, hint string) {
+func warnTraefikLabels(full []byte) {
 	var doc struct {
 		Services map[string]struct {
 			Labels map[string]any `yaml:"labels"`
@@ -102,7 +102,7 @@ func warnTraefikLabels(full []byte, hint string) {
 	for _, name := range names {
 		for k := range doc.Services[name].Labels {
 			if strings.HasPrefix(k, "traefik.") {
-				ui.Warn("service %s: traefik labels are ignored (Traefik reads files, not the Docker socket); %s", name, hint)
+				ui.Warn("service %s: traefik labels are ignored; set VIRTUAL_HOST / VIRTUAL_PORT in the service's environment instead", name)
 				break
 			}
 		}
