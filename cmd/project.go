@@ -388,11 +388,16 @@ func ensureServices(p *config.Project) error {
 	return nil
 }
 
-// startOpts picks the images start rebuilds without the layer cache, and whether hooks run.
-type startOpts struct{ project, base, noHooks bool }
+// startOpts picks the images start rebuilds without the layer cache, whether hooks run, and
+// whether the commands from the project's repo are approved without asking.
+type startOpts struct{ project, base, noHooks, yes bool }
 
 func start(p *config.Project, rebuild startOpts) error {
 	if err := checkLodevVersion(p); err != nil {
+		return err
+	}
+	// Before services, images and compose: web-image parts run during the build.
+	if err := ensureTrusted(p, rebuild.yes, true); err != nil {
 		return err
 	}
 	user, from := p.ContainerUser()
@@ -705,7 +710,7 @@ var errNameWithAll = errors.New("cannot use a project name with --all")
 var startFn = start
 
 // restartFn stops and starts p with its hooks; swapped in tests.
-var restartFn = func(p *config.Project) error { return restartProject(p, startOpts{}) }
+var restartFn = restartProject
 
 // runningVersion is the lodev version being run; swapped in tests.
 var runningVersion = func() string { return Version }
@@ -733,6 +738,10 @@ func checkLodevVersion(p *config.Project) error {
 
 func restartProject(p *config.Project, o startOpts) error {
 	if err := checkLodevVersion(p); err != nil {
+		return err
+	}
+	// Before the pre-stop hooks: the lock is held here, and runHooks must not take it again.
+	if err := ensureTrusted(p, o.yes, true); err != nil {
 		return err
 	}
 	// A stopped project has nothing to prepare for its stop.
@@ -802,7 +811,7 @@ func status(name string) string {
 
 func init() {
 	var name, typ, php, webserver, docroot string
-	var noAsk bool
+	var noAsk, createYes bool
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Aliases: []string{"init"},
@@ -814,7 +823,7 @@ func init() {
 				return err
 			}
 			if _, err := os.Stat(config.ProjectPath(root)); err == nil {
-				return withLock(func() error { return registerExisting(root) })
+				return withLock(func() error { return registerExisting(root, createYes) })
 			}
 			p, err := newProjectConfig(root, name, typ, php, webserver, docroot)
 			if err != nil {
@@ -836,7 +845,13 @@ func init() {
 			if err := writeLodevGitignore(p); err != nil {
 				return err
 			}
-			if err := withLock(func() error { return registerProject(p) }); err != nil {
+			err = withLock(func() error {
+				if err := registerProject(p); err != nil {
+					return err
+				}
+				return ensureTrusted(p, true, true) // a fresh project's own commands: record, do not ask
+			})
+			if err != nil {
 				return err
 			}
 			ui.Success("Created .lodev/config.yaml (%s, PHP %s, %s)\nRun: lodev start", p.Type, p.PHP, p.Webserver)
@@ -849,8 +864,9 @@ func init() {
 	createCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
+	createCmd.Flags().BoolVar(&createYes, "yes", false, "approve the commands the project's repo runs")
 
-	var rebuild, rebuildBase, startAll, startNoHooks bool
+	var rebuild, rebuildBase, startAll, startNoHooks, startYes bool
 	startCmd := &cobra.Command{
 		Use:     "start [name]",
 		Aliases: []string{"up"},
@@ -862,7 +878,7 @@ func init() {
 					return errNameWithAll
 				}
 				return withLock(func() error {
-					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, startOpts{noHooks: startNoHooks}) })
+					return allThenServiceURLs(func(p *config.Project) error { return startFn(p, startOpts{noHooks: startNoHooks, yes: startYes}) })
 				})
 			}
 			p, err := existingProject(args)
@@ -870,7 +886,7 @@ func init() {
 				return err
 			}
 			// --rebuild-base cleans the project image too: it is built on the base.
-			opts := startOpts{project: rebuild || rebuildBase, base: rebuildBase, noHooks: startNoHooks}
+			opts := startOpts{project: rebuild || rebuildBase, base: rebuildBase, noHooks: startNoHooks, yes: startYes}
 			return withLock(func() error { return startFn(p, opts) })
 		},
 	}
@@ -878,6 +894,7 @@ func init() {
 	startCmd.Flags().BoolVar(&rebuildBase, "rebuild-base", false, "also rebuild the shared PHP image(s) without the cache (fresh PHP packages; slow)")
 	startCmd.Flags().BoolVar(&startAll, "all", false, "start every project lodev knows")
 	startCmd.Flags().BoolVar(&startNoHooks, "no-hooks", false, "do not run the post-start hooks")
+	startCmd.Flags().BoolVar(&startYes, "yes", false, "approve the commands the project's repo runs")
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild")
 	startCmd.MarkFlagsMutuallyExclusive("all", "rebuild-base")
 
@@ -904,11 +921,13 @@ func init() {
 
 	var restartAll bool
 	var restartNoHooks bool
+	var restartYes bool
 	restart := func(p *config.Project) error {
+		o := startOpts{noHooks: restartNoHooks, yes: restartYes}
 		if restartNoHooks {
-			return restartProject(p, startOpts{noHooks: true})
+			return restartProject(p, o)
 		}
-		return restartFn(p)
+		return restartFn(p, o)
 	}
 	restartCmd := &cobra.Command{
 		Use:   "restart [name]",
@@ -930,6 +949,7 @@ func init() {
 	}
 	restartCmd.Flags().BoolVar(&restartAll, "all", false, "restart every project lodev knows")
 	restartCmd.Flags().BoolVar(&restartNoHooks, "no-hooks", false, "do not run the pre-stop and post-start hooks")
+	restartCmd.Flags().BoolVar(&restartYes, "yes", false, "approve the commands the project's repo runs")
 
 	var dropDB, dropVolumes, yes bool
 	removeCmd := &cobra.Command{
@@ -993,7 +1013,7 @@ func warnWorkDirMove(p *config.Project) {
 
 // registerExisting is lodev create in a folder that already has a .lodev/config.yaml (a cloned
 // project, or one lodev remove dropped): it registers that config as it is.
-func registerExisting(root string) error {
+func registerExisting(root string, yes bool) error {
 	reg, err := registry.Load()
 	if err != nil {
 		return err
@@ -1006,6 +1026,10 @@ func registerExisting(root string) error {
 		return err
 	}
 	ui.Warn(".lodev/config.yaml already exists: registering the project with it as it is")
+	// A decline registers nothing, so an entry without approvals really is from an older lodev.
+	if err := ensureTrusted(p, yes, true); err != nil {
+		return err
+	}
 	if err := registerProject(p); err != nil {
 		return err
 	}

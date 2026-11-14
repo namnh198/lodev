@@ -53,7 +53,7 @@ func newTLDFixture(t *testing.T, projects map[string]string, running []string, t
 	t.Cleanup(func() { hosts.File, servicesUpFn, restartFn, containerRunning, dockerOutput = oh, ou, or, oc, od })
 	hosts.File = f.hosts
 	servicesUpFn = func() error { f.upCalls++; return nil }
-	restartFn = func(p *config.Project) error { f.restarts = append(f.restarts, p.Name); return nil }
+	restartFn = func(p *config.Project, _ startOpts) error { f.restarts = append(f.restarts, p.Name); return nil }
 	containerRunning = func(name string) bool { return traefik && name == "lodev-traefik" }
 	dockerOutput = func(a ...string) (string, error) {
 		var names []string
@@ -213,7 +213,7 @@ func TestRetargetRerunAfterHostsFailure(t *testing.T) {
 
 func TestRetargetRestartFailureContinues(t *testing.T) {
 	f := newTLDFixture(t, map[string]string{"a": tldA, "b": tldB}, []string{"a", "b"}, false)
-	restartFn = func(p *config.Project) error {
+	restartFn = func(p *config.Project, _ startOpts) error {
 		f.restarts = append(f.restarts, p.Name)
 		if p.Name == "a" {
 			return errors.New("boom")

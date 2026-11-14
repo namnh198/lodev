@@ -13,6 +13,7 @@ import (
 
 	"lodev/internal/config"
 	"lodev/internal/docker"
+	"lodev/internal/registry"
 )
 
 // trustItem is one command the project's repo makes lodev run: a stable Key, the text shown
@@ -210,4 +211,74 @@ func (r trustReport) String() string {
 
 func isConfigKey(k string) bool {
 	return k == "cron" || strings.HasPrefix(k, "hooks.") || strings.HasPrefix(k, "web_extra_daemons.")
+}
+
+// trustTTY reports whether lodev can ask; swapped in tests.
+var trustTTY = stdinTTY
+
+// ensureTrusted is the gate before lodev runs anything from p's repo: it returns nil when p's
+// commands are the approved ones, records them when yes or the user approves, and errors otherwise.
+// locked says the caller holds the registry lock.
+func ensureTrusted(p *config.Project, yes, locked bool) error {
+	items, err := trustItems(p)
+	if err != nil {
+		return err
+	}
+	sums := trustSums(items)
+	reg, err := registry.Load()
+	if err != nil {
+		return err
+	}
+	e, known := reg[p.Name]
+	known = known && registry.SamePath(e.Path, p.Root)
+	if known && e.Trusted == nil { // registered by a lodev older than approvals
+		return recordTrust(p, sums, locked)
+	}
+	var stored map[string]string
+	if known {
+		stored = e.Trusted
+	}
+	report := diffTrust(stored, items)
+	if report.Empty() {
+		if known {
+			return nil
+		}
+		return recordTrust(p, sums, locked)
+	}
+	switch {
+	case yes:
+	case !trustTTY():
+		return fmt.Errorf("project %s runs commands from its repo that you have not approved:\n%s\n"+
+			"run lodev start in a terminal to review them, or pass --yes", p.Name, strings.TrimSuffix(report.String(), "\n"))
+	default:
+		fmt.Printf("project %s runs commands from its repo:\n%s", p.Name, report)
+		if !confirm("Run these commands?", false) {
+			return errors.New("not approved: nothing was started")
+		}
+	}
+	return recordTrust(p, sums, locked)
+}
+
+// recordTrust stores sums as p's approved set, registering p if the registry lacks it.
+func recordTrust(p *config.Project, sums map[string]string, locked bool) error {
+	save := func() error {
+		reg, err := registry.Load()
+		if err != nil {
+			return err
+		}
+		if e, ok := reg[p.Name]; !ok || !registry.SamePath(e.Path, p.Root) {
+			if err := reg.Conflict(p); err != nil {
+				return err
+			}
+			reg.Put(p)
+		}
+		e := reg[p.Name]
+		e.Trusted = sums
+		reg[p.Name] = e
+		return reg.Save()
+	}
+	if locked {
+		return save()
+	}
+	return withLock(save)
 }

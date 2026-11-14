@@ -415,6 +415,28 @@ must be executable (`chmod +x`); its shebang picks the interpreter. Steps get `L
 `LODEV_PROJECT`. A failing step stops the remaining ones and lodev exits with an error; the command
 itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import` skips them.
 
+## Commands from the project's repo
+
+A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
+`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, extra `.lodev/*.compose.yml`
+files, `.lodev/web-images/` parts and `.lodev/homeadditional/` files. lodev lists them and asks
+`Run these commands? [y/N]` before running any of them, and asks again when one is added or
+changed (a changed file is shown as "review with git diff"). What you approved is stored per
+project in `~/.lodev/projects.json`.
+
+The question comes first thing on `lodev start` (and so `restart`; `start --all` asks per project),
+before any hook run by `stop`, `db-import` or `snapshot restore`, and on `lodev create` in a
+folder that already has a `.lodev/config.yaml`. A declined question starts, stops and registers
+nothing. Where lodev cannot ask (no terminal, or `db-import -f -` reading the dump from stdin) it
+fails with the list; pass `--yes` to `start`, `restart` or `create` to approve it. Editing your own
+hook asks once on the next start.
+
+Known limits: only what lodev itself reads is covered, so a script that a hook's `run:` line or a
+cron line calls is not tracked unless it is listed as a `script:` or in a `.d` folder. A project
+registered by a lodev older than this check has its commands recorded without a question on its
+first start (or first hook run), which also covers a `git pull` between upgrading lodev and that
+first start.
+
 ## Domains and TLD
 
 Project domains (`<name>.test`) and the shared services' (`mailpit.test`, `phpmyadmin.test`,
@@ -641,12 +663,12 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 |---|---|
 | `lodev service start\|stop\|status\|logs [svc]` | Manage the shared stack (aliases `services`, `svc`; `up`/`down` for start/stop). `stop --volumes` deletes all data (asks first) |
 | `lodev service enable\|disable <svc>...` | Turn shared services on/off, several at once (data is kept) |
-| `lodev create [--name --type --php --webserver --docroot --no-ask]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root. It also registers the project in `~/.lodev/projects.json`; in a folder that already has a `.lodev/config.yaml` (a cloned project, or after `lodev remove`) it warns and registers that config as it is |
+| `lodev create [--name --type --php --webserver --docroot --no-ask --yes]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root. It also registers the project in `~/.lodev/projects.json`; in a folder that already has a `.lodev/config.yaml` (a cloned project, or after `lodev remove`) it warns and registers that config as it is |
 | `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; apply with `lodev restart` |
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`, `--auto-create-db=false`); apply with `lodev service start` |
-| `lodev start [--rebuild \| --rebuild-base \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder. `start` and `restart` need a project made by `lodev create` (a `.lodev/config.yaml` registered in `~/.lodev/projects.json`) |
-| `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
+| `lodev start [--rebuild \| --rebuild-base \| --all --yes]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder. `start` and `restart` need a project made by `lodev create` (a `.lodev/config.yaml` registered in `~/.lodev/projects.json`) |
+| `lodev stop` / `lodev restart [--all --yes]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--volumes] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database; `--volumes` deletes the performance_mode volumes (they are kept and listed otherwise) |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |

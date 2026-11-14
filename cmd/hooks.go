@@ -54,6 +54,10 @@ func runHooks(p *config.Project, event string) error {
 	if err != nil || len(steps) == 0 {
 		return err
 	}
+	// A git pull after start must not slip a hook into stop, db import or snapshot restore.
+	if err := ensureTrusted(p, false, false); err != nil {
+		return err
+	}
 	if web := "lodev-" + p.Name + "-web"; !containerRunning(web) {
 		return fmt.Errorf("hook %s: %s is not running", event, web)
 	}

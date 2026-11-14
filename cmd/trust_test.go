@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/registry"
 )
 
 func writeRepoFile(t *testing.T, p *config.Project, rel, content string) {
@@ -143,5 +144,234 @@ func TestTrustReportString(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("report missing %q:\n%s", want, got)
 		}
+	}
+}
+
+// trustHome points lodev at an empty state dir and registers p with the given approved set.
+func trustHome(t *testing.T, p *config.Project, trusted map[string]string) {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg.Put(p)
+	e := reg[p.Name]
+	e.Trusted = trusted
+	reg[p.Name] = e
+	if err := reg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// approve registers p in an empty state dir with everything its repo runs now already approved.
+func approve(t *testing.T, p *config.Project) {
+	t.Helper()
+	items, err := trustItems(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trustHome(t, p, trustSums(items))
+}
+
+func approvedSet(t *testing.T, name string) map[string]string {
+	t.Helper()
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reg[name].Trusted
+}
+
+// asTTY makes the gate a terminal (or not) that answers answer.
+func asTTY(t *testing.T, tty bool, answer string) {
+	t.Helper()
+	oldTTY, oldIn := trustTTY, os.Stdin
+	t.Cleanup(func() { trustTTY, os.Stdin = oldTTY, oldIn })
+	trustTTY = func() bool { return tty }
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.WriteString(answer + "\n")
+	w.Close()
+	os.Stdin = r
+}
+
+func hookedProject(t *testing.T) *config.Project {
+	return hookProject(t, map[string][]config.HookStep{"post-start": {{Run: "echo hi"}}})
+}
+
+func TestEnsureTrustedPreUpgradeRecordsSilently(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, nil)
+	oldTTY := trustTTY
+	t.Cleanup(func() { trustTTY = oldTTY })
+	trustTTY = func() bool { t.Fatal("asked"); return true }
+	if err := ensureTrusted(p, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "shop"); got["hooks.post-start[0]"] == "" {
+		t.Errorf("not recorded: %v", got)
+	}
+}
+
+func TestEnsureTrustedEmptyThenHookAsks(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	asTTY(t, false, "")
+	err := ensureTrusted(p, false, false)
+	want := "project shop runs commands from its repo that you have not approved:\n"
+	if err == nil || !strings.HasPrefix(err.Error(), want) || !strings.Contains(err.Error(), "hook post-start: echo hi") ||
+		!strings.HasSuffix(err.Error(), "run lodev start in a terminal to review them, or pass --yes") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(approvedSet(t, "shop")) != 0 {
+		t.Error("recorded without approval")
+	}
+}
+
+func TestEnsureTrustedNoEntryAsks(t *testing.T) {
+	p := hookedProject(t)
+	t.Setenv("LODEV_HOME", t.TempDir())
+	asTTY(t, false, "")
+	if err := ensureTrusted(p, false, false); err == nil {
+		t.Fatal("a project the registry does not know must ask")
+	}
+}
+
+func TestEnsureTrustedYes(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	asTTY(t, false, "")
+	if err := ensureTrusted(p, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "shop"); len(got) != 1 {
+		t.Errorf("recorded %v", got)
+	}
+}
+
+func TestEnsureTrustedRemovedKeysDropOut(t *testing.T) {
+	p := hookProject(t, nil)
+	trustHome(t, p, map[string]string{"cron": "x"})
+	asTTY(t, true, "y")
+	if err := ensureTrusted(p, false, false); err != nil || len(approvedSet(t, "shop")) != 0 {
+		t.Errorf("err %v, set %v", err, approvedSet(t, "shop"))
+	}
+}
+
+func TestEnsureTrustedPromptDecline(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	asTTY(t, true, "n")
+	if err := ensureTrusted(p, false, false); err == nil || err.Error() != "not approved: nothing was started" {
+		t.Fatalf("err = %v", err)
+	}
+	if len(approvedSet(t, "shop")) != 0 {
+		t.Error("recorded after a no")
+	}
+}
+
+func TestEnsureTrustedPromptAccept(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	asTTY(t, true, "y")
+	if err := ensureTrusted(p, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "shop"); len(got) != 1 {
+		t.Errorf("recorded %v", got)
+	}
+	if err := ensureTrusted(p, false, false); err != nil { // approved: no second question
+		t.Errorf("asked again: %v", err)
+	}
+}
+
+func TestStartChecksTrustFirst(t *testing.T) {
+	p := hookedProject(t)
+	trustHome(t, p, map[string]string{})
+	asTTY(t, false, "")
+	oldUp := servicesUpFn
+	t.Cleanup(func() { servicesUpFn = oldUp })
+	called := false
+	servicesUpFn = func() error { called = true; return nil }
+	if err := start(p, startOpts{}); err == nil || !strings.Contains(err.Error(), "have not approved") {
+		t.Fatalf("err = %v", err)
+	}
+	if called {
+		t.Error("services started before the gate")
+	}
+}
+
+func TestRunHooksRefusesChangedHook(t *testing.T) {
+	p := hookProject(t, map[string][]config.HookStep{"pre-stop": {{Script: ".lodev/hooks/down.sh"}}})
+	writeHookFile(t, p, ".lodev/hooks/down.sh", 0o755)
+	items, _ := trustItems(p)
+	trustHome(t, p, trustSums(items))
+	ran := stubHookExec(t, true, nil)
+	asTTY(t, false, "")
+	writeRepoFile(t, p, ".lodev/hooks/down.sh", "#!/bin/sh\nrm -rf /\n") // as after a git pull
+	if err := runHooks(p, "pre-stop"); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(*ran) != 0 {
+		t.Errorf("ran %q", *ran)
+	}
+}
+
+func TestStopHintsNoHooksWhenNotApproved(t *testing.T) {
+	root := newShop(t)
+	writeShop(t, root, shopConf+"hooks:\n  pre-stop: [\"echo down\"]\n")
+	p, err := currentProject()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trustHome(t, p, map[string]string{})
+	stubHookExec(t, true, nil)
+	asTTY(t, false, "")
+	// --no-hooks=false: TestStopRemovesRoutes leaves the flag set.
+	if err := runRoot(t, "stop", "--no-hooks=false"); err == nil || !strings.Contains(err.Error(), "lodev stop --no-hooks stops anyway") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestCreateExistingAsks(t *testing.T) {
+	root := newShop(t)
+	writeShop(t, root, shopConf+"hooks:\n  post-start: [\"echo hi\"]\n")
+	asTTY(t, false, "")
+	if err := runRoot(t, "create"); err == nil || !strings.Contains(err.Error(), "have not approved") {
+		t.Fatalf("err = %v", err)
+	}
+	if reg, _ := registry.Load(); len(reg) != 0 {
+		t.Fatalf("registered anyway: %v", reg)
+	}
+	if err := runRoot(t, "create", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "shop"); got["hooks.post-start[0]"] == "" {
+		t.Errorf("sums not recorded: %v", got)
+	}
+}
+
+func TestCreateExistingNothingToRunRecordsEmpty(t *testing.T) {
+	newShop(t)
+	asTTY(t, false, "")
+	if err := runRoot(t, "create"); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "shop"); got == nil || len(got) != 0 {
+		t.Errorf("want {}, got %#v", got)
+	}
+}
+
+func TestCreateFreshRecordsEmpty(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	if err := runRoot(t, "create", "--no-ask", "--name", "fresh"); err != nil {
+		t.Fatal(err)
+	}
+	if got := approvedSet(t, "fresh"); got == nil {
+		t.Error("a fresh project must be recorded as approved, not pre-upgrade")
 	}
 }

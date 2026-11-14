@@ -67,6 +67,7 @@ func TestHookFolderSteps(t *testing.T) {
 	os.MkdirAll(filepath.Join(p.Root, d, "sub"), 0o755)
 	writeHookFile(t, p, ".lodev/real.sh", 0o755)
 	os.Symlink(filepath.Join(p.Root, ".lodev/real.sh"), filepath.Join(p.Root, d, "30-link.sh"))
+	approve(t, p)
 	got := stubHookExec(t, true, nil)
 	if err := runHooks(p, "post-start"); err != nil {
 		t.Fatal(err)
@@ -85,6 +86,7 @@ func TestHookFolderSteps(t *testing.T) {
 func TestHookCommandPassedVerbatim(t *testing.T) {
 	cmd := `echo "a b" $X; true`
 	p := hookProject(t, map[string][]config.HookStep{"post-start": {{Run: cmd}}})
+	approve(t, p)
 	got := stubHookExec(t, true, nil)
 	if err := runHooks(p, "post-start"); err != nil {
 		t.Fatal(err)
@@ -97,15 +99,18 @@ func TestHookCommandPassedVerbatim(t *testing.T) {
 func TestHookScriptChecks(t *testing.T) {
 	p := hookProject(t, map[string][]config.HookStep{"post-start": {{Script: ".lodev/hooks/x.sh"}}})
 	stubHookExec(t, true, nil)
+	approve(t, p)
 	if err := runHooks(p, "post-start"); err == nil || err.Error() != "hook post-start: .lodev/hooks/x.sh does not exist" {
 		t.Errorf("missing: %v", err)
 	}
 	writeHookFile(t, p, ".lodev/hooks/x.sh", 0o644)
+	approve(t, p)
 	want := "hook post-start: .lodev/hooks/x.sh is not executable (chmod +x .lodev/hooks/x.sh)"
 	if err := runHooks(p, "post-start"); err == nil || err.Error() != want {
 		t.Errorf("not executable: %v", err)
 	}
 	os.Chmod(filepath.Join(p.Root, ".lodev/hooks/x.sh"), 0o755)
+	approve(t, p)
 	got := stubHookExec(t, true, nil)
 	if err := runHooks(p, "post-start"); err != nil || !slices.Equal((*got)[0], env("post-start", "/app/.lodev/hooks/x.sh")) {
 		t.Errorf("script run %q, %v", *got, err)
@@ -114,6 +119,7 @@ func TestHookScriptChecks(t *testing.T) {
 
 func TestHookFailureStops(t *testing.T) {
 	p := hookProject(t, map[string][]config.HookStep{"post-start": {{Run: "one"}, {Run: "two"}, {Run: "three"}}})
+	approve(t, p)
 	got := stubHookExec(t, true, map[string]error{"two": exitStatus(3)})
 	err := runHooks(p, "post-start")
 	if err == nil || err.Error() != "hook post-start failed: two: exit status 3" {
@@ -127,6 +133,7 @@ func TestHookFailureStops(t *testing.T) {
 func TestHookWebNotRunning(t *testing.T) {
 	p := hookProject(t, map[string][]config.HookStep{"post-start": {{Run: "x"}}})
 	stubHookExec(t, false, nil)
+	approve(t, p)
 	if err := runHooks(p, "post-start"); err == nil || err.Error() != "hook post-start: lodev-shop-web is not running" {
 		t.Errorf("err = %v", err)
 	}
@@ -156,6 +163,11 @@ func runCmdWithHooks(t *testing.T, hooksYAML string, fail map[string]error, args
 	t.Helper()
 	root := newShop(t)
 	writeShop(t, root, shopConf+hooksYAML)
+	p, err := currentProject()
+	if err != nil {
+		t.Fatal(err)
+	}
+	approve(t, p)
 	oldRun, oldUp, oldReady := dockerRun, containerRunning, userReady
 	t.Cleanup(func() { dockerRun, containerRunning, userReady = oldRun, oldUp, oldReady })
 	userReady = func(*config.Project, string) bool { return true }
@@ -176,7 +188,7 @@ func runCmdWithHooks(t *testing.T, hooksYAML string, fail map[string]error, args
 		rootCmd.SetArgs(nil)
 	})
 	rootCmd.SetArgs(args)
-	err := rootCmd.Execute()
+	err = rootCmd.Execute()
 	return calls, err
 }
 
@@ -199,6 +211,8 @@ func TestStopRunsPreStop(t *testing.T) {
 func TestDBImportPostHook(t *testing.T) {
 	root := newShop(t)
 	writeShop(t, root, shopConf+"hooks:\n  post-db-import: [\"echo imported\"]\n")
+	p, _ := currentProject()
+	approve(t, p)
 	stubDBStream(t, "")
 	ran := stubHookExec(t, true, nil)
 	f := filepath.Join(t.TempDir(), "d.sql")
@@ -219,13 +233,14 @@ func TestPreStopSkippedWhenStopped(t *testing.T) {
 	hooks := "hooks:\n  pre-stop: [\"php bin/console down\"]\n"
 	root := newShop(t)
 	writeShop(t, root, shopConf+hooks)
+	p, _ := currentProject()
+	approve(t, p)
 	oldRun, oldUp, oldStart := dockerRun, containerRunning, startFn
 	t.Cleanup(func() { dockerRun, containerRunning, startFn = oldRun, oldUp, oldStart })
 	containerRunning = func(string) bool { return false }
 	var calls []string
 	dockerRun = func(a ...string) error { calls = append(calls, a[len(a)-1]); return nil }
 	startFn = func(*config.Project, startOpts) error { calls = append(calls, "start"); return nil }
-	p, _ := currentProject()
 	if err := restartProject(p, startOpts{}); err != nil || !slices.Equal(calls, []string{"stop", "start"}) {
 		t.Errorf("restart a stopped project: %q %v", calls, err)
 	}

@@ -117,6 +117,8 @@ func TestSnapshotList(t *testing.T) {
 func TestSnapshotRestore(t *testing.T) {
 	root, restored := snapshotShop(t, "mysql", "")
 	writeShop(t, root, shopConf+"hooks:\n  post-snapshot-restore: [\"echo restored\"]\n")
+	p, _ := currentProject()
+	approve(t, p)
 	now := time.Now()
 	writeSnapshot(t, "old", now.Add(-time.Hour), "mysql")
 	writeSnapshot(t, "new", now, "mysql")

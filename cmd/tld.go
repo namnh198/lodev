@@ -130,7 +130,7 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 	}
 	for _, m := range moves {
 		if containsString(running, "lodev-"+m.name+"-web") {
-			if err := restartFn(m.p); err != nil { // keep going: the others still need their new domains
+			if err := restartFn(m.p, startOpts{}); err != nil { // keep going: the others still need their new domains
 				errs = append(errs, fmt.Errorf("restart %s: %w", m.name, err))
 			}
 		}

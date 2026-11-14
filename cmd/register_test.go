@@ -33,7 +33,7 @@ func stubStart(t *testing.T) *[]string {
 	t.Cleanup(func() { startFn, restartFn = oldStart, oldRestart })
 	var got []string
 	startFn = func(p *config.Project, _ startOpts) error { got = append(got, "start "+p.Name); return nil }
-	restartFn = func(p *config.Project) error { got = append(got, "restart "+p.Name); return nil }
+	restartFn = func(p *config.Project, _ startOpts) error { got = append(got, "restart "+p.Name); return nil }
 	return &got
 }
 
