@@ -15,7 +15,7 @@ paths:
 - A new config key or `.lodev/` folder that lodev executes, mounts or copies into the container
   gets an entry in `trustItems` and a `TestTrustItems*` case in the same change.
 - `confirmRepoCommands` asks once, at `lodev create`; nothing is stored, and `start`, `restart`
-  and hooks never ask (the accepted risk is in README "Commands from the project's repo").
+  and hooks never ask (the accepted risk is in `docs/reference.md`, "Commands from the project's repo").
 - `*.example` files are scaffolding: never listed, copied or executed.
 - `scaffold` runs on every `start`: it must be idempotent, keep user edits, and leave a
   symlinked `.lodev/<dir>` alone.

@@ -17,7 +17,7 @@
           inherit version;
           src = ./.;
           subPackages = [ "." ];
-          # When go.mod changes, a nix build fails with `got: sha256-…`: paste that here (README, "Nix").
+          # When go.mod changes, a nix build fails with `got: sha256-…`: paste that here (docs/reference.md, "Nix").
           vendorHash = "sha256-r8glwA5RlH2rJtggi0vne+nVYrVJ0mFZCEVbGqin1Uk=";
           env.CGO_ENABLED = 0;
           ldflags = [ "-s" "-w" "-X lodev/cmd.Version=v${version}" ];

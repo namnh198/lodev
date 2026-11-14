@@ -1,8 +1,9 @@
 # lodev
 
 Go CLI (cobra, yaml.v3) that runs local PHP sites in Docker: a shared stack (traefik, mysql,
-redis, mailpit...) plus one `lodev-<name>-web` container per project. `README.md` is the user
-manual and the spec of record for behaviour; `make help` lists build targets.
+redis, mailpit...) plus one `lodev-<name>-web` container per project. `docs/reference.md` is
+the user manual and the spec of record for behaviour (config keys, hooks, services, every
+command); `README.md` is only the landing page. `make help` lists build targets.
 
 ## Verify
 
@@ -17,7 +18,9 @@ manual and the spec of record for behaviour; `make help` lists build targets.
 - TDD: a test that fails for the right reason first, then the code. Tests stub the outside
   world through package vars (`dockerRun`, `containerRunning`, `userReady`, `execInWeb` via
   `stubHookExec`, `startStubs`) and isolate state with `t.Setenv("LODEV_HOME", t.TempDir())`.
-- A behaviour change updates `README.md` in the same commit (its section and the commands table).
+- A behaviour change updates `docs/reference.md` in the same commit (its section and the
+  commands table). `README.md` changes only when Getting Started, the pitch or the
+  everyday-commands table stops being true.
 - Commits: conventional prefix (`feat:`, `fix:`, `refactor:`, `chore:`), lowercase, the
   subject says what the user gets. One commit per logical change; stage files by name.
 - Plans and specs live in `docs/superpowers/` and `.superpowers/` (git-ignored); never commit them.

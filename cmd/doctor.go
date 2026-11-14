@@ -117,7 +117,7 @@ func runDoctor() ([]checkResult, bool) {
 	case err == nil:
 		add("Local CA", levelOK, ca, "")
 	default:
-		add("Local CA", levelWarn, "no "+ca, "lodev service start creates it; trust it with the command in the README")
+		add("Local CA", levelWarn, "no "+ca, "lodev service start creates it and prints the command to trust it")
 	}
 
 	reg, _ := registry.Load()
