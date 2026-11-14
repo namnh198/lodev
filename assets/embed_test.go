@@ -52,7 +52,7 @@ func TestHash(t *testing.T) {
 // from DDEV, and no .ssh (the image has no ssh client).
 func TestSkel(t *testing.T) {
 	for file, c := range map[string]struct{ want, not []string }{
-		"webserver/skel/.bashrc":       {want: []string{"HISTSIZE=10000", "HISTFILESIZE=10000", "shopt -s histappend", "HISTCONTROL=ignoreboth"}},
+		"webserver/skel/.bashrc":       {want: []string{"HISTSIZE=10000", "HISTFILESIZE=10000", "shopt -s histappend", "HISTCONTROL=ignoreboth", `"$HOME/bin"`, `"$HOME/.local/bin"`}},
 		"webserver/skel/.gitconfig":    {want: []string{"autocrlf = input", "directory = *"}, not: []string{"[user]"}},
 		"webserver/skel/.bash_aliases": {want: []string{"alias ll='ls -la'"}},
 	} {

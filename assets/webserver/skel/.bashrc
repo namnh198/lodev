@@ -6,6 +6,17 @@ case $- in
       *) return;;
 esac
 
+# lodev ssh starts a non-login shell, which skips .profile: put the private bin dirs on PATH here too.
+for d in "$HOME/bin" "$HOME/.local/bin"; do
+    if [ -d "$d" ]; then
+        case ":$PATH:" in
+            *":$d:"*) ;;
+            *) PATH="$d:$PATH" ;;
+        esac
+    fi
+done
+unset d
+
 # don't put duplicate lines or lines starting with space in the history.
 HISTCONTROL=ignoreboth
 
