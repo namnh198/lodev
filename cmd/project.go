@@ -711,7 +711,7 @@ func snapshotHomeAdditional(p *config.Project, dst string) (string, error) {
 	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
 		return "", os.RemoveAll(dst)
 	}
-	return dst, snapshotTree(src, dst)
+	return dst, snapshotTree(src, dst, true)
 }
 
 // projectApacheSnapshot is the copy of p's apache config (webserver.conf and custom.d/) the web
@@ -740,12 +740,13 @@ func snapshotApache(p *config.Project, dst string) (string, error) {
 	if err := os.WriteFile(filepath.Join(dst, "webserver.conf"), conf, 0o644); err != nil {
 		return "", err
 	}
-	return dst, snapshotTree(filepath.Join(p.Root, ".lodev", "apache"), custom)
+	return dst, snapshotTree(filepath.Join(p.Root, ".lodev", "apache"), custom, false)
 }
 
 // snapshotTree replaces dst's contents with a copy of src (a symlinked src followed; regular files
-// and symlinks, as trustItems lists them). A missing src leaves dst empty.
-func snapshotTree(src, dst string) error {
+// and symlinks, as trustItems lists them; skipExamples leaves out *.example files). A missing src
+// leaves dst empty.
+func snapshotTree(src, dst string, skipExamples bool) error {
 	// Contents only: a running container bind-mounts dst, and a new inode would leave it on a deleted folder.
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
@@ -760,6 +761,9 @@ func snapshotTree(src, dst string) error {
 		}
 	}
 	return walkTree(src, func(path, rel string, d fs.DirEntry) error {
+		if skipExamples && !d.IsDir() && strings.HasSuffix(rel, ".example") {
+			return nil
+		}
 		to := filepath.Join(dst, filepath.FromSlash(rel))
 		fi, err := d.Info()
 		if err != nil {

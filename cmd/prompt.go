@@ -125,7 +125,10 @@ func scaffold(root, webserver string) error {
 		// zz-lodev.ini sets it as auto_prepend_file: it must exist or every PHP script fails.
 		"php/prepend.php":                       "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n",
 		"hooks/post-start.d/example.sh.example": "#!/bin/sh\n# Rename to <name>.sh (chmod +x) to run it after lodev start, in the web container.\n# composer install\n",
-		"example.compose.yml.example":           "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
+		"homeadditional/.bash_aliases.example": "# Rename to .bash_aliases: lodev copies .lodev/homeadditional into the web container's home.\n" +
+			"# Applies to `lodev ssh` shells only; hooks, cron and daemons run `sh -c` (use environment: there).\n" +
+			"# alias ll='ls -la'\n# export EDITOR=vim\n# Scripts in .lodev/homeadditional/bin/ are on PATH.\n",
+		"example.compose.yml.example": "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
 	}
 	if webserver == "nginx" || webserver == "apache" {
 		files[webserver+"/example.conf.example"] = "# Rename to <name>.conf to extend the " + webserver + " config.\n# location /api { ... }\n"

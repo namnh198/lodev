@@ -244,3 +244,13 @@ func TestStartDoesNotAsk(t *testing.T) {
 		t.Fatalf("hook runs = %v", *got)
 	}
 }
+
+// The scaffolded .bash_aliases.example is not copied into the home, so it is not listed either.
+func TestTrustItemsSkipsHomeAdditionalExamples(t *testing.T) {
+	p := hookProject(t, nil)
+	writeRepoFile(t, p, ".lodev/homeadditional/.bash_aliases.example", "# x")
+	writeRepoFile(t, p, ".lodev/homeadditional/.bash_aliases", "alias x=y")
+	if got := trustKeys(t, p); !slices.Equal(got, []string{".lodev/homeadditional/.bash_aliases"}) {
+		t.Fatalf("keys = %v", got)
+	}
+}

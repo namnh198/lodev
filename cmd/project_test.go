@@ -318,7 +318,7 @@ func TestScaffold(t *testing.T) {
 		if err := scaffold(root, ws); err != nil {
 			t.Fatal(err)
 		}
-		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/php/prepend.php", ".lodev/example.compose.yml.example", ".lodev/hooks/post-start.d/example.sh.example"}
+		files := []string{".lodev/web-images/Dockerfile.example", ".lodev/php/example.ini.example", ".lodev/php/prepend.php", ".lodev/example.compose.yml.example", ".lodev/hooks/post-start.d/example.sh.example", ".lodev/homeadditional/.bash_aliases.example"}
 		if dir != "" {
 			files = append(files, ".lodev/"+dir+"/example.conf.example")
 		}
@@ -337,6 +337,10 @@ func TestScaffold(t *testing.T) {
 	}
 	root := t.TempDir()
 	scaffold(root, "nginx")
+	alias, _ := os.ReadFile(filepath.Join(root, ".lodev", "homeadditional", ".bash_aliases.example"))
+	for _, s := range []string{"alias ", "export ", "homeadditional/bin", "lodev ssh"} {
+		mustContain(t, string(alias), s)
+	}
 	want := "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n"
 	if b, _ := os.ReadFile(filepath.Join(root, ".lodev", "php", "prepend.php")); string(b) != want {
 		t.Fatalf("prepend.php: %q", b)
@@ -686,6 +690,7 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
 	target := filepath.Join(t.TempDir(), "dotfiles") // a symlinked folder is followed
 	writeFile(t, filepath.Join(target, ".gitconfig"), "one")
+	writeFile(t, filepath.Join(target, ".bash_aliases.example"), "# x")
 	writeFile(t, filepath.Join(target, ".ssh", "config"), "Host *\n")
 	os.Chmod(filepath.Join(target, ".ssh", "config"), 0o600)
 	os.Symlink("../x", filepath.Join(target, "link"))
@@ -710,6 +715,9 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(snap, ".ssh", "config")); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf(".ssh/config: %v %v", fi, err)
 	}
+	if _, err := os.Stat(filepath.Join(snap, ".bash_aliases.example")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("example copied: %v", err)
+	}
 	if l, _ := os.Readlink(filepath.Join(snap, "link")); l != "../x" {
 		t.Errorf("link = %q", l)
 	}
@@ -722,15 +730,13 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	b, _ := os.ReadFile(composeBase(p))
 	mustContain(t, string(b), `"`+snap+`:/etc/lodev/homeadditional/project:ro"`)
 
+	// start scaffolds the folder back with only the example, which is not copied: the copy is empty.
 	os.Remove(repo)
 	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(snap); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("snapshot kept without a project folder: %v", err)
-	}
-	if b, _ := os.ReadFile(composeBase(p)); strings.Contains(string(b), "homeadditional/project") {
-		t.Errorf("still mounted:\n%s", b)
+	if left, err := os.ReadDir(snap); err != nil || len(left) != 0 {
+		t.Errorf("snapshot after the folder went: %v %v", left, err)
 	}
 }
 

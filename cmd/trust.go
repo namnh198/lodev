@@ -113,7 +113,7 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 			return nil
 		})
 	}
-	if err := addTree(".lodev/homeadditional", "home file: ", false); err != nil {
+	if err := addTree(".lodev/homeadditional", "home file: ", true); err != nil {
 		return nil, err
 	}
 	// Apache runs piped logs and other commands from its config; nginx's config cannot.

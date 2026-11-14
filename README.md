@@ -254,7 +254,8 @@ repeated on every container start; a file the user cannot read is skipped with a
 folders are mounted read-only. Put composer's auth at
 `~/.lodev/homeadditional/.config/composer/auth.json` and your own `.gitconfig` in
 `~/.lodev/homeadditional`, which lodev creates; the project's folder is committed with the project,
-so keep secrets out of it. It is in the [trust list](#commands-from-the-projects-repo), and the
+so keep secrets out of it. `lodev create` scaffolds `.lodev/homeadditional/.bash_aliases.example`
+(rename it to `.bash_aliases`; `*.example` files there are not copied). It is in the [trust list](#commands-from-the-projects-repo), and the
 container never reads it from the repo: each `lodev start` copies it to
 `<data_dir>/web/<name>-web/homeadditional` and mounts that copy (only when the folder exists), so
 a change or a new folder takes effect on the next `lodev restart`, and a container Docker restarts
@@ -471,7 +472,7 @@ itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import`
 A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
 `.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, extra `.lodev/*.compose.yml`
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
-followed), the project's `environment:` (from `config.yaml` and its overrides, not `.lodev/.env`),
+followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides, not `.lodev/.env`),
 and your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
 `Run these commands? [y/N]` once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
