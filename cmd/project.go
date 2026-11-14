@@ -602,7 +602,7 @@ func projectVirtualServices(p *config.Project) ([]virtualService, []string, erro
 	}
 	var svcHosts []string
 	for _, v := range svcs {
-		// Checked before compose up: TraefikRoutes refuses such a router name only after the containers run.
+		// Policy: router names are kept to a-z 0-9 - (and the _ lodev puts after the project name).
 		if !routeNameRe.MatchString(v.Service) {
 			return nil, nil, fmt.Errorf("service %s: name must be a-z, 0-9, - to get a route", v.Service)
 		}

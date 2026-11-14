@@ -231,8 +231,10 @@ const servicesExample = `# Rename to <name>.compose.yml to merge it into the sha
 #     mem_limit: 3g
 #   adminer:
 #     image: adminer
-#     networks: [lodev]
-#     environment: {VIRTUAL_HOST: adminer.test, VIRTUAL_PORT: "8080"}
+#     networks: [lodev, default]
+#     environment:
+#       VIRTUAL_HOST: adminer.test   # your tld
+#       VIRTUAL_PORT: "8080"
 `
 
 // mergeServicesCompose merges ~/.lodev/services/*.compose.{yml,yaml} over the generated services.compose-base.yaml.

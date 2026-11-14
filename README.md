@@ -551,7 +551,7 @@ services:
 `lodev start` adds these hosts to the project's certificate, `/etc/hosts` and the web container's
 `extra_hosts`, and fails if another project or a shared service already uses one. It writes the
 project's routes to `~/.lodev/traefik/p-<project>.yaml`; `stop`, `remove` and `poweroff` delete
-it. `traefik.*` labels are ignored since this version (Traefik no longer reads the Docker socket):
+it. `traefik.*` labels are ignored (Traefik reads route files, not the Docker socket):
 use `VIRTUAL_HOST` / `VIRTUAL_PORT` instead.
 
 ## Customizing the shared services
