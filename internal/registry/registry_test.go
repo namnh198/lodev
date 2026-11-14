@@ -192,6 +192,14 @@ func TestPutKeepsTrustedOnSameName(t *testing.T) {
 	}
 }
 
+func TestPutOtherFolderSameNameDropsTrusted(t *testing.T) {
+	r := Registry{"shop": {Path: projectDir(t), Trusted: map[string]string{"k": "s"}}}
+	r.Put(project("shop", projectDir(t)))
+	if r["shop"].Trusted != nil {
+		t.Fatalf("%v", r)
+	}
+}
+
 func TestPutExtraHosts(t *testing.T) {
 	r := Registry{}
 	r.Put(project("shop", "/p", "shop.test", "en.test"), "adminer.test")
