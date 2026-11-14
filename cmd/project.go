@@ -510,21 +510,7 @@ func start(p *config.Project, rebuild startOpts) error {
 		if err := dockerRun("compose", "-p", "lodev-"+old, "down"); err != nil {
 			return err
 		}
-		if err := removeProjectImage(old); err != nil {
-			return err
-		}
-		if err := applyHosts(old, nil); err != nil {
-			return err
-		}
-		if err := certs.Remove(old); err != nil {
-			return err
-		}
-		if err := removeProjectRoutes(old); err != nil {
-			return err
-		}
-	}
-	if len(dropped) > 0 {
-		if err := certs.SyncTraefik(); err != nil {
+		if err := retire(old); err != nil {
 			return err
 		}
 	}
@@ -640,6 +626,24 @@ func announceStarted(p *config.Project) {
 	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
 }
 
+// retire removes what the host keeps for the project name: its image, hosts block, cert and route.
+// The containers, database and web mounts are the caller's.
+func retire(name string) error {
+	if err := removeProjectImage(name); err != nil {
+		return err
+	}
+	if err := applyHosts(name, nil); err != nil {
+		return err
+	}
+	if err := certs.Remove(name); err != nil {
+		return err
+	}
+	if err := removeProjectRoutes(name); err != nil {
+		return err
+	}
+	return certs.SyncTraefik()
+}
+
 func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 	reg, err := registry.Load()
 	if err != nil {
@@ -655,19 +659,7 @@ func deleteProject(p *config.Project, dropDB, dropVolumes, yes bool) error {
 			return err
 		}
 	}
-	if err := removeProjectRoutes(p.Name); err != nil {
-		return err
-	}
-	if err := removeProjectImage(p.Name); err != nil {
-		return err
-	}
-	if err := hosts.Apply(p.Name, nil); err != nil {
-		return err
-	}
-	if err := certs.Remove(p.Name); err != nil {
-		return err
-	}
-	if err := certs.SyncTraefik(); err != nil {
+	if err := retire(p.Name); err != nil {
 		return err
 	}
 	delete(reg, p.Name)
