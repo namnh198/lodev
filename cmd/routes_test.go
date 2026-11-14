@@ -195,7 +195,7 @@ func TestWriteProjectRoutesExposed(t *testing.T) {
 	}
 	got := readRoutes(t, "shop")
 	mustContain(t, got, "p-shop:", "Host(`shop.test`) || Host(`en.test`)", "http://lodev-shop-varnish:80",
-		"p-shop-vite:", "Host(`vite.shop.test`)", "http://lodev-shop-web:5173")
+		"p-shop_vite:", "Host(`vite.shop.test`)", "http://lodev-shop-web:5173")
 	if strings.Contains(got, "Host(`shop.test`) || Host(`en.test`) || Host(`vite.shop.test`)") {
 		t.Errorf("exposed host in the main rule:\n%s", got)
 	}
@@ -212,7 +212,7 @@ func TestWriteProjectRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustContain(t, readRoutes(t, "shop"), "p-shop:", "Host(`shop.test`) || Host(`en.test`)", "http://lodev-shop-web:80",
-		"p-shop-svc-adminer:", "Host(`adminer.test`)", "http://lodev-shop-adminer-1:8080")
+		"p-shop_svc_adminer:", "Host(`adminer.test`)", "http://lodev-shop-adminer-1:8080")
 
 	p.Varnish = true
 	if err := writeProjectRoutes(p, nil); err != nil {
@@ -229,7 +229,7 @@ func TestWriteProjectRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = readRoutes(t, "shop")
-	mustContain(t, got, "p-shop-svc-adminer:")
+	mustContain(t, got, "p-shop_svc_adminer:")
 	if strings.Contains(got, "p-shop:") {
 		t.Errorf("webserver none has a web route:\n%s", got)
 	}

@@ -912,7 +912,7 @@ func TestStartRoutesVirtualHosts(t *testing.T) {
 	if got := reg["shop"].Domains; !slices.Equal(got, []string{"shop.test", "adminer.test"}) {
 		t.Errorf("registry domains %v", got)
 	}
-	mustContain(t, readRoutes(t, "shop"), "http://lodev-shop-web:80", "p-shop-svc-adminer:", "http://lodev-shop-adminer-1:8080")
+	mustContain(t, readRoutes(t, "shop"), "http://lodev-shop-web:80", "p-shop_svc_adminer:", "http://lodev-shop-adminer-1:8080")
 	// The second render puts the new host into the web container's extra_hosts.
 	b, _ := os.ReadFile(composeBase(p))
 	mustContain(t, string(b), `"adminer.test:172.30.0.2"`, `"shop.test:172.30.0.2"`)

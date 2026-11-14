@@ -141,7 +141,7 @@ func TestTraefikDynamicGolden(t *testing.T) {
 func TestTraefikRoutes(t *testing.T) {
 	b, err := TraefikRoutes([]TraefikRoute{
 		{Name: "p-shop", Hosts: []string{"shop.test", "en.test"}, URL: "http://lodev-shop-web:80"},
-		{Name: "p-shop-svc-adminer", Hosts: []string{"adminer.test"}, URL: "http://lodev-shop-adminer-1:8080"},
+		{Name: "p-shop_svc_adminer", Hosts: []string{"adminer.test"}, URL: "http://lodev-shop-adminer-1:8080"},
 	})
 	golden(t, "traefik-routes", must(t)(b, err))
 	empty := string(must(t)(TraefikRoutes(nil)))

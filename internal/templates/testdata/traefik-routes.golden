@@ -6,17 +6,17 @@ http:
       entryPoints: [websecure]
       tls: {}
       service: p-shop
-    p-shop-svc-adminer:
+    p-shop_svc_adminer:
       rule: Host(`adminer.test`)
       entryPoints: [websecure]
       tls: {}
-      service: p-shop-svc-adminer
+      service: p-shop_svc_adminer
   services:
     p-shop:
       loadBalancer:
         servers:
           - url: "http://lodev-shop-web:80"
-    p-shop-svc-adminer:
+    p-shop_svc_adminer:
       loadBalancer:
         servers:
           - url: "http://lodev-shop-adminer-1:8080"

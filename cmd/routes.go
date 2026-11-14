@@ -36,11 +36,11 @@ func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
 		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name, Hosts: p.Domains, URL: "http://lodev-" + p.Name + "-" + backend + ":80"})
 		hosts := p.ExposedHosts()
 		for i, e := range p.WebExtraExposedPorts {
-			rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "-" + e.Name, Hosts: hosts[i : i+1], URL: fmt.Sprintf("http://lodev-%s-web:%d", p.Name, e.ContainerPort)})
+			rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "_" + e.Name, Hosts: hosts[i : i+1], URL: fmt.Sprintf("http://lodev-%s-web:%d", p.Name, e.ContainerPort)})
 		}
 	}
 	for _, v := range svcs {
-		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "-svc-" + v.Service, Hosts: v.Hosts, URL: fmt.Sprintf("http://%s:%d", v.Container, v.Port)})
+		rs = append(rs, templates.TraefikRoute{Name: "p-" + p.Name + "_svc_" + v.Service, Hosts: v.Hosts, URL: fmt.Sprintf("http://%s:%d", v.Container, v.Port)})
 	}
 	if len(rs) == 0 {
 		return removeProjectRoutes(p.Name)
