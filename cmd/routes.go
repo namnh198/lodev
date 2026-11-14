@@ -75,10 +75,12 @@ var syncProjectRoutes = func() error {
 			continue
 		}
 		keep[name] = true
-		if err := writeRoutesFromCompose(reg[name].Path); err != nil {
+		written, err := writeRoutesFromCompose(reg[name].Path)
+		if err != nil {
 			// One broken project must not stop the shared services; its last routes stay.
 			ui.Warn("%s: routes not updated: %v", name, err)
 		}
+		keep[written] = true // a renamed project not restarted yet writes under its new name
 	}
 	files, err := filepath.Glob(filepath.Join(config.TraefikDir(), "p-*.yaml"))
 	if err != nil {
@@ -94,20 +96,22 @@ var syncProjectRoutes = func() error {
 	return nil
 }
 
-func writeRoutesFromCompose(root string) error {
+// writeRoutesFromCompose writes the route file of the project at root and returns the name it is
+// under, the config's (empty when the config does not load).
+func writeRoutesFromCompose(root string) (string, error) {
 	p, err := config.LoadProject(root)
 	if err != nil {
-		return err
+		return "", err
 	}
 	full, err := os.ReadFile(composeFile(p))
 	if err != nil {
-		return err
+		return p.Name, err
 	}
 	svcs, err := virtualServices(full, composeProject(p), config.TLD(), []string{"web", "varnish"})
 	if err != nil {
-		return err
+		return p.Name, err
 	}
-	return writeProjectRoutes(p, svcs)
+	return p.Name, writeProjectRoutes(p, svcs)
 }
 
 func sharedVirtualServices() ([]virtualService, error) {

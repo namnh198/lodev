@@ -245,6 +245,23 @@ func TestWriteProjectRoutes(t *testing.T) {
 	}
 }
 
+func TestSyncProjectRoutesKeepsRenamedProjectFile(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	p, _ := newProjectConfig(t.TempDir(), "old", "php", "", "", "")
+	reg := registry.Registry{}
+	reg.Put(p) // registered as old, then renamed in the config without a restart
+	reg.Save()
+	p.Name = "new"
+	config.SaveProject(p)
+	writeFile(t, composeFull(p), "services:\n  web: {}\n")
+	defer func(o func(string) bool) { containerRunning = o }(containerRunning)
+	containerRunning = func(c string) bool { return c == "lodev-old-web" }
+	if err := syncProjectRoutes(); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readRoutes(t, "new"), "p-new:")
+}
+
 func TestSyncProjectRoutesPrunes(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir())
 	reg := registry.Registry{}
