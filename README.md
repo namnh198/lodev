@@ -301,8 +301,8 @@ packages: [ffmpeg]           # optional: extra apt packages
 user: kuroko                 # optional: shell user in the web container; default = your host username
 working_dir: /app            # optional: where the project is mounted in the web container (default /app)
 php_ide_config: myshop       # optional: PHP_IDE_CONFIG serverName for PhpStorm (default: name)
-enable_xdebug: true          # optional: Xdebug on at every start (default false); lodev xdebug on/off sets it
-opcache_validate_timestamps: false  # optional: false turns opcache.validate_timestamps off (benchmarking); put it in .lodev/config.local.yaml, and restart after code changes
+enable_xdebug: true          # optional: Xdebug on at every start (default false); a local key: lodev xdebug on/off keeps it in .lodev/config.local.yaml
+opcache_validate_timestamps: false  # optional: false turns opcache.validate_timestamps off (benchmarking); a local key (.lodev/config.local.yaml), and restart after code changes
 varnish: true                # optional: Varnish in front of the web server (default false)
 varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
 cron: true                   # optional: run cron jobs in the web container (default false)
@@ -331,7 +331,12 @@ These files are git-ignored (`.lodev/.gitignore`), so they hold per-machine sett
 
 `lodev config` shows the merged values and the override files in use, and checks your change
 against the merged result. It edits `config.yaml` only and warns when an override wins
-(`php is overridden by .lodev/config.local.yaml`). `lodev config-global --tld` also moves the
+(`php is overridden by .lodev/config.local.yaml`), except for the two local keys
+`enable_xdebug` and `opcache_validate_timestamps`: `lodev xdebug on|off|toggle` and
+`lodev config --enable-xdebug=true|false` / `--opcache-validate-timestamps=true|false` write them
+to `.lodev/config.local.yaml` only (turning one off removes it there, or sets it `false`/`true` there
+when `config.yaml` or another override still says otherwise), and `lodev start` warns when
+`config.yaml` itself holds one. lodev never edits `config.yaml` to move it. `lodev config-global --tld` also moves the
 `domains` in override files.
 
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`
@@ -700,7 +705,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
-| `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.yaml`, so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
+| `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL |
 | `lodev clean [--dry-run] [--yes] [--keep-cache]` | Remove lodev images no container uses (older versions, `lodev/php`, removed projects, and `ghcr.io/namnh198/lodev-webserver` images: older ones on a stable release, all of them on nightly, which builds its own) and Docker build cache older than 7 days; lists them and asks first; never touches volumes |

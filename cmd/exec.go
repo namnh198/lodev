@@ -241,7 +241,7 @@ func xdebugTarget(action string, p *config.Project) bool {
 }
 
 // setXdebug switches Xdebug in the running web container, then records it as enable_xdebug in
-// .lodev/config.yaml so the next start keeps it; a stopped project only gets the setting.
+// .lodev/config.local.yaml so the next start keeps it; a stopped project only gets the setting.
 func setXdebug(p *config.Project, on bool) error {
 	state := map[bool]string{true: "on", false: "off"}[on]
 	if containerRunning("lodev-" + p.Name + "-web") {
@@ -251,19 +251,7 @@ func setXdebug(p *config.Project, on bool) error {
 	} else {
 		ui.Info("xdebug %s: applies on the next lodev start", state)
 	}
-	d, err := config.OpenDoc(config.ProjectPath(p.Root))
-	if err != nil {
-		return err
-	}
-	if on {
-		d.Set([]string{"enable_xdebug"}, true)
-	} else {
-		d.Delete([]string{"enable_xdebug"})
-	}
-	data, err := d.Bytes()
-	if err == nil {
-		err = d.Write(data)
-	}
+	_, err := setLocal(p.Root, "enable_xdebug", on)
 	return err
 }
 

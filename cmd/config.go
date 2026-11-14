@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
 
 	"lodev/internal/config"
 	"lodev/internal/registry"
@@ -26,6 +27,84 @@ type change struct {
 	key   []string
 	value any
 	del   bool
+}
+
+// localKeys are kept in .lodev/config.local.yaml (git-ignored), never in the committed config.yaml.
+var localKeys = []string{"enable_xdebug", "opcache_validate_timestamps"}
+
+func localConfigPath(root string) string {
+	return filepath.Join(filepath.Dir(config.ProjectPath(root)), "config.local.yaml")
+}
+
+// localDefault is what a local key means when no file sets it.
+func localDefault(key string) bool { return key != "enable_xdebug" }
+
+func localValue(p *config.Project, key string) bool {
+	if key == "enable_xdebug" {
+		return p.EnableXdebug
+	}
+	return p.OpcacheValidateTimestamps == nil || *p.OpcacheValidateTimestamps
+}
+
+// setLocal makes the merged value of local key true or false by editing config.local.yaml only:
+// the key is removed when want is its default, and written explicitly when it is not or when
+// config.yaml or another override would still win. restore puts the file back as it was.
+func setLocal(root, key string, want bool) (restore func(), err error) {
+	path := localConfigPath(root)
+	prev, rerr := os.ReadFile(path)
+	restore = func() {
+		if rerr == nil {
+			config.WriteFileAtomic(path, prev, 0o644)
+		} else {
+			os.Remove(path)
+		}
+	}
+	d, err := config.OpenDoc(path)
+	if err != nil {
+		return restore, err
+	}
+	explicit := want != localDefault(key)
+	for {
+		if explicit {
+			d.Set([]string{key}, want)
+		} else {
+			d.Delete([]string{key})
+		}
+		if explicit || rerr == nil { // removing a key never creates the file
+			data, err := d.Bytes()
+			if err == nil {
+				err = d.Write(data)
+			}
+			if err != nil {
+				return restore, err
+			}
+		}
+		cur, err := loadProjectForEdit(root)
+		if err != nil {
+			return restore, err
+		}
+		if explicit || localValue(cur, key) == want {
+			return restore, nil
+		}
+		explicit = true
+	}
+}
+
+// warnCommittedLocalKeys warns about each local key that config.yaml itself holds.
+func warnCommittedLocalKeys(p *config.Project) {
+	data, err := os.ReadFile(config.ProjectPath(p.Root))
+	if err != nil {
+		return
+	}
+	var top map[string]any
+	if yaml.Unmarshal(data, &top) != nil {
+		return
+	}
+	for _, k := range localKeys {
+		if _, ok := top[k]; ok {
+			ui.Warn("%s in .lodev/config.yaml is committed with the project; move it to .lodev/config.local.yaml", k)
+		}
+	}
 }
 
 func applyChanges(d *config.Doc, changes []change) {
@@ -171,6 +250,22 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 			out = append(out, change{key: []string{k}, del: true})
 		}
 	}
+	for _, k := range localKeys {
+		flag := strings.ReplaceAll(k, "_", "-")
+		if !fl.Changed(flag) {
+			continue
+		}
+		v, _ := fl.GetString(flag)
+		want := localDefault(k)
+		if v != "" {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return nil, fmt.Errorf("--%s %q is not true or false", flag, v)
+			}
+			want = b
+		}
+		out = append(out, change{key: []string{k}, value: want})
+	}
 	for _, l := range []struct {
 		flag, key string
 		cur       []string
@@ -212,7 +307,28 @@ func loadProjectForEdit(root string) (*config.Project, error) {
 
 // applyProjectConfig writes changes to old's config.yaml when the result, overrides laid over it,
 // is valid and differs. A changed key that an override wins over is saved too, with a warning.
-func applyProjectConfig(old *config.Project, changes []change) (diff []string, p *config.Project, err error) {
+// Local keys go to config.local.yaml instead, and are put back if the result is not saved.
+func applyProjectConfig(old *config.Project, all []change) (diff []string, p *config.Project, err error) {
+	var changes []change
+	var restores []func()
+	defer func() {
+		if err != nil {
+			for _, r := range restores {
+				r()
+			}
+		}
+	}()
+	for _, c := range all {
+		if !slices.Contains(localKeys, c.key[0]) {
+			changes = append(changes, c)
+			continue
+		}
+		r, err := setLocal(old.Root, c.key[0], c.value.(bool))
+		restores = append(restores, r)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	d, err := config.OpenDoc(config.ProjectPath(old.Root))
 	if err != nil {
 		return nil, nil, err
@@ -254,8 +370,10 @@ func applyProjectConfig(old *config.Project, changes []change) (diff []string, p
 	if len(diff) == 0 && len(warns) == 0 {
 		return nil, p, nil
 	}
-	if err := d.Write(data); err != nil {
-		return nil, nil, err
+	if !bytes.Equal(before, data) {
+		if err := d.Write(data); err != nil {
+			return nil, nil, err
+		}
 	}
 	for _, w := range warns {
 		ui.Warn("%s", w)
@@ -347,6 +465,9 @@ func newConfigCmd() *cobra.Command {
 	f.String("cron", "", `run cron_jobs (or the type's default job) in the web container: true | false ("" = false)`)
 	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
 	f.String("performance-mode", "", `bind | none: keep var, generated, node_modules and volume-dirs in Docker volumes ("" = the global value)`)
+	for _, k := range localKeys {
+		f.String(strings.ReplaceAll(k, "_", "-"), "", "true | false, saved in .lodev/config.local.yaml, not config.yaml ("+k+`; "" = `+strconv.FormatBool(localDefault(k))+")")
+	}
 	for _, l := range []struct{ name, what string }{
 		{"domains", "domains (.<tld>)"}, {"services", "shared services"},
 		{"php-extensions", "PHP extensions"}, {"packages", "apt packages"},

@@ -54,23 +54,68 @@ func configText(t *testing.T, p *config.Project) string {
 	return string(b)
 }
 
+func localText(t *testing.T, p *config.Project) string {
+	t.Helper()
+	b, err := os.ReadFile(localConfigPath(p.Root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 func TestSetXdebugRunning(t *testing.T) {
 	p := xdebugProject(t, false)
 	scripts := stubXdebugExec(t, true, nil)
+	before := configText(t, p)
 	if err := setXdebug(p, true); err != nil {
 		t.Fatal(err)
 	}
 	if len(*scripts) != 1 || (*scripts)[0] != xdebugScript("on") {
 		t.Errorf("scripts %q", *scripts)
 	}
-	if got := configText(t, p); !strings.Contains(got, "# mine") || !strings.Contains(got, "enable_xdebug: true") {
-		t.Errorf("config %q", got)
+	if got := localText(t, p); !strings.Contains(got, "enable_xdebug: true") {
+		t.Errorf("local config %q", got)
 	}
 	if err := setXdebug(p, false); err != nil {
 		t.Fatal(err)
 	}
-	if got := configText(t, p); strings.Contains(got, "enable_xdebug") || !strings.Contains(got, "# mine") {
-		t.Errorf("config after off %q", got)
+	if got := localText(t, p); strings.Contains(got, "enable_xdebug") {
+		t.Errorf("local config after off %q", got)
+	}
+	if got := configText(t, p); got != before {
+		t.Errorf("config.yaml changed: %q", got)
+	}
+}
+
+// TestSetXdebugOffOverridesCommitted: config.yaml keeps enable_xdebug: true, so off must say false locally.
+func TestSetXdebugOffOverridesCommitted(t *testing.T) {
+	p := xdebugProject(t, true)
+	stubXdebugExec(t, false, nil)
+	_, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	before := configText(t, p)
+	if err := setXdebug(p, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := localText(t, p); !strings.Contains(got, "enable_xdebug: false") {
+		t.Errorf("local config %q", got)
+	}
+	if got := configText(t, p); got != before {
+		t.Errorf("config.yaml changed: %q", got)
+	}
+}
+
+// TestSetXdebugOffWithoutLocalFile: nothing to remove, nothing created.
+func TestSetXdebugOffWithoutLocalFile(t *testing.T) {
+	p := xdebugProject(t, false)
+	stubXdebugExec(t, false, nil)
+	_, _, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	if err := setXdebug(p, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(localConfigPath(p.Root)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("config.local.yaml created: %v", err)
 	}
 }
 
@@ -82,8 +127,8 @@ func TestSetXdebugStoppedOnlySaves(t *testing.T) {
 	if err := setXdebug(p, true); err != nil {
 		t.Fatal(err)
 	}
-	if len(*scripts) != 0 || !strings.Contains(configText(t, p), "enable_xdebug: true") {
-		t.Errorf("scripts %q, config %q", *scripts, configText(t, p))
+	if len(*scripts) != 0 || !strings.Contains(localText(t, p), "enable_xdebug: true") {
+		t.Errorf("scripts %q, local config %q", *scripts, localText(t, p))
 	}
 	if !strings.Contains(o.String(), "xdebug on: applies on the next lodev start") {
 		t.Errorf("output %q", o.String())
@@ -96,8 +141,8 @@ func TestSetXdebugFailureKeepsConfig(t *testing.T) {
 	if err := setXdebug(p, true); err == nil {
 		t.Fatal("no error")
 	}
-	if strings.Contains(configText(t, p), "enable_xdebug") {
-		t.Errorf("config changed: %q", configText(t, p))
+	if _, err := os.Stat(localConfigPath(p.Root)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("config.local.yaml written: %v", err)
 	}
 }
 

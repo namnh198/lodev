@@ -966,3 +966,16 @@ func TestStartWarnsOpcacheOff(t *testing.T) {
 	}
 	mustContain(t, stderr.String(), "opcache.validate_timestamps is off: code changes need lodev restart")
 }
+
+func TestStartWarnsCommittedLocalKeys(t *testing.T) {
+	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
+	writeShop(t, p.Root, "name: shop\ntype: php\nphp: \"8.3\"\nenable_xdebug: true\nopcache_validate_timestamps: false\n")
+	_, stderr, restore := ui.Capture(false)
+	defer restore()
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, stderr.String(),
+		"enable_xdebug in .lodev/config.yaml is committed with the project; move it to .lodev/config.local.yaml",
+		"opcache_validate_timestamps in .lodev/config.yaml is committed with the project; move it to .lodev/config.local.yaml")
+}

@@ -118,6 +118,36 @@ func TestConfigEditValidatesMerged(t *testing.T) {
 	}
 }
 
+func TestConfigLocalKeysStayLocal(t *testing.T) {
+	root := newShop(t)
+	out, _, err := runConfig(t, newConfigCmd, "--enable-xdebug=true", "--opcache-validate-timestamps=false", "--php-version=8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(root, ".lodev", "config.local.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, string(b), "enable_xdebug: true", "opcache_validate_timestamps: false")
+	got := readShop(t, root)
+	if strings.Contains(got, "enable_xdebug") || strings.Contains(got, "opcache") {
+		t.Errorf("local keys written to config.yaml:\n%s", got)
+	}
+	mustContain(t, got, `php: "8.4"`)
+	mustContain(t, out, "enable_xdebug: false → true", "opcache_validate_timestamps: true → false")
+	// a local key alone leaves config.yaml byte for byte
+	if _, _, err := runConfig(t, newConfigCmd, "--enable-xdebug=false"); err != nil {
+		t.Fatal(err)
+	}
+	if after := readShop(t, root); after != got {
+		t.Errorf("config.yaml changed:\n%s", after)
+	}
+	b, _ = os.ReadFile(filepath.Join(root, ".lodev", "config.local.yaml"))
+	if strings.Contains(string(b), "enable_xdebug") {
+		t.Errorf("enable_xdebug kept:\n%s", b)
+	}
+}
+
 func TestConfigRunningHint(t *testing.T) {
 	newShop(t)
 	stubDocker(t, "running")
