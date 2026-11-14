@@ -161,7 +161,7 @@ func servicesUp() error {
 		return err
 	}
 	up := append(append([]string{"up", "-d", "traefik"}, g.EnabledServices()...), custom...)
-	if err := servicesCompose(up...); err != nil {
+	if err := servicesComposeUp(up); err != nil {
 		return err
 	}
 	if err := waitServicesFn(append([]string{"traefik"}, g.EnabledServices()...), g.ContainerWait()); err != nil {
@@ -171,6 +171,14 @@ func servicesUp() error {
 		return err
 	}
 	return syncProjectRoutes()
+}
+
+// servicesComposeUp runs compose up, then drops the old Traefik's certs file: kept until up succeeds.
+func servicesComposeUp(up []string) error {
+	if err := servicesCompose(up...); err != nil {
+		return err
+	}
+	return certs.RemoveLegacy()
 }
 
 // printServiceURLs lists the shared services' URLs; printed once, not per project start.

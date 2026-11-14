@@ -26,8 +26,14 @@ func TestSyncTraefikWritesCertsYAML(t *testing.T) {
 	if err := SyncTraefik(); err != nil {
 		t.Fatal(err)
 	}
-	if exists(filepath.Join(dir, "dynamic.yaml")) {
-		t.Error("old certs/dynamic.yaml is still there")
+	if !exists(filepath.Join(dir, "dynamic.yaml")) {
+		t.Error("certs/dynamic.yaml removed before the new traefik runs")
+	}
+	if err := RemoveLegacy(); err != nil || exists(filepath.Join(dir, "dynamic.yaml")) {
+		t.Errorf("RemoveLegacy: %v, file still there: %v", err, exists(filepath.Join(dir, "dynamic.yaml")))
+	}
+	if err := RemoveLegacy(); err != nil {
+		t.Errorf("RemoveLegacy without the file: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(home, "traefik", "certs.yaml"))
 	s := string(data)

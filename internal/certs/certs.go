@@ -199,10 +199,12 @@ func SyncTraefik() error {
 	if err != nil {
 		return err
 	}
-	if err := config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "certs.yaml"), data, 0o644); err != nil {
-		return err
-	}
-	// Older lodev kept the certs file here.
+	return config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "certs.yaml"), data, 0o644)
+}
+
+// RemoveLegacy deletes certs/dynamic.yaml, where older lodev kept the certs file: call it only once
+// the new Traefik runs, since the old one reads its certs there.
+func RemoveLegacy() error {
 	if err := os.Remove(filepath.Join(dir(), "dynamic.yaml")); err != nil && !os.IsNotExist(err) {
 		return err
 	}

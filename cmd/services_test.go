@@ -616,3 +616,24 @@ func TestCustomServices(t *testing.T) {
 		t.Error("missing file must fail")
 	}
 }
+
+func TestServicesComposeUpKeepsOldCertsUntilUp(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	old := filepath.Join(config.Home(), "certs", "dynamic.yaml")
+	writeFile(t, old, "old")
+	defer func(o func(...string) error) { dockerRun = o }(dockerRun)
+	dockerRun = func(...string) error { return errors.New("up failed") }
+	if err := servicesComposeUp([]string{"up", "-d", "traefik"}); err == nil {
+		t.Fatal("want the up error")
+	}
+	if _, err := os.Stat(old); err != nil {
+		t.Fatalf("dynamic.yaml removed although up failed: %v", err)
+	}
+	dockerRun = func(...string) error { return nil }
+	if err := servicesComposeUp([]string{"up", "-d", "traefik"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dynamic.yaml kept after up: %v", err)
+	}
+}
