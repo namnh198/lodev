@@ -674,13 +674,16 @@ func TestDeleteKeepsHome(t *testing.T) {
 
 func TestHomeMigrationWarnsOnce(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home-shop")
-	for _, f := range []string{".bash_history", ".npm/_cacache/x", ".gitconfig", ".ssh/id_rsa", ".cache/composer/y"} {
+	for _, f := range []string{".bash_history", ".npm/_cacache/x", ".gitconfig", ".ssh/id_rsa", ".cache/composer/y", ".config/composer/auth.json", ".config/psysh/x"} {
 		writeFile(t, filepath.Join(home, f), "x")
 	}
 	_, e, restore := ui.Capture(false)
 	defer restore()
 	warnHomeMigration(home)
-	mustContain(t, e.String(), "these files in "+home+" are no longer in the container's home: .gitconfig, .ssh; move the ones you need to ~/.lodev/homeadditional")
+	mustContain(t, e.String(), "these files in "+home+" are no longer in the container's home: .config/composer, .gitconfig, .ssh; move the ones you need to ~/.lodev/homeadditional")
+	if strings.Contains(e.String(), "psysh") {
+		t.Errorf("psysh is a cache path, yet: %s", e)
+	}
 	if _, err := os.Stat(filepath.Join(home, ".lodev-home-v2")); err != nil {
 		t.Errorf("no marker: %v", err)
 	}

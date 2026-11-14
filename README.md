@@ -261,9 +261,9 @@ Only caches and histories outlive the container: `<data_dir>/home-<name>` is mou
 psysh's history are kept there (through `HISTFILE`, `MYSQL_HISTFILE`, `COMPOSER_CACHE_DIR`,
 `npm_config_cache`, `YARN_CACHE_FOLDER` and `pnpm_config_store_dir`, which `lodev ssh` and
 `lodev exec` also get). lodev creates the folder on `lodev start`; `lodev remove` keeps it (and
-says where). Other files an older lodev left in that folder (`.gitconfig`, `.ssh`,
-`.config/composer/auth.json`...) are no longer in the container's home: the first `lodev start`
-lists them in a warning, once, and moves nothing; copy the ones you need to
+says where). Other entries an older lodev left in that folder (`.gitconfig`, `.ssh`, `.config/composer`
+for composer's `auth.json`...; everything except the cache paths above and `.config/psysh`) are no
+longer in the container's home: the first `lodev start` lists them in a warning, once, and moves nothing; copy the ones you need to
 `~/.lodev/homeadditional`. Paths are absolute or start with `~/`; changing `data_dir`
 (`lodev config-global --data-dir=<path>`) moves nothing.
 

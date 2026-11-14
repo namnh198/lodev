@@ -1076,13 +1076,27 @@ func warnHomeMigration(home string) {
 	if _, err := os.Stat(marker); err == nil {
 		return
 	}
-	entries, _ := os.ReadDir(home) // sorted by name
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		ui.Warn("%v", err)
+		return // no marker: the warning is not lost
+	}
 	var left []string
 	for _, e := range entries {
-		if !slices.Contains([]string{".bash_history", ".mysql_history", ".npm", ".cache", ".local", ".config"}, e.Name()) {
+		switch e.Name() {
+		case ".bash_history", ".mysql_history", ".npm", ".cache", ".local":
+		case ".config": // psysh's history lives here; the rest (composer auth...) is not kept
+			subs, _ := os.ReadDir(filepath.Join(home, ".config"))
+			for _, c := range subs {
+				if c.Name() != "psysh" {
+					left = append(left, ".config/"+c.Name())
+				}
+			}
+		default:
 			left = append(left, e.Name())
 		}
 	}
+	slices.Sort(left)
 	if len(left) > 0 {
 		ui.Warn("these files in %s are no longer in the container's home: %s; move the ones you need to ~/.lodev/homeadditional", home, strings.Join(left, ", "))
 	}
