@@ -68,9 +68,14 @@ func TestWriteDaemons(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, "daemons.conf")); !strings.Contains(string(b), "[program:daemon-vite]") {
 		t.Fatalf("daemons.conf: %q", b)
 	}
+	before, _ := os.Stat(dir)
 	p.WebExtraDaemons = []config.Daemon{{Name: "queue", Command: "php artisan queue:work"}}
 	if err := writeDaemons(p); err != nil {
 		t.Fatal(err)
+	}
+	// A running container bind-mounts the folder: it must stay the same one.
+	if after, _ := os.Stat(dir); !os.SameFile(before, after) {
+		t.Fatal("daemons folder was replaced, not rewritten")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "vite.sh")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("stale vite.sh kept: %v", err)

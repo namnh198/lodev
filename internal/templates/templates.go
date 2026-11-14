@@ -137,7 +137,7 @@ func DaemonScript(p *config.Project, d config.Daemon) []byte {
 	if dir == "" {
 		dir = p.WorkDir()
 	}
-	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(dir, "'", `'\''`) + "'\nexec " + d.Command + "\n")
+	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(dir, "'", `'\''`) + "' || exit 1\nexec " + d.Command + "\n")
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

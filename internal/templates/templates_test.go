@@ -646,11 +646,11 @@ func TestDaemonsConfGolden(t *testing.T) {
 func TestDaemonScript(t *testing.T) {
 	p := daemonsProject()
 	got := string(DaemonScript(p, p.WebExtraDaemons[0]))
-	if want := "#!/bin/bash\ncd '/app'\nexec npm run dev -- --host 0.0.0.0\n"; got != want {
+	if want := "#!/bin/bash\ncd '/app' || exit 1\nexec npm run dev -- --host 0.0.0.0\n"; got != want {
 		t.Errorf("default dir: %q", got)
 	}
 	got = string(DaemonScript(p, config.Daemon{Name: "x", Command: `node -e "console.log('50%')"`, Directory: "/it's/here"}))
-	if want := "#!/bin/bash\ncd '/it'\\''s/here'\nexec node -e \"console.log('50%')\"\n"; got != want {
+	if want := "#!/bin/bash\ncd '/it'\\''s/here' || exit 1\nexec node -e \"console.log('50%')\"\n"; got != want {
 		t.Errorf("quoting: %q", got)
 	}
 }
