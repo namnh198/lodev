@@ -239,9 +239,8 @@ use_docker_compose_system: false  # true = the system `docker compose` instead o
 use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
 performance_mode: ""              # bind | none; "" = bind on macOS, none elsewhere (see Performance mode)
 data_dir: ~/.lodev/data           # project homes and mounted service data ("" = ~/.lodev/data)
-mount_volume: false               # true = shared service data in <data_dir>/<service>, not Docker volumes
 mount_paths:                      # optional, per service: mysql mariadb redis opensearch rabbitmq mongodb
-  mysql: /Volumes/SSD/mysql
+  mysql: /Volumes/SSD/mysql       # absolute, ~/..., or relative to data_dir (redis: redis = <data_dir>/redis)
 ```
 
 ### Project homes and data folders
@@ -275,13 +274,19 @@ longer in the container's home: the first `lodev start` lists them in a warning,
 `~/.lodev/homeadditional`. Paths are absolute or start with `~/`; changing `data_dir`
 (`lodev config-global --data-dir=<path>`) moves nothing.
 
-`lodev config-global --mount-volume=true` (and optionally `--mysql-mount-path=<path>`, likewise
-for the other data services) then `lodev service start` keeps the shared services' data in folders.
-On that first `service start`, a service whose folder is empty gets its old `lodev-<service>` volume
-copied in once (the service is stopped first; the volume is kept as a backup). If a copy fails,
-empty the folder before retrying. Turning `mount_volume` off goes back to the volumes; data
-written to the folders meanwhile is not copied back. OpenSearch's folder is made world-writable
-(it runs as UID 1000 and does not take ownership of its data folder).
+A shared service keeps its data in its `lodev-<service>` volume unless `mount_paths` gives it a
+folder: `lodev config-global --mysql-mount-path=<path>` (likewise `--redis-mount-path`, ...) then
+`lodev service start`. The path is absolute, starts with `~` (your home), or is relative to
+`data_dir`; it cannot be inside `<data_dir>/web` or overlap another service's folder. On that
+`service start`, an empty folder gets the old volume copied in once (the service is stopped first;
+the volume is kept as a backup). If a copy fails, empty the folder before retrying. Removing the
+path (`--mysql-mount-path=`) goes back to the volume: the next `service start` stops the service,
+replaces its volume with the folder it was running on, and renames that folder to
+`<folder>.copied-<date>` (delete it once you have checked the data). Copy back needs the service's
+container: after `services down`, move the data yourself. Changing a path to another folder moves
+nothing (lodev warns). OpenSearch's folder is made world-writable (it runs as UID 1000 and does
+not take ownership of its data folder). An older config's `mount_volume: true` means every data
+service at `<data_dir>/<service>`; the next `lodev config-global` writes it out as `mount_paths`.
 
 ### Docker Compose and Buildx
 
@@ -298,8 +303,10 @@ Changing a MySQL/MariaDB version recreates its container on the existing data vo
 downgrade (or skipping majors) may not read the old data.
 
 Data lives in named volumes (`lodev-mysql`, `lodev-redis`, `lodev-opensearch`, …; folders with
-`mount_volume`), kept across
-`poweroff` and `services down`. Older lodev versions left an anonymous volume behind each time
+`mount_paths`), kept across
+`poweroff` and `services down`. MongoDB uses one volume, `lodev-mongodb`; the `lodev-mongodb-config`
+volume an older lodev made is no longer used (a standalone mongod keeps nothing in it): remove it with
+`docker volume rm lodev-mongodb-config`. Older lodev versions left an anonymous volume behind each time
 Redis was recreated; list them with `docker volume ls -f dangling=true` and, once you have
 checked that nothing else needs them, remove them with `docker volume prune` (it removes every
 unused anonymous volume, not only lodev's).

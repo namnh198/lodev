@@ -552,20 +552,20 @@ func TestConfigVarnish(t *testing.T) {
 
 func TestConfigGlobalDataDir(t *testing.T) {
 	newGlobalHome(t, "")
-	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--data-dir=/srv/d", "--mount-volume=true", "--mysql-mount-path=/srv/m")
+	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--data-dir=/srv/d", "--mysql-mount-path=/srv/m", "--redis-mount-path=redis")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, readGlobal(t), "data_dir: /srv/d", "mount_volume: true", "mount_paths:", "mysql: /srv/m")
+	mustContain(t, readGlobal(t), "data_dir: /srv/d", "mount_paths:", "mysql: /srv/m", "redis: redis")
 	mustContain(t, errOut, "data_dir changed: existing data stays in "+filepath.Join(config.Home(), "data"))
-	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mount-volume=nah"); err == nil || err.Error() != `--mount-volume "nah" is not true or false` {
-		t.Errorf("err = %v", err)
-	}
 	out, _, err := runConfig(t, newConfigGlobalCmd)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out, "data_dir", "/srv/d", "mount_volume", "mount_paths.mysql")
+	mustContain(t, out, "data_dir", "/srv/d", "mount_paths.mysql", "mount_paths.redis")
+	if strings.Contains(out, "mount_volume") {
+		t.Errorf("mount_volume still listed:\n%s", out)
+	}
 	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-mount-path="); err != nil {
 		t.Fatal(err)
 	}
@@ -574,18 +574,31 @@ func TestConfigGlobalDataDir(t *testing.T) {
 	}
 }
 
+// Any config-global write turns an older lodev's mount_volume: true into the mount_paths it meant.
+func TestConfigGlobalMigratesMountVolume(t *testing.T) {
+	newGlobalHome(t, "mount_volume: true\nmount_paths:\n  redis: /r\n")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--mysql-mount-path="); err != nil {
+		t.Fatal(err)
+	}
+	got := readGlobal(t)
+	mustContain(t, got, "redis: /r", "mariadb: mariadb", "mongodb: mongodb")
+	if strings.Contains(got, "mount_volume") || strings.Contains(got, "mysql:") {
+		t.Errorf("file:\n%s", got)
+	}
+}
+
 func TestConfigGlobalMountPathMoveWarns(t *testing.T) {
-	newGlobalHome(t, "mount_volume: true\n")
-	old := filepath.Join(config.Home(), "data", "mysql")
+	newGlobalHome(t, "mount_paths:\n  mysql: db\n")
+	old := filepath.Join(config.Home(), "data", "db")
 	_, errOut, err := runConfig(t, newConfigGlobalCmd, "--mysql-mount-path=/srv/m")
 	if err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, errOut, "mysql data folder changed: move "+old+" to /srv/m before `lodev service start`, or mysql starts from its old Docker volume")
-	// Turning mount_volume on for the first time is the wanted copy, not a move.
+	// Setting a mount path for the first time is the wanted copy, not a move.
 	newGlobalHome(t, "")
-	if _, errOut, _ = runConfig(t, newConfigGlobalCmd, "--mount-volume=true"); strings.Contains(errOut, "data folder changed") {
-		t.Errorf("warned on first enable: %s", errOut)
+	if _, errOut, _ = runConfig(t, newConfigGlobalCmd, "--mysql-mount-path=db"); strings.Contains(errOut, "data folder changed") {
+		t.Errorf("warned on first mount: %s", errOut)
 	}
 }
 

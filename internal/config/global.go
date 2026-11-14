@@ -43,16 +43,19 @@ type Global struct {
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
 	// PerformanceMode is bind or none; empty = bind on macOS, none elsewhere. A project's value wins.
 	PerformanceMode string `yaml:"performance_mode"`
-	// DataDir holds each project's home and, with MountVolume, the shared services' data.
-	DataDir     string            `yaml:"data_dir,omitempty"`
-	MountVolume bool              `yaml:"mount_volume"`
-	MountPaths  map[string]string `yaml:"mount_paths,omitempty"`
+	// DataDir holds each project's home and the relative mount_paths.
+	DataDir string `yaml:"data_dir,omitempty"`
+	// MountPaths keeps a data service's data in a folder instead of its named volume.
+	MountPaths map[string]string `yaml:"mount_paths,omitempty"`
+	// MountVolume is an older lodev's switch for every data service at <data_dir>/<service>;
+	// ParseGlobal turns it into MountPaths.
+	MountVolume bool `yaml:"mount_volume,omitempty"`
 }
 
 var (
 	VersionedServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
 	DefaultVersions   = map[string]string{"mysql": "8.0", "mariadb": "11.4", "redis": "7", "opensearch": "2", "rabbitmq": "4", "mongodb": "8"}
-	// DataServices keep data in a volume (or, with mount_volume, a folder).
+	// DataServices keep data in a volume (or, with mount_paths, a folder).
 	DataServices = []string{"mysql", "mariadb", "redis", "opensearch", "rabbitmq", "mongodb"}
 	versionRe    = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 )
@@ -73,9 +76,9 @@ func (g *Global) Image(svc string) string {
 	return svc + ":" + v
 }
 
-// expandPath resolves a leading ~/ to the user's home.
+// expandPath resolves ~ and a leading ~/ to the user's home.
 func expandPath(p string) string {
-	if rest, ok := strings.CutPrefix(p, "~/"); ok {
+	if rest, ok := strings.CutPrefix(p+"/", "~/"); ok {
 		h, _ := os.UserHomeDir()
 		return filepath.Join(h, rest)
 	}
@@ -97,15 +100,17 @@ func (g *Global) DataPath() string {
 	return expandPath(g.DataDir)
 }
 
-// MountPath is the folder svc keeps its data in, or "" for its named volume.
+// MountPath is the folder svc keeps its data in (mount_paths: absolute, ~/..., or under data_dir),
+// or "" for its named volume.
 func (g *Global) MountPath(svc string) string {
-	if !g.MountVolume || !slices.Contains(DataServices, svc) {
+	p := g.MountPaths[svc]
+	if p == "" || !slices.Contains(DataServices, svc) {
 		return ""
 	}
-	if p := g.MountPaths[svc]; p != "" {
-		return expandPath(p)
+	if p = expandPath(p); filepath.IsAbs(p) {
+		return filepath.Clean(p)
 	}
-	return filepath.Join(g.DataPath(), svc)
+	return filepath.Join(g.DataPath(), p)
 }
 
 // GlobalPath is the global config file.
@@ -154,6 +159,16 @@ func ParseGlobal(data []byte) (*Global, error) {
 	}
 	if g.Services == nil {
 		g.Services = d.Services
+	}
+	if g.MountVolume {
+		for _, s := range DataServices {
+			if g.MountPaths[s] == "" {
+				if g.MountPaths == nil {
+					g.MountPaths = map[string]string{}
+				}
+				g.MountPaths[s] = s
+			}
+		}
 	}
 	if err := g.Validate(); err != nil {
 		return g, &ValidationError{err}
@@ -231,16 +246,19 @@ func (g *Global) Validate() error {
 		if !slices.Contains(DataServices, s) {
 			return fmt.Errorf("mount_paths: unknown service %q (allowed: %s)", s, strings.Join(DataServices, ", "))
 		}
-		if err := checkPath("mount_paths."+s, g.MountPaths[s]); err != nil {
-			return err
-		}
 	}
 	// Two servers on one data folder corrupt it (e.g. mysql and mariadb on one InnoDB datadir).
-	on := *g
-	on.MountVolume = true
+	homes := filepath.Join(g.DataPath(), "web")
 	for i, a := range DataServices {
+		pa := g.MountPath(a)
+		if pa == "" {
+			continue
+		}
+		if within(pa, homes) || within(homes, pa) {
+			return fmt.Errorf("mount_paths: %s would share data with the project homes (%s, %s)", a, pa, homes)
+		}
 		for _, b := range DataServices[i+1:] {
-			if pa, pb := on.MountPath(a), on.MountPath(b); within(pa, pb) || within(pb, pa) {
+			if pb := g.MountPath(b); pb != "" && (within(pa, pb) || within(pb, pa)) {
 				return fmt.Errorf("mount_paths: %s and %s would share data (%s, %s)", a, b, pa, pb)
 			}
 		}

@@ -301,26 +301,41 @@ func TestMountPath(t *testing.T) {
 	writeGlobal(t, "")
 	home, _ := os.UserHomeDir()
 	g := &Global{}
-	if got := g.MountPath("mysql"); got != "" {
-		t.Errorf("off: %q", got)
-	}
-	g.MountVolume = true
-	if got := g.MountPath("mysql"); got != filepath.Join(Home(), "data", "mysql") {
-		t.Errorf("default: %q", got)
-	}
-	g.MountPaths = map[string]string{"mysql": "~/db"}
-	if got := g.MountPath("mysql"); got != filepath.Join(home, "db") {
-		t.Errorf("override: %q", got)
+	for in, want := range map[string]string{
+		"":           "",
+		"/ssd/mysql": "/ssd/mysql",
+		"~/db":       filepath.Join(home, "db"),
+		"~":          home,
+		"db/mysql":   filepath.Join(Home(), "data", "db", "mysql"),
+	} {
+		g.MountPaths = map[string]string{"mysql": in, "mailpit": "/x"}
+		if got := g.MountPath("mysql"); got != want {
+			t.Errorf("MountPath(%q) = %q, want %q", in, got, want)
+		}
 	}
 	if got := g.MountPath("mailpit"); got != "" {
 		t.Errorf("mailpit: %q", got)
 	}
 }
 
+// An older config's mount_volume: true mounts every data service at <data_dir>/<service>, as before.
+func TestParseGlobalLegacyMountVolume(t *testing.T) {
+	writeGlobal(t, "")
+	g, err := ParseGlobal([]byte("mount_volume: true\nmount_paths:\n  redis: /r\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := g.MountPath("mysql"); got != filepath.Join(Home(), "data", "mysql") {
+		t.Errorf("mysql: %q", got)
+	}
+	if got := g.MountPath("redis"); got != "/r" {
+		t.Errorf("redis: %q", got)
+	}
+}
+
 func TestValidateDataPaths(t *testing.T) {
 	for want, mutate := range map[string]func(g *Global){
 		`data_dir "data" must be an absolute path or start with ~/`:                                              func(g *Global) { g.DataDir = "data" },
-		`mount_paths.mysql "rel" must be an absolute path or start with ~/`:                                      func(g *Global) { g.MountPaths = map[string]string{"mysql": "rel"} },
 		`mount_paths: unknown service "mailpit" (allowed: mysql, mariadb, redis, opensearch, rabbitmq, mongodb)`: func(g *Global) { g.MountPaths = map[string]string{"mailpit": "/x"} },
 	} {
 		g := defaultGlobal()
@@ -333,9 +348,11 @@ func TestValidateDataPaths(t *testing.T) {
 
 func TestValidateSharedMountPaths(t *testing.T) {
 	for name, paths := range map[string]map[string]string{
-		"same":                   {"mysql": "/d/db", "mariadb": "/d/db"},
-		"nested":                 {"mysql": "/d/db", "mariadb": "/d/db/maria"},
-		"under data_dir default": {"mysql": "/srv/data/redis"},
+		"same":                 {"mysql": "/d/db", "mariadb": "/d/db"},
+		"nested":               {"mysql": "/d/db", "mariadb": "/d/db/maria"},
+		"relative nested":      {"mysql": "db", "mariadb": "/srv/data/db/maria"},
+		"project homes":        {"mysql": "web"},
+		"inside project homes": {"mysql": "web/mysql"},
 	} {
 		g := defaultGlobal()
 		g.DataDir, g.MountPaths = "/srv/data", paths

@@ -39,6 +39,5 @@ use_docker_buildx_system: false   # true = the system `docker build` (buildx) in
 performance_mode: ""              # bind | none: var, generated, node_modules (and a project's volume_dirs) in Docker volumes;
                                   # "" = bind on macOS, none elsewhere; a project's performance_mode wins
 # data_dir: ~/.lodev/data         # project homes and mounted service data (unset = <lodev home>/data)
-mount_volume: false               # true = shared service data in <data_dir>/<service>, not Docker volumes
-mount_paths:                      # optional, per service: mysql mariadb redis opensearch rabbitmq mongodb
-  # mysql: /Volumes/SSD/mysql
+mount_paths:                      # optional: keep a service's data in a folder, not its Docker volume
+  # mysql: /Volumes/SSD/mysql     # absolute, ~/..., or relative to data_dir (redis: redis = <data_dir>/redis)

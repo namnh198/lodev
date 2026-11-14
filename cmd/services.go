@@ -289,12 +289,16 @@ func warnImageChange(g *config.Global) {
 	}
 }
 
-// prepareServiceData creates the data folders of svcs (with mount_volume) and, into an empty folder,
-// copies the service's old named volume once; the volume is kept.
+// prepareServiceData creates the data folders of svcs with a mount path and, into an empty folder,
+// copies the service's old named volume once; the volume is kept. A service whose mount path was
+// removed gets its folder copied back into the volume.
 func prepareServiceData(g *config.Global, svcs []string) error {
 	for _, svc := range svcs {
 		path := g.MountPath(svc)
 		if path == "" {
+			if err := copyBackServiceData(g, svc); err != nil {
+				return err
+			}
 			continue
 		}
 		_, statErr := os.Stat(path)
@@ -335,6 +339,41 @@ func prepareServiceData(g *config.Global, svcs []string) error {
 		}
 		ui.Info("Copied volume %s to %s (the volume is kept)", vol, path)
 	}
+	return nil
+}
+
+// dataTargets is where each data service keeps its data in its container.
+var dataTargets = map[string]string{"mysql": "/var/lib/mysql", "mariadb": "/var/lib/mysql", "redis": "/data",
+	"opensearch": "/usr/share/opensearch/data", "rabbitmq": "/var/lib/rabbitmq", "mongodb": "/data/db"}
+
+// copyBackServiceData replaces svc's volume with the folder its container still mounts (once: the
+// folder is renamed after), so removing a mount path keeps the data written to the folder.
+func copyBackServiceData(g *config.Global, svc string) error {
+	vol := "lodev-" + svc
+	mount, err := dockerOutput("inspect", "-f", `{{range .Mounts}}{{if eq .Destination "`+dataTargets[svc]+`"}}{{.Type}} {{.Source}}{{end}}{{end}}`, vol)
+	path, bind := strings.CutPrefix(strings.TrimSpace(mount), "bind ")
+	if err != nil || !bind {
+		return nil
+	}
+	entries, err := os.ReadDir(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist), err == nil && len(entries) == 0:
+		return nil
+	case err != nil && !errors.Is(err, fs.ErrPermission): // unreadable = owned by the service: it has data
+		return err
+	}
+	if _, err := dockerOutput("stop", vol); err != nil {
+		return err
+	}
+	if err := dockerRun("run", "--rm", "--user", "0", "--entrypoint", "sh", "-v", path+":/from", "-v", vol+":/to",
+		g.Image(svc), "-c", "find /to -mindepth 1 -delete && cp -a /from/. /to/"); err != nil {
+		return fmt.Errorf("copy %s back to volume %s: %w (lodev service start retries)", path, vol, err)
+	}
+	kept := path + ".copied-" + time.Now().Format("20060102-150405")
+	if err := os.Rename(path, kept); err != nil {
+		return err
+	}
+	ui.Info("Copied %s back to volume %s (the folder is kept as %s)", path, vol, kept)
 	return nil
 }
 

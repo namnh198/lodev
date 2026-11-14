@@ -334,7 +334,8 @@ type dataFix struct {
 	calls     []string
 	volumes   map[string]bool // named volumes that exist
 	runErr    error
-	container bool // lodev-<svc> containers exist
+	container bool   // lodev-<svc> containers exist
+	mounts    string // what `docker inspect` says is on the container's data folder: "<type> <source>"
 }
 
 // stubServiceData swaps the docker seams prepareServiceData uses.
@@ -353,6 +354,11 @@ func stubServiceData(t *testing.T) *dataFix {
 			}
 		case a[0] == "ps" && f.container:
 			return "abc123", nil
+		case a[0] == "inspect":
+			if !f.container {
+				return "", errors.New("no such object")
+			}
+			return f.mounts, nil
 		}
 		return "", nil
 	}
@@ -366,7 +372,10 @@ func mountGlobal(t *testing.T) *config.Global {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.MountVolume = true
+	g.MountPaths = map[string]string{}
+	for _, s := range config.DataServices {
+		g.MountPaths[s] = s
+	}
 	return g
 }
 
@@ -449,16 +458,17 @@ func TestPrepareServiceDataOpenSearchMode(t *testing.T) {
 
 func TestPrepareServiceDataOff(t *testing.T) {
 	f := stubServiceData(t)
+	f.mounts = "volume /var/lib/docker/volumes/lodev-mysql/_data"
 	g := mountGlobal(t)
-	g.MountVolume = false
+	g.MountPaths = nil
 	if err := prepareServiceData(g, []string{"mysql"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.calls) > 0 {
-		t.Errorf("docker calls with mount_volume off: %v", f.calls)
+	if got := runs(f.calls); len(got) > 0 {
+		t.Errorf("docker runs without a mount path: %v", got)
 	}
 	if _, err := os.Stat(filepath.Join(g.DataPath(), "mysql")); err == nil {
-		t.Error("folder created with mount_volume off")
+		t.Error("folder created without a mount path")
 	}
 }
 
@@ -469,6 +479,83 @@ func TestPrepareServiceDataCopyFails(t *testing.T) {
 	err := prepareServiceData(g, []string{"mysql"})
 	if err == nil || !strings.Contains(err.Error(), g.MountPath("mysql")) || !strings.Contains(err.Error(), "empty") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// offGlobal is mountGlobal after mysql's mount path was removed, its container still on the folder.
+func offGlobal(t *testing.T, f *dataFix) (*config.Global, string) {
+	t.Helper()
+	g := mountGlobal(t)
+	path := filepath.Join(t.TempDir(), "my data")
+	writeFile(t, filepath.Join(path, "ibdata1"), "x")
+	delete(g.MountPaths, "mysql")
+	f.mounts = "bind " + path
+	return g, path
+}
+
+func TestPrepareServiceDataCopiesBack(t *testing.T) {
+	f := stubServiceData(t)
+	g, path := offGlobal(t, f)
+	out, _, restore := ui.Capture(false)
+	defer restore()
+	if err := prepareServiceData(g, []string{"mysql"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"stop lodev-mysql", "run --rm --user 0 --entrypoint sh -v " + path + ":/from -v lodev-mysql:/to mysql:8.0 -c find /to -mindepth 1 -delete && cp -a /from/. /to/"}
+	if got := runs(f.calls); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("calls:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if !slices.Contains(f.calls, `inspect -f {{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Type}} {{.Source}}{{end}}{{end}} lodev-mysql`) {
+		t.Errorf("data folder not inspected: %v", f.calls)
+	}
+	kept, _ := filepath.Glob(path + ".copied-*")
+	if _, err := os.Stat(path); err == nil || len(kept) != 1 {
+		t.Fatalf("folder not renamed: %v", kept)
+	}
+	if _, err := os.Stat(filepath.Join(kept[0], "ibdata1")); err != nil {
+		t.Errorf("data not kept: %v", err)
+	}
+	mustContain(t, out.String(), "Copied "+path+" back to volume lodev-mysql (the folder is kept as "+kept[0]+")")
+}
+
+// Without its container lodev cannot tell which folder the data was in: nothing to copy.
+func TestPrepareServiceDataCopyBackNoContainer(t *testing.T) {
+	f := stubServiceData(t)
+	g, path := offGlobal(t, f)
+	f.container = false
+	if err := prepareServiceData(g, []string{"mysql"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := runs(f.calls); len(got) > 0 {
+		t.Errorf("calls %v", got)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("folder moved: %v", err)
+	}
+}
+
+func TestPrepareServiceDataCopyBackEmptyFolder(t *testing.T) {
+	f := stubServiceData(t)
+	g, path := offGlobal(t, f)
+	os.Remove(filepath.Join(path, "ibdata1"))
+	if err := prepareServiceData(g, []string{"mysql"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := runs(f.calls); len(got) > 0 {
+		t.Errorf("copied an empty folder: %v", got)
+	}
+}
+
+func TestPrepareServiceDataCopyBackFails(t *testing.T) {
+	f := stubServiceData(t)
+	g, path := offGlobal(t, f)
+	f.runErr = errors.New("boom")
+	err := prepareServiceData(g, []string{"mysql"})
+	if err == nil || !strings.Contains(err.Error(), "copy "+path+" back to volume lodev-mysql") {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(path, "ibdata1")); err != nil {
+		t.Errorf("folder touched after a failed copy: %v", err)
 	}
 }
 

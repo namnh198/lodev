@@ -25,9 +25,6 @@ volumes:
     name: lodev-mariadb
   lodev-mongodb:
     name: lodev-mongodb
-  # mongo also declares /data/configdb a volume; unnamed it would leave a new volume on every re-create.
-  lodev-mongodb-config:
-    name: lodev-mongodb-config
 
 services:
   traefik:
@@ -213,7 +210,10 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=root
     volumes:
       - lodev-mongodb:/data/db
-      - lodev-mongodb-config:/data/configdb
+    # mongo declares /data/configdb a volume too; a standalone mongod keeps nothing there, and a tmpfs
+    # stops Docker leaving a new anonymous volume on every re-create.
+    tmpfs:
+      - /data/configdb
     healthcheck:
       # mongosh ships with mongo 5+, the legacy mongo shell with 4.4 and older.
       test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping')\" || mongo --quiet --eval \"db.adminCommand('ping')\""]

@@ -195,6 +195,7 @@ type service struct {
 	MemLimit    string   `yaml:"mem_limit"`
 	Environment []string `yaml:"environment"`
 	Volumes     []string `yaml:"volumes"`
+	Tmpfs       []string `yaml:"tmpfs"`
 	ExtraHosts  []string `yaml:"extra_hosts"`
 	Networks    any      `yaml:"networks"`
 	DependsOn   map[string]struct {
@@ -446,8 +447,11 @@ func TestSharedComposeMongoDB(t *testing.T) {
 	def := parse(t, b)
 	m := def["mongodb"]
 	if m.Image != "mongo:8" || !slices.Equal(m.Ports, []string{"127.0.0.1:27017:27017"}) ||
-		!slices.Equal(m.Volumes, []string{"lodev-mongodb:/data/db", "lodev-mongodb-config:/data/configdb"}) {
-		t.Errorf("mongodb image %q ports %v volumes %v", m.Image, m.Ports, m.Volumes)
+		!slices.Equal(m.Volumes, []string{"lodev-mongodb:/data/db"}) || !slices.Equal(m.Tmpfs, []string{"/data/configdb"}) {
+		t.Errorf("mongodb image %q ports %v volumes %v tmpfs %v", m.Image, m.Ports, m.Volumes, m.Tmpfs)
+	}
+	if strings.Contains(string(b), "lodev-mongodb-config") {
+		t.Error("mongodb still declares its config volume")
 	}
 	for _, e := range []string{"MONGO_INITDB_ROOT_USERNAME=root", "MONGO_INITDB_ROOT_PASSWORD=root"} {
 		if !slices.Contains(m.Environment, e) {
@@ -532,10 +536,11 @@ func TestVarnishVCLGolden(t *testing.T) {
 	}
 }
 
-func TestSharedComposeMountVolume(t *testing.T) {
+func TestSharedComposeMountPaths(t *testing.T) {
 	g := defaultGlobal(t)
-	g.MountVolume, g.DataDir = true, "/data dir"
-	g.MountPaths = map[string]string{"mysql": "/ssd/mysql"}
+	g.DataDir = "/data dir"
+	g.MountPaths = map[string]string{"mysql": "/ssd/mysql", "mariadb": "mariadb", "redis": "redis", "opensearch": "opensearch",
+		"rabbitmq": "rabbitmq", "mongodb": "mongodb"}
 	b := must(t)(SharedCompose(g, home))
 	svcs := parse(t, b)
 	for svc, want := range map[string]string{
@@ -551,10 +556,13 @@ func TestSharedComposeMountVolume(t *testing.T) {
 			t.Errorf("%s still mounts its named volume: %v", svc, v)
 		}
 	}
-	if !slices.Contains(svcs["mongodb"].Volumes, "lodev-mongodb-config:/data/configdb") {
-		t.Errorf("mongodb configdb %v", svcs["mongodb"].Volumes)
-	}
 	golden(t, "services-mountvolume", b)
+	// Only the services with a mount path leave their volume.
+	g.MountPaths = map[string]string{"redis": "/r"}
+	svcs = parse(t, must(t)(SharedCompose(g, home)))
+	if !slices.Contains(svcs["redis"].Volumes, "/r:/data") || !slices.Contains(svcs["mysql"].Volumes, "lodev-mysql:/var/lib/mysql") {
+		t.Errorf("redis %v mysql %v", svcs["redis"].Volumes, svcs["mysql"].Volumes)
+	}
 }
 
 func TestProjectComposeHome(t *testing.T) {

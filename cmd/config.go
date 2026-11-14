@@ -510,7 +510,7 @@ func globalValues(g *config.Global) [][2]string {
 		[2]string{"node_version", g.NodeVersion}, [2]string{"container_timeout", g.ContainerTimeout}, [2]string{"tld", g.TLD},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
-	rows = append(rows, [2]string{"performance_mode", g.PerformanceMode}, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
+	rows = append(rows, [2]string{"performance_mode", g.PerformanceMode}, [2]string{"data_dir", g.DataPath()})
 	for _, s := range config.DataServices {
 		rows = append(rows, [2]string{"mount_paths." + s, g.MountPaths[s]})
 	}
@@ -535,6 +535,14 @@ func applyGlobalConfig(old *config.Global, changes []change) (diff []string, g *
 	d, err := config.OpenDoc(config.GlobalPath())
 	if err != nil {
 		return nil, nil, err
+	}
+	if old.MountVolume {
+		// Write out the mount_paths an older lodev's mount_volume: true meant, before the user's changes.
+		legacy := []change{{key: []string{"mount_volume"}, del: true}}
+		for _, s := range config.DataServices {
+			legacy = append(legacy, change{key: []string{"mount_paths", s}, value: old.MountPaths[s]})
+		}
+		changes = append(legacy, changes...)
 	}
 	applyChanges(d, changes)
 	data, err := d.Bytes()
@@ -634,7 +642,7 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
 	}
-	for _, k := range []string{"update_check", "auto_create_db", "use_docker_compose_system", "use_docker_buildx_system", "mount_volume"} {
+	for _, k := range []string{"update_check", "auto_create_db", "use_docker_compose_system", "use_docker_buildx_system"} {
 		flag := strings.ReplaceAll(k, "_", "-")
 		if !fl.Changed(flag) {
 			continue
@@ -735,9 +743,8 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("performance-mode", "", `bind | none: project folders in Docker volumes ("" = bind on macOS, none elsewhere)`)
 	f.String("data-dir", "", `folder for project homes and mounted service data ("" = ~/.lodev/data)`)
-	f.String("mount-volume", "", `keep shared service data in folders under data_dir, not Docker volumes: true | false ("" = false)`)
 	for _, s := range config.DataServices {
-		f.String(s+"-mount-path", "", fmt.Sprintf(`%s data folder with mount_volume ("" = <data_dir>/%s)`, s, s))
+		f.String(s+"-mount-path", "", fmt.Sprintf(`keep %s data in this folder: absolute, ~/..., or relative to data_dir ("" = its Docker volume)`, s))
 	}
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")
@@ -761,7 +768,7 @@ func saveGlobalChanges(c *cobra.Command, changes []change) error {
 	}
 	// The new folder is empty, so services up would copy the stale Docker volume into it.
 	for _, svc := range config.DataServices {
-		if g != nil && old.MountVolume && g.MountVolume && old.MountPath(svc) != g.MountPath(svc) {
+		if g != nil && old.MountPath(svc) != "" && g.MountPath(svc) != "" && old.MountPath(svc) != g.MountPath(svc) {
 			ui.Warn("%s data folder changed: move %s to %s before `lodev service start`, or %s starts from its old Docker volume",
 				svc, old.MountPath(svc), g.MountPath(svc), svc)
 		}
