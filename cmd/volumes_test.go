@@ -195,7 +195,7 @@ func TestEnsureVolumesListsUnused(t *testing.T) {
 		if strings.HasPrefix(s, "volume ls") {
 			return "lodev-shop-var\nlodev-shop-old", nil
 		}
-		return "", nil
+		return ownedBy("shop")(s)
 	})
 	out, _, restore := ui.Capture(false)
 	defer restore()
