@@ -287,6 +287,7 @@ cron_jobs:                   # optional: empty = the type's default job (see Cro
   - '*/5 * * * * php bin/magento indexer:reindex >> var/log/reindex.log 2>&1'
 environment:                 # optional: variables for the web container (see Environment variables)
   MAGE_RUN_CODE: default
+lodev_version_constraint: ">= 1.4.0, < 2"   # optional: start/restart refuse another lodev
 ```
 
 `nodejs`, `php_extensions`, `packages` and non-example `Dockerfile*` files in `.lodev/web-images/`

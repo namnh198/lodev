@@ -20,6 +20,7 @@ import (
 	"lodev/internal/registry"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
+	"lodev/internal/update"
 )
 
 var defaultServices = map[string][]string{
@@ -356,6 +357,9 @@ func ensureServices(p *config.Project) error {
 type startOpts struct{ project, base, noHooks bool }
 
 func start(p *config.Project, rebuild startOpts) error {
+	if err := checkLodevVersion(p); err != nil {
+		return err
+	}
 	user, from := p.ContainerUser()
 	if w := userWarning(user, from); w != "" {
 		ui.Warn("%s", w)
@@ -573,7 +577,34 @@ var startFn = start
 // restartFn stops and starts p with its hooks; swapped in tests.
 var restartFn = func(p *config.Project) error { return restartProject(p, startOpts{}) }
 
+// runningVersion is the lodev version being run; swapped in tests.
+var runningVersion = func() string { return Version }
+
+// checkLodevVersion refuses a lodev outside the project's lodev_version_constraint.
+func checkLodevVersion(p *config.Project) error {
+	if p.LodevVersionConstraint == "" {
+		return nil
+	}
+	c, err := update.ParseConstraint(p.LodevVersionConstraint)
+	if err != nil {
+		return fmt.Errorf("lodev_version_constraint %q is invalid: %w", p.LodevVersionConstraint, err)
+	}
+	v := runningVersion()
+	base, ok := update.ReleaseBase(v)
+	if !ok {
+		ui.Warn("lodev %s is a development build; not checking lodev_version_constraint", v)
+		return nil
+	}
+	if !c.Allows(base) {
+		return fmt.Errorf("project %s needs lodev %s (this is %s): run lodev self-upgrade", p.Name, p.LodevVersionConstraint, v)
+	}
+	return nil
+}
+
 func restartProject(p *config.Project, o startOpts) error {
+	if err := checkLodevVersion(p); err != nil {
+		return err
+	}
 	// A stopped project has nothing to prepare for its stop.
 	if !o.noHooks && containerRunning("lodev-"+p.Name+"-web") {
 		if err := runHooks(p, "pre-stop"); err != nil {

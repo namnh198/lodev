@@ -746,3 +746,53 @@ func TestEnsureProjectDB(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckLodevVersion(t *testing.T) {
+	old := runningVersion
+	t.Cleanup(func() { runningVersion = old })
+	p := &config.Project{Name: "shop"}
+	for _, c := range []struct{ running, constraint, want string }{
+		{"v1.3.2", ">= 1.4.0, < 2", "project shop needs lodev >= 1.4.0, < 2 (this is v1.3.2): run lodev self-upgrade"},
+		{"v1.4.0", ">= 1.4.0, < 2", ""},
+		{"v0.1.1-3-gabc", ">= 0.1.1", ""},
+		{"v1.4.0", "", ""},
+	} {
+		runningVersion = func() string { return c.running }
+		p.LodevVersionConstraint = c.constraint
+		err := checkLodevVersion(p)
+		if c.want == "" && err != nil || c.want != "" && (err == nil || err.Error() != c.want) {
+			t.Errorf("%s vs %q: err = %v, want %q", c.running, c.constraint, err, c.want)
+		}
+	}
+
+	_, stderr, restore := ui.Capture(false)
+	defer restore()
+	runningVersion = func() string { return "dev" }
+	p.LodevVersionConstraint = ">= 1"
+	if err := checkLodevVersion(p); err != nil {
+		t.Errorf("dev build: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "is a development build; not checking lodev_version_constraint") {
+		t.Errorf("dev build warning missing: %q", stderr.String())
+	}
+}
+
+func TestRestartChecksVersionFirst(t *testing.T) {
+	root := newShop(t)
+	writeShop(t, root, shopConf+"lodev_version_constraint: \">= 99\"\nhooks:\n  pre-stop: [\"php bin/console down\"]\n")
+	oldRun, oldUp, oldStart, oldVer := dockerRun, containerRunning, startFn, runningVersion
+	t.Cleanup(func() { dockerRun, containerRunning, startFn, runningVersion = oldRun, oldUp, oldStart, oldVer })
+	runningVersion = func() string { return "v1.0.0" }
+	containerRunning = func(string) bool { return true }
+	var calls []string
+	dockerRun = func(a ...string) error { calls = append(calls, a[len(a)-1]); return nil }
+	startFn = func(*config.Project, startOpts) error { calls = append(calls, "start"); return nil }
+	p, err := currentProject()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = restartProject(p, startOpts{})
+	if err == nil || !strings.Contains(err.Error(), "project shop needs lodev >= 99") || len(calls) != 0 {
+		t.Errorf("restart: err = %v, calls = %q; want the version error and no calls", err, calls)
+	}
+}

@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -26,18 +25,8 @@ func Stable(v string) bool { return stableRe.MatchString(v) }
 
 // Newer reports whether latest is a newer stable version than cur; never for a non-release cur.
 func Newer(cur, latest string) bool {
-	if !Stable(cur) || !Stable(latest) {
-		return false
-	}
-	a, b := strings.Split(cur[1:], "."), strings.Split(latest[1:], ".")
-	for i := range a {
-		x, _ := strconv.Atoi(a[i])
-		y, _ := strconv.Atoi(b[i])
-		if x != y {
-			return y > x
-		}
-	}
-	return false
+	c, err := Compare(cur, latest)
+	return Stable(cur) && Stable(latest) && err == nil && c < 0
 }
 
 // Latest is the newest stable tag, read from the releases/latest redirect (no GitHub API limit).

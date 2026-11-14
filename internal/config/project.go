@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	lodevupdate "lodev/internal/update" // not "update": edit_test.go declares that name
 )
 
 var (
@@ -69,6 +71,8 @@ type Project struct {
 	CronJobs []string `yaml:"cron_jobs,omitempty"`
 	// Environment is set in the web container; .lodev/.env overrides it.
 	Environment map[string]string `yaml:"environment,omitempty"`
+	// LodevVersionConstraint makes start and restart refuse a lodev outside it, e.g. ">= 1.4.0, < 2".
+	LodevVersionConstraint string `yaml:"lodev_version_constraint,omitempty"`
 	// Hooks are steps run in the web container on start, stop, db-import and snapshot restore.
 	Hooks map[string][]HookStep `yaml:"hooks,omitempty"`
 	Root  string                `yaml:"-"`
@@ -244,6 +248,11 @@ func (p *Project) ValidateTLD(tld string) error {
 	}
 	if strings.ContainsAny(p.PHPIDEConfig, "\r\n") {
 		return fmt.Errorf("php_ide_config %q must be one line", p.PHPIDEConfig)
+	}
+	if v := p.LodevVersionConstraint; v != "" {
+		if _, err := lodevupdate.ParseConstraint(v); err != nil {
+			return fmt.Errorf("lodev_version_constraint %q is invalid: %w", v, err)
+		}
 	}
 	domainRe := domainRegexp(tld)
 	for _, d := range p.Domains {

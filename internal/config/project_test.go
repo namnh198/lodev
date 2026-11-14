@@ -425,6 +425,17 @@ func TestValidateCron(t *testing.T) {
 	}
 }
 
+func TestValidateVersionConstraint(t *testing.T) {
+	p := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", LodevVersionConstraint: ">= 1"}
+	if err := p.Validate(); err != nil {
+		t.Errorf(">= 1: %v", err)
+	}
+	p.LodevVersionConstraint = "bogus"
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), `lodev_version_constraint "bogus" is invalid`) {
+		t.Errorf("bogus: %v", err)
+	}
+}
+
 func TestCheckEnvKey(t *testing.T) {
 	for _, k := range []string{"APP_KEY", "_x", "DB_HOST"} {
 		if err := CheckEnvKey(k); err != nil {
