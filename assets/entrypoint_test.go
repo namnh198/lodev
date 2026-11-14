@@ -317,4 +317,31 @@ func TestEntrypointHomeRestart(t *testing.T) {
 	if !strings.Contains(got, "started") || !strings.Contains(got, "warning") {
 		t.Errorf("a missing cache mount must warn, not abort:\n%s", got)
 	}
+	// A homeadditional file the user cannot read: a warning per folder, and the start goes on.
+	got = homeDocker(t, nil, map[string]string{"g": "x"}, map[string]string{"p": "x"}, 0o000, true,
+		"echo \"psysh=$(readlink /home/kuroko/.config/psysh)\"\n")
+	for _, want := range []string{"homeadditional/global could not be copied", "homeadditional/project could not be copied",
+		"psysh=/var/lib/lodev/home/.config/psysh"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("an unreadable file must warn, not abort; missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestEntrypointPHPTools: LODEV_PHP picks php, phpize and php-config alike, so pecl install builds
+// against the active version. Skipped without Docker, the image, or an image older than php<v>-dev.
+func TestEntrypointPHPTools(t *testing.T) {
+	image, block := entrypointBlock(t, `if [ ! -x "/usr/sbin/php-fpm${LODEV_PHP}" ]`, "\nln -sf ")
+	if exec.Command("docker", "run", "--rm", "--entrypoint", "test", image, "-x", "/usr/bin/phpize8.2").Run() != nil {
+		t.Skip(image + " has no php8.2-dev (built before it)")
+	}
+	got, err := exec.Command("docker", "run", "--rm", "--user", "0", "--entrypoint", "sh", "-e", "LODEV_PHP=8.2", image,
+		"-c", "set -e\n"+strings.TrimSuffix(block, "ln -sf ")+"php -r 'echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION.\"\\n\";'; php-config --version; readlink -f \"$(command -v phpize)\"").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, got)
+	}
+	lines := strings.Fields(string(got))
+	if len(lines) != 3 || lines[0] != "8.2" || !strings.HasPrefix(lines[1], "8.2.") || lines[2] != "/usr/bin/phpize8.2" {
+		t.Errorf("want 8.2, 8.2.x and /usr/bin/phpize8.2, got:\n%s", got)
+	}
 }

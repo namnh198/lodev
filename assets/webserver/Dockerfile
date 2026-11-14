@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     && apt-get update --error-on=any \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl nginx apache2 supervisor default-mysql-client git unzip sudo \
-       nano vim-tiny sqlite3 jq gcc g++ make autoconf pkg-config redis-tools php-pear \
+       nano vim-tiny sqlite3 jq gcc g++ make autoconf pkg-config redis-tools \
     && curl -fsSL -o /tmp/sury-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
     && echo "7511384559c9ddf1d5ce5f60be429ae9d4e7d01d9480d6f1b7a30c0810cf8b60  /tmp/sury-keyring.deb" | sha256sum -c - \
     && dpkg -i /tmp/sury-keyring.deb \

@@ -8,7 +8,8 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-pkgs=()
+# php-pear (pecl) with the PHP packages, once the sury source is set up (apt picks the newest of Debian's and sury's).
+pkgs=(php-pear)
 for v in "$@"; do
   for ext in fpm cli bcmath curl gd intl mbstring mysql redis soap xml zip imagick xdebug dev; do
     pkgs+=("php$v-$ext")

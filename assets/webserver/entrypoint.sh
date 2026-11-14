@@ -15,6 +15,9 @@ if [ ! -x "/usr/sbin/php-fpm${LODEV_PHP}" ]; then
   exit 1
 fi
 update-alternatives --quiet --set php "/usr/bin/php${LODEV_PHP}"
+# phpize and php-config (php<v>-dev) are alternatives of their own: pecl install builds with them.
+update-alternatives --quiet --set phpize "/usr/bin/phpize${LODEV_PHP}"
+update-alternatives --quiet --set php-config "/usr/bin/php-config${LODEV_PHP}"
 ln -sf "/usr/sbin/php-fpm${LODEV_PHP}" /usr/local/sbin/php-fpm
 for sapi in cli fpm; do
   d="/etc/php/${LODEV_PHP}/${sapi}/conf.d"
@@ -87,7 +90,9 @@ if [ -n "${LODEV_USER:-}" ]; then
   for d in global project; do
     if [ -d "/etc/lodev/homeadditional/$d" ]; then
       # -f: a read-only file (a 0400 ssh key) copied on an earlier start is replaced, not an error.
-      runuser -u "$LODEV_USER" -- cp -Rf "/etc/lodev/homeadditional/$d/." "/home/$LODEV_USER/"
+      # An unreadable file only costs that file: cp copies the rest, and the container starts.
+      runuser -u "$LODEV_USER" -- cp -Rf "/etc/lodev/homeadditional/$d/." "/home/$LODEV_USER/" ||
+        echo "warning: some files of homeadditional/$d could not be copied into the home" >&2
     fi
   done
   # Only psysh history persistence depends on the cache mount: warn, never stop the container.

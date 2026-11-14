@@ -41,7 +41,7 @@ func TestWebImageTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(b)
-	for _, w := range []string{"php-pear", "redis-tools", "gcc", "g++", "make", "mongosh"} {
+	for _, w := range []string{"redis-tools", "gcc", "g++", "make", "mongosh"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("webserver/Dockerfile does not mention %s", w)
 		}
@@ -65,5 +65,13 @@ func TestWebImageTools(t *testing.T) {
 	// php$v-dev: phpize and pecl install build against the active version's headers.
 	if !regexp.MustCompile(`for ext in [^;]*\bdev\b`).Match(php) {
 		t.Error("install-php.sh does not install php$v-dev")
+	}
+	// php-pear (pecl) is installed with the PHP packages, after the sury source exists; the
+	// Dockerfile's first apt-get runs before it.
+	if !regexp.MustCompile(`pkgs=\([^)]*\bphp-pear\b`).Match(php) {
+		t.Error("install-php.sh does not install php-pear")
+	}
+	if strings.Contains(s, "php-pear") {
+		t.Error("webserver/Dockerfile installs php-pear before the sury source exists")
 	}
 }
