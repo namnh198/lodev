@@ -86,13 +86,16 @@ if [ -n "${LODEV_USER:-}" ]; then
   fi
   for d in global project; do
     if [ -d "/etc/lodev/homeadditional/$d" ]; then
-      runuser -u "$LODEV_USER" -- cp -R "/etc/lodev/homeadditional/$d/." "/home/$LODEV_USER/"
+      # -f: a read-only file (a 0400 ssh key) copied on an earlier start is replaced, not an error.
+      runuser -u "$LODEV_USER" -- cp -Rf "/etc/lodev/homeadditional/$d/." "/home/$LODEV_USER/"
     fi
   done
-  runuser -u "$LODEV_USER" -- sh -c 'mkdir -p /var/lib/lodev/home/.config/psysh "$1/.config"
+  # Only psysh history persistence depends on the cache mount: warn, never stop the container.
+  runuser -u "$LODEV_USER" -- sh -c 'mkdir -p /var/lib/lodev/home/.config/psysh "$1/.config" || exit 1
     if [ -L "$1/.config/psysh" ] || [ ! -e "$1/.config/psysh" ]; then
       ln -sfn /var/lib/lodev/home/.config/psysh "$1/.config/psysh"
-    fi' sh "/home/$LODEV_USER"
+    fi' sh "/home/$LODEV_USER" ||
+    echo "warning: /var/lib/lodev/home is not writable; psysh history is not kept" >&2
   # home: end
   printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$LODEV_USER" > /etc/sudoers.d/lodev
   chmod 0440 /etc/sudoers.d/lodev

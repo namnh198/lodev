@@ -213,30 +213,11 @@ func TestEntrypointUseraddQuiet(t *testing.T) {
 // user. It returns the script's report on the resulting home.
 func homeRun(t *testing.T, env []string, global, project map[string]string) string {
 	t.Helper()
-	image, block := entrypointBlock(t, `  group=$(getent group "$LODEV_GID"`, "  # home: end\n")
-	skel, err := filepath.Abs("webserver/skel")
-	if err != nil {
-		t.Fatal(err)
-	}
-	args := []string{"run", "--rm", "--user", "0", "--entrypoint", "sh",
-		"-e", "LODEV_USER=kuroko", "-e", "LODEV_UID=501", "-e", "LODEV_GID=501",
-		"-v", skel + ":/etc/skel:ro", "--tmpfs", "/var/lib/lodev/home:uid=501,gid=501"}
-	for name, files := range map[string]map[string]string{"global": global, "project": project} {
-		if files == nil {
-			continue
-		}
-		d := t.TempDir()
-		for f, c := range files {
-			if err := os.WriteFile(filepath.Join(d, f), []byte(c), 0o644); err != nil {
-				t.Fatal(err)
-			}
-		}
-		args = append(args, "-v", d+":/etc/lodev/homeadditional/"+name+":ro")
-	}
-	for _, e := range env {
-		args = append(args, "-e", e)
-	}
-	script := "set -e\n" + block + `cd /home/kuroko
+	return homeDocker(t, env, global, project, 0o644, true, homeReport)
+}
+
+// homeReport describes the home the block built.
+const homeReport = `cd /home/kuroko
 echo "bashrc=$(grep -c '^HISTSIZE=10000$' .bashrc)"
 echo "gitconfig=$(grep -c 'directory = \*' .gitconfig)"
 echo "x=$(cat x 2>/dev/null || echo none)"
@@ -246,6 +227,38 @@ if [ -e .my.cnf ]; then echo "mycnf-mode=$(stat -c '%U %a' .my.cnf)"; fi
 echo "--- .my.cnf"
 cat .my.cnf 2>/dev/null || echo none
 `
+
+// homeDocker is homeRun with the mode of the mounted homeadditional files, the cache mount optional,
+// and tail the script that runs after the block (set -e is on, so a failing block stops it).
+func homeDocker(t *testing.T, env []string, global, project map[string]string, mode os.FileMode, cache bool, tail string) string {
+	t.Helper()
+	image, block := entrypointBlock(t, `  group=$(getent group "$LODEV_GID"`, "  # home: end\n")
+	skel, err := filepath.Abs("webserver/skel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"run", "--rm", "--user", "0", "--entrypoint", "sh",
+		"-e", "LODEV_USER=kuroko", "-e", "LODEV_UID=501", "-e", "LODEV_GID=501",
+		"-v", skel + ":/etc/skel:ro"}
+	if cache {
+		args = append(args, "--tmpfs", "/var/lib/lodev/home:uid=501,gid=501")
+	}
+	for name, files := range map[string]map[string]string{"global": global, "project": project} {
+		if files == nil {
+			continue
+		}
+		d := t.TempDir()
+		for f, c := range files {
+			if err := os.WriteFile(filepath.Join(d, f), []byte(c), mode); err != nil {
+				t.Fatal(err)
+			}
+		}
+		args = append(args, "-v", d+":/etc/lodev/homeadditional/"+name+":ro")
+	}
+	for _, e := range env {
+		args = append(args, "-e", e)
+	}
+	script := "set -e\n" + block + tail
 	got, err := exec.Command("docker", append(args, image, "-c", script)...).CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v\n%s", err, got)
@@ -287,5 +300,21 @@ func TestEntrypointBuildsHome(t *testing.T) {
 	}
 	if got = homeRun(t, nil, nil, nil); !strings.HasSuffix(got, "--- .my.cnf\nnone\n") {
 		t.Errorf("no DB_HOST must leave no .my.cnf:\n%s", got)
+	}
+}
+
+// TestEntrypointHomeRestart: the block runs again in the same container (a stop/start) over a
+// read-only homeadditional file (mode 0400, like an ssh key) and still succeeds, the file stays; and
+// a missing cache mount only costs the psysh link (a warning on stderr), never the start.
+func TestEntrypointHomeRestart(t *testing.T) {
+	_, block := entrypointBlock(t, `  group=$(getent group "$LODEV_GID"`, "  # home: end\n")
+	got := homeDocker(t, nil, map[string]string{"key": "secret"}, nil, 0o400, true,
+		block+"cat /home/kuroko/key; echo; echo restarted\n")
+	if !strings.HasSuffix(got, "secret\nrestarted\n") {
+		t.Errorf("second run over a 0400 file failed or lost it:\n%s", got)
+	}
+	got = homeDocker(t, nil, nil, nil, 0o644, false, "echo started\n")
+	if !strings.Contains(got, "started") || !strings.Contains(got, "warning") {
+		t.Errorf("a missing cache mount must warn, not abort:\n%s", got)
 	}
 }
