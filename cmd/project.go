@@ -479,50 +479,9 @@ func start(p *config.Project, rebuild startOpts) error {
 		Mounts:     mounts,
 		Env:        env,
 	}
-	if err := renderProjectCompose(p, in); err != nil {
-		return err
-	}
-	// The merged file names the services' VIRTUAL_HOSTs: they need the cert, /etc/hosts and the registry.
-	svcs, svcHosts, err := projectVirtualServices(p)
+	svcs, err := publish(p, reg, in)
 	if err != nil {
 		return err
-	}
-	if err := reg.Conflict(p, svcHosts...); err != nil {
-		return err
-	}
-	routed := slices.Concat(p.WebDomains(), svcHosts)
-	if len(routed) > 0 {
-		if err := ensureCert(p.Name, routed); err != nil {
-			return err
-		}
-		if err := certs.SyncTraefik(); err != nil {
-			return err
-		}
-	}
-	// Empty for CLI projects without routed services, which also clears a block left from an earlier webserver.
-	if err := applyHosts(p.Name, routed); err != nil {
-		return err
-	}
-	dropped := reg.Put(p, svcHosts...)
-	for _, old := range dropped {
-		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
-		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
-		if err := dockerRun("compose", "-p", "lodev-"+old, "down"); err != nil {
-			return err
-		}
-		if err := retire(old); err != nil {
-			return err
-		}
-	}
-	if err := reg.Save(); err != nil {
-		return err
-	}
-	// The virtual hosts are new to extra_hosts: render and merge again so the containers resolve them.
-	if all := reg.AllDomains(); slices.ContainsFunc(all, func(h string) bool { return !slices.Contains(in.ExtraHosts, h) }) {
-		in.ExtraHosts = all
-		if err := renderProjectCompose(p, in); err != nil {
-			return err
-		}
 	}
 	if err := os.Remove(composeLegacy(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -624,6 +583,59 @@ func announceStarted(p *config.Project) {
 		urls[i] = "https://" + d
 	}
 	ui.Success("Started project %s. URL: %s", p.Name, strings.Join(urls, ", "))
+}
+
+// publish makes p's domains reachable: it renders p's compose files, gets a cert for the web
+// domains and the services' VIRTUAL_HOSTs, writes /etc/hosts and the registry (retiring a renamed
+// project's old name), and renders again when the registry has hosts new to extra_hosts. It returns
+// the services that get a route once the containers run.
+func publish(p *config.Project, reg registry.Registry, in templates.ProjectInput) ([]virtualService, error) {
+	if err := renderProjectCompose(p, in); err != nil {
+		return nil, err
+	}
+	// The merged file names the services' VIRTUAL_HOSTs: they need the cert, /etc/hosts and the registry.
+	svcs, svcHosts, err := projectVirtualServices(p)
+	if err != nil {
+		return nil, err
+	}
+	if err := reg.Conflict(p, svcHosts...); err != nil {
+		return nil, err
+	}
+	routed := slices.Concat(p.WebDomains(), svcHosts)
+	if len(routed) > 0 {
+		if err := ensureCert(p.Name, routed); err != nil {
+			return nil, err
+		}
+		if err := certs.SyncTraefik(); err != nil {
+			return nil, err
+		}
+	}
+	// Empty for CLI projects without routed services, which also clears a block left from an earlier webserver.
+	if err := applyHosts(p.Name, routed); err != nil {
+		return nil, err
+	}
+	dropped := reg.Put(p, svcHosts...)
+	for _, old := range dropped {
+		// Renamed project: retire the old name's container, hosts block and cert (its database is kept).
+		ui.Info("Project was renamed from %s; removing its old container, hosts entries and certificate.", old)
+		if err := dockerRun("compose", "-p", "lodev-"+old, "down"); err != nil {
+			return nil, err
+		}
+		if err := retire(old); err != nil {
+			return nil, err
+		}
+	}
+	if err := reg.Save(); err != nil {
+		return nil, err
+	}
+	// The virtual hosts are new to extra_hosts: render and merge again so the containers resolve them.
+	if all := reg.AllDomains(); slices.ContainsFunc(all, func(h string) bool { return !slices.Contains(in.ExtraHosts, h) }) {
+		in.ExtraHosts = all
+		if err := renderProjectCompose(p, in); err != nil {
+			return nil, err
+		}
+	}
+	return svcs, nil
 }
 
 // retire removes what the host keeps for the project name: its image, hosts block, cert and route.

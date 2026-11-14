@@ -943,10 +943,14 @@ func adminerFull(service, host string) string {
 		":\n    networks: {lodev: {}, default: {}}\n    environment: {VIRTUAL_HOST: " + host + ", VIRTUAL_PORT: \"8080\"}\n"
 }
 
-func TestStartRoutesVirtualHosts(t *testing.T) {
+func TestPublishRoutesVirtualHosts(t *testing.T) {
 	p, calls := startStubs(t, adminerFull("adminer", "adminer.test"))
-	if err := start(p, startOpts{noHooks: true}); err != nil {
+	svcs, err := runPublish(p)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(svcs) != 1 || svcs[0].Service != "adminer" {
+		t.Errorf("svcs = %+v", svcs)
 	}
 	want := []string{"cert shop shop.test adminer.test", "hosts shop shop.test adminer.test"}
 	if !slices.Equal(*calls, want) {
@@ -956,30 +960,43 @@ func TestStartRoutesVirtualHosts(t *testing.T) {
 	if got := reg["shop"].Domains; !slices.Equal(got, []string{"shop.test", "adminer.test"}) {
 		t.Errorf("registry domains %v", got)
 	}
-	mustContain(t, readRoutes(t, "shop"), "http://lodev-shop-web:80", "p-shop_svc_adminer:", "http://lodev-shop-adminer-1:8080")
 	// The second render puts the new host into the web container's extra_hosts.
 	b, _ := os.ReadFile(composeBase(p))
 	mustContain(t, string(b), `"adminer.test:172.30.0.2"`, `"shop.test:172.30.0.2"`)
 }
 
-func TestStartRejectsVirtualHostOfAnotherProject(t *testing.T) {
+func TestStartRoutesVirtualHosts(t *testing.T) {
+	p, _ := startStubs(t, adminerFull("adminer", "adminer.test"))
+	if err := start(p, startOpts{noHooks: true}); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readRoutes(t, "shop"), "http://lodev-shop-web:80", "p-shop_svc_adminer:", "http://lodev-shop-adminer-1:8080")
+}
+
+// runPublish publishes p with the registry on disk and a compose input that needs no image or mounts.
+func runPublish(p *config.Project) ([]virtualService, error) {
+	reg, err := registry.Load()
+	if err != nil {
+		return nil, err
+	}
+	return publish(p, reg, templates.ProjectInput{Project: p, ExtraHosts: union(reg.AllDomains(), p.WebDomains())})
+}
+
+func TestPublishRejectsVirtualHostOfAnotherProject(t *testing.T) {
 	p, calls := startStubs(t, adminerFull("adminer", "a.test"))
 	a := t.TempDir()
 	writeFile(t, config.ProjectPath(a), "")
 	registry.Registry{"a": {Path: a, Domains: []string{"a.test"}}}.Save()
-	err := start(p, startOpts{noHooks: true})
+	_, err := runPublish(p)
 	if want := `domain a.test is already used by project "a" (` + a + ")"; err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %s", err, want)
 	}
 	if len(*calls) != 0 {
 		t.Errorf("cert or hosts touched: %q", *calls)
 	}
-	if _, err := os.Stat(projectRouteFile("shop")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("route file written: %v", err)
-	}
 }
 
-func TestStartRejectsBadVirtualHosts(t *testing.T) {
+func TestPublishRejectsBadVirtualHosts(t *testing.T) {
 	for _, c := range []struct{ full, shared, want string }{
 		{adminerFull("adminer", "shop.test"), "", "service adminer: VIRTUAL_HOST shop.test is already a domain of project shop"},
 		{adminerFull("my_admin", "x.test"), "", "service my_admin: name must be a-z, 0-9, - to get a route"},
@@ -990,7 +1007,7 @@ func TestStartRejectsBadVirtualHosts(t *testing.T) {
 		if c.shared != "" {
 			writeFile(t, servicesFullFile(), c.shared)
 		}
-		if err := start(p, startOpts{noHooks: true}); err == nil || err.Error() != c.want {
+		if _, err := runPublish(p); err == nil || err.Error() != c.want {
 			t.Errorf("got %v, want %s", err, c.want)
 		}
 		if len(*calls) != 0 {
@@ -1094,9 +1111,9 @@ func TestScaffoldSkipsSymlinkedHomeAdditional(t *testing.T) {
 	}
 }
 
-// A project started under a new name in the same folder retires the old name's stack, hosts block,
+// A project published under a new name in the same folder retires the old name's stack, hosts block,
 // cert and route.
-func TestStartRetiresRenamedProject(t *testing.T) {
+func TestPublishRetiresRenamedProject(t *testing.T) {
 	p, calls := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")
 	runs := stubDocker(t, "")
 	reg, _ := registry.Load()
@@ -1108,7 +1125,7 @@ func TestStartRetiresRenamedProject(t *testing.T) {
 	writeFile(t, filepath.Join(certDir, "old.pem"), "x")
 	writeFile(t, filepath.Join(certDir, "old.domains"), "x")
 	writeFile(t, projectRouteFile("old"), "x")
-	if err := start(p, startOpts{noHooks: true}); err != nil {
+	if _, err := runPublish(p); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Contains(*runs, "compose -p lodev-old down") {
