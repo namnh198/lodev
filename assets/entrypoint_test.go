@@ -66,3 +66,15 @@ func TestEntrypointChownsVolumeDirs(t *testing.T) {
 		t.Error("loop must not chown recursively")
 	}
 }
+
+// TestEntrypointCopiesDaemons: supervisor's daemon programs are copied in only when LODEV_DAEMONS=1.
+func TestEntrypointCopiesDaemons(t *testing.T) {
+	b, err := FS.ReadFile("webserver/entrypoint.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "if [ \"${LODEV_DAEMONS:-}\" = 1 ]; then\n  cp /etc/lodev/daemons/daemons.conf /etc/supervisor/conf.d/\nfi\n"
+	if !strings.Contains(string(b), want) {
+		t.Errorf("entrypoint.sh lacks:\n%s", want)
+	}
+}

@@ -95,5 +95,8 @@ esac
 if [ "${LODEV_CRON:-}" = 1 ]; then
   cp /etc/lodev/supervisor/cron.conf /etc/supervisor/conf.d/
 fi
+if [ "${LODEV_DAEMONS:-}" = 1 ]; then
+  cp /etc/lodev/daemons/daemons.conf /etc/supervisor/conf.d/
+fi
 
 exec supervisord -n -c /etc/supervisor/supervisord.conf

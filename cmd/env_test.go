@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
 )
 
 func writeDotenv(t *testing.T, root, body string) {
@@ -49,6 +51,39 @@ func TestProjectEnvErrors(t *testing.T) {
 	writeDotenv(t, p.Root, "nope\n")
 	if _, err := projectEnv(p); err == nil || !strings.HasPrefix(err.Error(), ".lodev/.env: line 1: ") {
 		t.Errorf("parse: %v", err)
+	}
+}
+
+func TestWriteDaemons(t *testing.T) {
+	p := confProject(t, "nginx")
+	p.WebExtraDaemons = []config.Daemon{{Name: "vite", Command: "npm run dev"}}
+	dir := filepath.Join(p.Root, ".lodev", "daemons")
+	if err := writeDaemons(p); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(filepath.Join(dir, "vite.sh"))
+	if err != nil || fi.Mode().Perm() != 0o755 {
+		t.Fatalf("vite.sh: %v %v", fi, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "daemons.conf")); !strings.Contains(string(b), "[program:daemon-vite]") {
+		t.Fatalf("daemons.conf: %q", b)
+	}
+	p.WebExtraDaemons = []config.Daemon{{Name: "queue", Command: "php artisan queue:work"}}
+	if err := writeDaemons(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vite.sh")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("stale vite.sh kept: %v", err)
+	}
+	p.WebExtraDaemons = nil
+	if err := writeDaemons(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("daemons folder not removed: %v", err)
+	}
+	if err := writeDaemons(p); err != nil {
+		t.Fatalf("no folder, no daemons: %v", err)
 	}
 }
 

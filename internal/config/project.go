@@ -74,6 +74,8 @@ type Project struct {
 	// defaults) live in Docker volumes.
 	PerformanceMode string   `yaml:"performance_mode,omitempty"`
 	VolumeDirs      []string `yaml:"volume_dirs,omitempty"`
+	// WebExtraDaemons are long-running processes (e.g. Vite) supervisor runs in the web container as the user.
+	WebExtraDaemons []Daemon `yaml:"web_extra_daemons,omitempty"`
 	// Environment is set in the web container; .lodev/.env overrides it.
 	Environment map[string]string `yaml:"environment,omitempty"`
 	// LodevVersionConstraint makes start and restart refuse a lodev outside it, e.g. ">= 1.4.0, < 2".
@@ -81,6 +83,35 @@ type Project struct {
 	// Hooks are steps run in the web container on start, stop, db-import and snapshot restore.
 	Hooks map[string][]HookStep `yaml:"hooks,omitempty"`
 	Root  string                `yaml:"-"`
+}
+
+// Daemon is one web_extra_daemons entry; Directory defaults to the working directory.
+type Daemon struct {
+	Name      string `yaml:"name"`
+	Command   string `yaml:"command"`
+	Directory string `yaml:"directory,omitempty"`
+}
+
+var daemonNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+func checkDaemons(ds []Daemon) error {
+	seen := map[string]bool{}
+	for i, d := range ds {
+		switch {
+		case !daemonNameRe.MatchString(d.Name):
+			return fmt.Errorf("web_extra_daemons[%d] name %q is invalid (allowed: a-z, 0-9, -; not starting with -)", i, d.Name)
+		case seen[d.Name]:
+			return fmt.Errorf("web_extra_daemons name %q is used twice", d.Name)
+		case strings.TrimSpace(d.Command) == "":
+			return fmt.Errorf("web_extra_daemons %q needs a command", d.Name)
+		case strings.ContainsAny(d.Command, "\r\n"):
+			return fmt.Errorf("web_extra_daemons %q command must be one line", d.Name)
+		case d.Directory != "" && (!path.IsAbs(d.Directory) || path.Clean(d.Directory) != d.Directory):
+			return fmt.Errorf("web_extra_daemons %q directory %q must be a clean absolute path like /app", d.Name, d.Directory)
+		}
+		seen[d.Name] = true
+	}
+	return nil
 }
 
 // DefaultVarnishVersion is the Varnish a project runs when varnish_version is unset (Magento 2.4.8's).
@@ -345,6 +376,9 @@ func (p *Project) ValidateTLD(tld string) error {
 		return err
 	}
 	if err := checkWorkingDir(p.WorkingDir); err != nil {
+		return err
+	}
+	if err := checkDaemons(p.WebExtraDaemons); err != nil {
 		return err
 	}
 	if strings.ContainsAny(p.PHPIDEConfig, "\r\n") {

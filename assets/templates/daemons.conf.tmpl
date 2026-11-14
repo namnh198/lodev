@@ -1,0 +1,15 @@
+{{range $i, $d := .WebExtraDaemons}}{{if $i}}
+{{end}}[program:daemon-{{$d.Name}}]
+command=/bin/bash /etc/lodev/daemons/{{$d.Name}}.sh
+user=%(ENV_LODEV_USER)s
+; supervisord does not set HOME for user=; npm and composer need it.
+environment=HOME="/home/%(ENV_LODEV_USER)s",USER="%(ENV_LODEV_USER)s"
+autorestart=true
+; npm spawns children: stop the whole group.
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+{{end}}

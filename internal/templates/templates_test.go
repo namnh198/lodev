@@ -629,6 +629,41 @@ func TestProjectComposeCron(t *testing.T) {
 	}
 }
 
+func daemonsProject() *config.Project {
+	p := shop("nginx")
+	p.WebExtraDaemons = []config.Daemon{
+		{Name: "vite", Command: "npm run dev -- --host 0.0.0.0"},
+		{Name: "queue", Command: "php artisan queue:work", Directory: "/app/api"},
+	}
+	return p
+}
+
+func TestDaemonsConfGolden(t *testing.T) {
+	b, err := DaemonsConf(daemonsProject())
+	golden(t, "daemons", must(t)(b, err))
+}
+
+func TestDaemonScript(t *testing.T) {
+	p := daemonsProject()
+	got := string(DaemonScript(p, p.WebExtraDaemons[0]))
+	if want := "#!/bin/bash\ncd '/app'\nexec npm run dev -- --host 0.0.0.0\n"; got != want {
+		t.Errorf("default dir: %q", got)
+	}
+	got = string(DaemonScript(p, config.Daemon{Name: "x", Command: `node -e "console.log('50%')"`, Directory: "/it's/here"}))
+	if want := "#!/bin/bash\ncd '/it'\\''s/here'\nexec node -e \"console.log('50%')\"\n"; got != want {
+		t.Errorf("quoting: %q", got)
+	}
+}
+
+func TestProjectComposeDaemons(t *testing.T) {
+	in := projectInput("nginx")
+	in.Project = daemonsProject()
+	golden(t, "project-daemons", must(t)(ProjectCompose(in)))
+	if b := string(must(t)(ProjectCompose(projectInput("nginx")))); strings.Contains(b, "LODEV_DAEMONS") || strings.Contains(b, "daemons") {
+		t.Errorf("no daemons, yet:\n%s", b)
+	}
+}
+
 func TestProjectComposeCronEnvGolden(t *testing.T) {
 	in := projectInput("nginx")
 	in.Project.Cron = true

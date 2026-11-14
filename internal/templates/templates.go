@@ -82,6 +82,9 @@ func webEnv(in ProjectInput) []string {
 	if len(p.CronLines()) > 0 {
 		kv = append(kv, [2]string{"LODEV_CRON", "1"})
 	}
+	if len(p.WebExtraDaemons) > 0 {
+		kv = append(kv, [2]string{"LODEV_DAEMONS", "1"})
+	}
 	if len(in.Volumes) > 0 {
 		dirs := make([]string, len(in.Volumes))
 		for i, v := range in.Volumes {
@@ -121,6 +124,20 @@ func ProjectCompose(in ProjectInput) ([]byte, error) {
 		Volumes    []Volume
 	}{in.Project, in.ExtraHosts, in.CAFile, in.Image, in.User, in.UID, in.GID, in.HomeDir, customDirs,
 		webEnv(in), len(in.Project.CronLines()) > 0, in.Volumes})
+}
+
+// DaemonsConf is the supervisor program file for p's web_extra_daemons.
+func DaemonsConf(p *config.Project) ([]byte, error) {
+	return render("daemons.conf.tmpl", p)
+}
+
+// DaemonScript is the shell script supervisor runs for d: cd to its directory, then exec the command line.
+func DaemonScript(p *config.Project, d config.Daemon) []byte {
+	dir := d.Directory
+	if dir == "" {
+		dir = p.WorkDir()
+	}
+	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(dir, "'", `'\''`) + "'\nexec " + d.Command + "\n")
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

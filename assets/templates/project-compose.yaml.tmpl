@@ -56,6 +56,9 @@ services:
 {{- if .Cron}}
       - {{q (print .P.Root "/.lodev/crontab:/etc/lodev/crontab:ro")}}
 {{- end}}
+{{- if .P.WebExtraDaemons}}
+      - {{q (print .P.Root "/.lodev/daemons:/etc/lodev/daemons:ro")}}
+{{- end}}
       - {{q (print .HomeDir ":/home/" .User)}}
 {{- if ne .P.Webserver "none"}}
       - {{q (print .P.Root "/.lodev/" .P.Webserver "-webserver.conf:/etc/lodev/webserver.conf:ro")}}

@@ -425,6 +425,30 @@ func TestValidateCron(t *testing.T) {
 	}
 }
 
+func TestValidateDaemons(t *testing.T) {
+	ok := Daemon{"vite", "npm run dev -- --host 0.0.0.0", ""}
+	for _, c := range []struct {
+		name    string
+		daemons []Daemon
+		bad     bool
+	}{
+		{"valid", []Daemon{ok, {"queue-2", "php artisan queue:work", "/app/web"}}, false},
+		{"upper", []Daemon{{"Vite", "x", ""}}, true},
+		{"dash first", []Daemon{{"-x", "x", ""}}, true},
+		{"duplicate", []Daemon{ok, ok}, true},
+		{"empty command", []Daemon{{"vite", "  ", ""}}, true},
+		{"multi-line command", []Daemon{{"vite", "npm run dev\nrm -rf x", ""}}, true},
+		{"relative dir", []Daemon{{"vite", "x", "rel/dir"}}, true},
+		{"unclean dir", []Daemon{{"vite", "x", "/app/../x"}}, true},
+	} {
+		p := valid()
+		p.WebExtraDaemons = c.daemons
+		if err := p.Validate(); (err != nil) != c.bad {
+			t.Errorf("%s: err = %v", c.name, err)
+		}
+	}
+}
+
 func TestValidateVersionConstraint(t *testing.T) {
 	p := Project{Name: "x", Type: "php", PHP: "8.3", Webserver: "nginx", LodevVersionConstraint: ">= 1"}
 	if err := p.Validate(); err != nil {

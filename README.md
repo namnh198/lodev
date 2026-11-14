@@ -286,6 +286,10 @@ varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
 cron: true                   # optional: run cron jobs in the web container (default false)
 performance_mode: bind       # optional: bind | none (default: the global value; see Performance mode)
 volume_dirs: [pub/media]     # optional: more folders in Docker volumes; ignored when performance_mode is none
+web_extra_daemons:           # optional: long-running processes supervisor runs in the web container (see Daemons)
+  - name: vite               # a-z 0-9 -, unique
+    command: npm run dev -- --host 0.0.0.0 --port 5173 --strictPort
+    directory: /app          # optional: absolute; default working_dir
 cron_jobs:                   # optional: empty = the type's default job (see Cron)
   - '*/5 * * * * php bin/magento indexer:reindex >> var/log/reindex.log 2>&1'
 environment:                 # optional: variables for the web container (see Environment variables)
@@ -328,6 +332,14 @@ project type picks the job:
 Turn it on with `lodev config --cron=true` (edit `cron_jobs` in the file), then `lodev restart`.
 `lodev start` writes the jobs to `.lodev/crontab` (generated, git-ignored); `lodev logs` shows
 when each job runs.
+
+## Daemons
+
+`web_extra_daemons` runs long-lived dev processes (a Vite dev server, a queue worker) in the web
+container under supervisor, as your user, in `directory` (default `working_dir`). A crashed
+process is restarted. `lodev start` writes `.lodev/daemons/` (generated, git-ignored); output
+appears in `lodev logs`. Daemons are not health-checked, so a crashing one never fails
+`lodev start`. Changes apply on `lodev restart`.
 
 ## Environment variables
 
