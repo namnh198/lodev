@@ -78,7 +78,7 @@ func retargetTLD(oldTLD, newTLD string, out io.Writer) error {
 				return err
 			}
 		}
-		reg[m.name] = registry.Entry{Path: m.p.Root, Domains: slices.Concat(m.p.WebDomains(), m.extraHosts(reg[m.name].Domains, oldTLD, newTLD)), Trusted: reg[m.name].Trusted}
+		reg[m.name] = registry.Entry{Path: m.p.Root, Domains: slices.Concat(m.p.WebDomains(), m.extraHosts(reg[m.name].Domains, oldTLD, newTLD))}
 	}
 	for _, name := range skipped { // no config to read: move what the registry remembers
 		e := reg[name]

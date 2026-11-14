@@ -696,7 +696,7 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	g, _ := config.LoadGlobal()
 	snap := projectHomeAdditional(g, p)
 	writeFile(t, filepath.Join(snap, "stale"), "x")
-	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(snap, ".gitconfig")); string(b) != "one" {
@@ -715,7 +715,7 @@ func TestStartSnapshotsHomeAdditional(t *testing.T) {
 	mustContain(t, string(b), `"`+snap+`:/etc/lodev/homeadditional/project:ro"`)
 
 	os.Remove(repo)
-	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(snap); !errors.Is(err, fs.ErrNotExist) {
@@ -738,7 +738,7 @@ func TestStartSnapshotsApacheConfig(t *testing.T) {
 	g, _ := config.LoadGlobal()
 	snap := projectApacheSnapshot(g, p)
 	writeFile(t, filepath.Join(snap, "custom.d", "stale.conf"), "x")
-	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(snap, "custom.d", "logs.conf")); string(b) != "CustomLog x\n" {
@@ -761,7 +761,7 @@ func TestStartSnapshotsApacheConfig(t *testing.T) {
 	if err := config.SaveProject(p); err != nil {
 		t.Fatal(err)
 	}
-	if err := start(p, startOpts{noHooks: true, yes: true}); err != nil {
+	if err := start(p, startOpts{noHooks: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(snap); !errors.Is(err, fs.ErrNotExist) {

@@ -16,8 +16,6 @@ import (
 type Entry struct {
 	Path    string   `json:"path"`
 	Domains []string `json:"domains"`
-	// Trusted is the approved repo commands. nil: registered before approvals existed; empty: approved, nothing to run.
-	Trusted map[string]string `json:"trusted"`
 }
 
 type Registry map[string]Entry
@@ -105,23 +103,14 @@ func (r Registry) Conflict(p *config.Project, extra ...string) error {
 // Put records p with its web domains and extra hosts, and returns the old names dropped for the
 // same folder (a renamed `name:`).
 func (r Registry) Put(p *config.Project, extra ...string) []string {
-	// Approvals follow the folder: the entry under the same name first, else the one this project is renamed from.
 	var dropped []string
-	var trusted map[string]string
-	kept := false
-	if e, ok := r[p.Name]; ok && SamePath(e.Path, p.Root) {
-		trusted, kept = e.Trusted, true
-	}
 	for name, e := range r {
 		if SamePath(e.Path, p.Root) && name != p.Name {
-			if !kept {
-				trusted, kept = e.Trusted, true
-			}
 			delete(r, name)
 			dropped = append(dropped, name)
 		}
 	}
-	r[p.Name] = Entry{Path: p.Root, Domains: slices.Concat(p.WebDomains(), extra), Trusted: trusted}
+	r[p.Name] = Entry{Path: p.Root, Domains: slices.Concat(p.WebDomains(), extra)}
 	return dropped
 }
 

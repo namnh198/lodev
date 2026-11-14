@@ -255,10 +255,10 @@ folders are mounted read-only. Put composer's auth at
 `~/.lodev/homeadditional/.config/composer/auth.json` and your own `.gitconfig` in
 `~/.lodev/homeadditional`, which lodev creates; the project's folder is committed with the project,
 so keep secrets out of it. It is in the [trust list](#commands-from-the-projects-repo), and the
-container never reads it from the repo: each `lodev start` copies it, once approved, to
+container never reads it from the repo: each `lodev start` copies it to
 `<data_dir>/homeadditional-<name>` and mounts that copy (only when the folder exists), so a change
 or a new folder takes effect on the next `lodev restart`, and a container Docker restarts on its
-own after a `git pull` still gets the approved files. `lodev remove` deletes the copy.
+own still gets the copy from the last start. `lodev remove` deletes the copy.
 
 Only caches and histories outlive the container: `<data_dir>/home-<name>` is mounted at
 `/var/lib/lodev/home` and keeps exactly `.bash_history`, `.mysql_history`, `.cache/composer`,
@@ -472,26 +472,15 @@ files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked f
 followed), the project's `environment:` (from `config.yaml` and its overrides, not `.lodev/.env`),
 and your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
-`Run these commands? [y/N]` before running any of them, and asks again when one is added or
-changed (a changed file is shown as "review with git diff"). What you approved is stored per
-project in `~/.lodev/projects.json`. The web container mounts copies taken after the question
-(`<data_dir>/homeadditional-<name>`, and for apache `<data_dir>/apache-<name>` with the vhost and
-`custom.d/`), not the repo files, so a container Docker restarts after a `git pull` still runs
-only approved files.
+`Run these commands? [y/N]` once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
+whose repo already has `.lodev` files; nothing to run asks nothing). A declined question registers
+nothing. Where lodev cannot ask (no terminal) it fails with the list; pass `--yes` to `create` to
+approve it. Nothing is stored: `start`, `restart` and the hooks run by `stop`, `db-import` and
+`snapshot restore` do not ask again.
 
-The question comes first thing on `lodev start` (and so `restart`; `start --all` asks per project),
-before any hook run by `stop`, `db-import` or `snapshot restore`, and on `lodev create` (a folder
-with a `.lodev/config.yaml`, or one whose repo already has `.lodev` files; nothing to run asks
-nothing). A declined question starts, stops and registers
-nothing. Where lodev cannot ask (no terminal, or `db-import -f -` reading the dump from stdin) it
-fails with the list; pass `--yes` to `start`, `restart` or `create` to approve it. Editing your own
-hook asks once on the next start.
-
-Known limits: only what lodev itself reads is covered, so a script that a hook's `run:` line or a
-cron line calls is not tracked unless it is listed as a `script:` or in a `.d` folder. A project
-registered by a lodev older than this check has its commands recorded without a question on its
-first start (or first hook run), which also covers a `git pull` between upgrading lodev and that
-first start.
+Accepted risk: a `git pull` that adds or changes a hook, daemon, compose file, web-image part,
+homeadditional or apache file runs at the next start without a question. Review what a pull
+brings into `.lodev/` before starting the project.
 
 ## Domains and TLD
 
@@ -723,8 +712,8 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; the local keys `--enable-xdebug` and `--opcache-validate-timestamps` go to `.lodev/config.local.yaml` instead; apply with `lodev restart` |
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`, `--auto-create-db=false`); apply with `lodev service start` |
-| `lodev start [--rebuild \| --rebuild-base \| --all --yes]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder. `start` and `restart` need a project made by `lodev create` (a `.lodev/config.yaml` registered in `~/.lodev/projects.json`) |
-| `lodev stop` / `lodev restart [--all --yes]` | Stop / restart the project container; `restart --all` restarts every known project |
+| `lodev start [--rebuild \| --rebuild-base \| --all]` | Start the project (alias `up`); `--rebuild` rebuilds the project image without cache, `--rebuild-base` the PHP image(s) too; `--all` starts every known project from any folder. `start` and `restart` need a project made by `lodev create` (a `.lodev/config.yaml` registered in `~/.lodev/projects.json`) |
+| `lodev stop` / `lodev restart [--all]` | Stop / restart the project container; `restart --all` restarts every known project |
 | `lodev remove [--db] [--volumes] [--yes]` | Remove container, hosts entries, cert (alias `down`); `--db` drops the database; `--volumes` deletes the performance_mode volumes (they are kept and listed otherwise) |
 | `lodev list` | All projects with status, type, domains and path (`~` for your home) as a table (alias `ps`) |
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |

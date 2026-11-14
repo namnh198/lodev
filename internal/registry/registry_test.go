@@ -150,56 +150,6 @@ func TestConflictSymlinkedSelf(t *testing.T) {
 	}
 }
 
-func TestTrustedEmptyRoundTrip(t *testing.T) {
-	t.Setenv("LODEV_HOME", t.TempDir())
-	dir := projectDir(t)
-	r := Registry{"a": Entry{Path: dir, Trusted: map[string]string{}}}
-	if err := r.Save(); err != nil {
-		t.Fatal(err)
-	}
-	got, err := Load()
-	if err != nil || got["a"].Trusted == nil || len(got["a"].Trusted) != 0 {
-		t.Fatalf("got %#v, %v", got["a"].Trusted, err)
-	}
-}
-
-func TestTrustedMissingIsNil(t *testing.T) {
-	t.Setenv("LODEV_HOME", t.TempDir())
-	if err := os.WriteFile(file(), []byte(`{"a":{"path":"/a","domains":[]}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	got, err := Load()
-	if err != nil || got["a"].Trusted != nil {
-		t.Fatalf("got %#v, %v", got["a"].Trusted, err)
-	}
-}
-
-func TestPutKeepsTrustedOnRename(t *testing.T) {
-	d := projectDir(t)
-	r := Registry{"old": {Path: d, Trusted: map[string]string{"k": "s"}}}
-	r.Put(project("new", d))
-	if _, ok := r["old"]; ok || r["new"].Trusted["k"] != "s" {
-		t.Fatalf("%v", r)
-	}
-}
-
-func TestPutKeepsTrustedOnSameName(t *testing.T) {
-	d := projectDir(t)
-	r := Registry{"shop": {Path: d, Trusted: map[string]string{"k": "s"}}}
-	r.Put(project("shop", d))
-	if r["shop"].Trusted["k"] != "s" {
-		t.Fatalf("%v", r)
-	}
-}
-
-func TestPutOtherFolderSameNameDropsTrusted(t *testing.T) {
-	r := Registry{"shop": {Path: projectDir(t), Trusted: map[string]string{"k": "s"}}}
-	r.Put(project("shop", projectDir(t)))
-	if r["shop"].Trusted != nil {
-		t.Fatalf("%v", r)
-	}
-}
-
 func TestPutExtraHosts(t *testing.T) {
 	r := Registry{}
 	r.Put(project("shop", "/p", "shop.test", "en.test"), "adminer.test")
@@ -218,5 +168,25 @@ func TestConflictExtraHosts(t *testing.T) {
 	err := r.Conflict(p, "adminer.test")
 	if want := `domain adminer.test is already used by project "a" (` + a + ")"; err == nil || err.Error() != want {
 		t.Fatalf("got %v, want %s", err, want)
+	}
+}
+
+// A projects.json written while lodev stored approvals still loads; the next save drops the key.
+func TestRegistryIgnoresOldTrusted(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	dir := projectDir(t)
+	old := `{"a":{"path":"` + dir + `","domains":["a.test"],"trusted":{"k":"s"}}}`
+	if err := os.WriteFile(file(), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Load()
+	if err != nil || r["a"].Path != dir {
+		t.Fatalf("load: %v %v", r, err)
+	}
+	if err := r.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(file()); strings.Contains(string(b), "trusted") {
+		t.Errorf("trusted kept:\n%s", b)
 	}
 }

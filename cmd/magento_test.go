@@ -85,8 +85,6 @@ func TestDBImportMagento(t *testing.T) {
 	os.WriteFile(f, []byte("SELECT 1;\n"), 0o644)
 	run := func(conf string, args ...string) []string {
 		writeShop(t, root, conf)
-		p, _ := currentProject()
-		approve(t, p)
 		stubDBStream(t, "")
 		sql, web := stubMagento(t, true, "")
 		if _, _, err := runConfig(t, newDBImportCmd, append([]string{"-f", f}, args...)...); err != nil {

@@ -297,7 +297,7 @@ func newSnapshotCmd() *cobra.Command {
 			if noHooks, _ := c.Flags().GetBool("no-hooks"); noHooks {
 				return nil
 			}
-			return runHooks(p, "post-snapshot-restore", false)
+			return runHooks(p, "post-snapshot-restore")
 		},
 	}
 	restore.Flags().Bool("yes", false, "do not ask before overwriting the databases")

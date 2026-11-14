@@ -355,21 +355,6 @@ func TestRetargetKeepsVirtualHosts(t *testing.T) {
 	mustContain(t, f.read(f.hosts), "127.0.0.1 a.local x.a.local adminer.a.local")
 }
 
-func TestTLDRetargetKeepsTrusted(t *testing.T) {
-	f := newTLDFixture(t, map[string]string{"a": tldA, "b": tldB}, nil, false)
-	reg, _ := registry.Load()
-	reg["a"] = registry.Entry{Path: f.roots["a"], Domains: reg["a"].Domains, Trusted: map[string]string{"k": "s"}}
-	reg["b"] = registry.Entry{Path: f.roots["b"], Domains: reg["b"].Domains, Trusted: map[string]string{}}
-	reg.Save()
-	if err := retargetTLD("test", "local", &f.out); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := registry.Load()
-	if got["a"].Trusted["k"] != "s" || got["b"].Trusted == nil || len(got["b"].Trusted) != 0 {
-		t.Errorf("trusted lost: a %#v, b %#v", got["a"].Trusted, got["b"].Trusted)
-	}
-}
-
 func TestTLDOverrideBadDomainRefusesAll(t *testing.T) {
 	f := newTLDFixture(t, map[string]string{"a": tldA}, nil, false)
 	ov := writeOverride(t, f.roots["a"], "config.local.yaml", "domains: [en.example]\n")
