@@ -41,7 +41,10 @@ func ensureVolumes(p *config.Project, g *config.Global, img string) ([]templates
 		isDir := err == nil && fi.IsDir()
 		v := templates.Volume{Name: config.VolumeName(p.Name, d.Path), Dir: d.Path}
 		vols = append(vols, v)
-		if _, err := dockerOutput("volume", "inspect", v.Name); err == nil {
+		if owner, err := dockerOutput("volume", "inspect", "-f", `{{index .Labels "lodev.project"}}`, v.Name); err == nil {
+			if owner = strings.TrimSpace(owner); owner != p.Name {
+				return nil, fmt.Errorf("volume %s belongs to project %q (or was not made by lodev); rename the folder in volume_dirs or remove the volume", v.Name, owner)
+			}
 			continue
 		}
 		if _, err := dockerOutput("volume", "create", "--label", "lodev.project="+p.Name, "--label", "lodev.dir="+d.Path, v.Name); err != nil {
@@ -52,8 +55,8 @@ func ensureVolumes(p *config.Project, g *config.Global, img string) ([]templates
 			if _, err := dockerOutput("run", "--rm", "--user", "0", "--entrypoint", "cp",
 				"-v", host+":/from:ro", "-v", v.Name+":/to", img, "-a", "/from/.", "/to/"); err != nil {
 				// Remove it so the next start retries the copy instead of keeping an empty volume.
-				dockerOutput("volume", "rm", v.Name)
-				return nil, fmt.Errorf("copy %s into volume %s: %w", d.Path, v.Name, err)
+				_, rmErr := dockerOutput("volume", "rm", v.Name)
+				return nil, errors.Join(fmt.Errorf("copy %s into volume %s: %w", d.Path, v.Name, err), rmErr)
 			}
 			report = append(report, d.Path+": copied from the host")
 			continue

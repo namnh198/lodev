@@ -109,8 +109,32 @@ func TestEnsureVolumesSeedFolderMissingOnHost(t *testing.T) {
 	}
 }
 
+// ownedBy answers `volume inspect` with the lodev.project label owner.
+func ownedBy(owner string) func(string) (string, error) {
+	return func(s string) (string, error) {
+		if strings.HasPrefix(s, "volume inspect") {
+			return owner + "\n", nil
+		}
+		return "", nil
+	}
+}
+
+func TestEnsureVolumesRefusesOtherOwner(t *testing.T) {
+	for _, owner := range []string{"blog", ""} {
+		p, g, calls := volumeFixture(t, ownedBy(owner))
+		_, err := ensureVolumes(p, g, "img")
+		want := `volume lodev-shop-var belongs to project "` + owner + `" (or was not made by lodev); rename the folder in volume_dirs or remove the volume`
+		if err == nil || err.Error() != want {
+			t.Errorf("owner %q: err = %v", owner, err)
+		}
+		if got := (*calls)[0]; got != `volume inspect -f {{index .Labels "lodev.project"}} lodev-shop-var` {
+			t.Errorf("call %q", got)
+		}
+	}
+}
+
 func TestEnsureVolumesExistingOnlyInspected(t *testing.T) {
-	p, g, calls := volumeFixture(t, nil)
+	p, g, calls := volumeFixture(t, ownedBy("shop"))
 	out, _, restore := ui.Capture(false)
 	defer restore()
 	vols, err := ensureVolumes(p, g, "img")
@@ -132,10 +156,13 @@ func TestEnsureVolumesSeedFailureRemovesVolume(t *testing.T) {
 		if strings.HasPrefix(s, "run ") {
 			return "", errors.New("cp failed")
 		}
+		if strings.HasPrefix(s, "volume rm") {
+			return "", errors.New("volume in use")
+		}
 		return missing(s)
 	})
 	os.MkdirAll(filepath.Join(p.Root, "pub", "media"), 0o755)
-	if _, err := ensureVolumes(p, g, "img"); err == nil || !strings.Contains(err.Error(), "cp failed") {
+	if _, err := ensureVolumes(p, g, "img"); err == nil || !strings.Contains(err.Error(), "cp failed") || !strings.Contains(err.Error(), "volume in use") {
 		t.Fatalf("err = %v", err)
 	}
 	if got := *calls; got[len(got)-1] != "volume rm lodev-shop-pub-media" {
