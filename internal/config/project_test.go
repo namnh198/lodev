@@ -508,3 +508,119 @@ func TestValidateWorkingDir(t *testing.T) {
 		t.Errorf("newline in php_ide_config: %v", err)
 	}
 }
+
+func withHostOS(t *testing.T, os string) {
+	t.Helper()
+	old := hostOS
+	hostOS = os
+	t.Cleanup(func() { hostOS = old })
+}
+
+func TestEffectivePerformanceMode(t *testing.T) {
+	cases := []struct{ os, project, global, want string }{
+		{"darwin", "none", "bind", "none"},
+		{"darwin", "", "", "bind"},
+		{"linux", "", "", "none"},
+		{"darwin", "", "none", "none"},
+		{"linux", "", "bind", "bind"},
+		{"linux", "bind", "none", "bind"},
+	}
+	for _, c := range cases {
+		withHostOS(t, c.os)
+		p, g := &Project{PerformanceMode: c.project}, &Global{PerformanceMode: c.global}
+		if got := p.EffectivePerformanceMode(g); got != c.want {
+			t.Errorf("%+v: %s want %s", c, got, c.want)
+		}
+	}
+}
+
+func volumeRoot(t *testing.T, withPackage bool) string {
+	t.Helper()
+	root := t.TempDir()
+	if withPackage {
+		os.WriteFile(filepath.Join(root, "package.json"), []byte("{}"), 0o644)
+	}
+	return root
+}
+
+func TestVolumeDirsFor(t *testing.T) {
+	bind := &Global{PerformanceMode: "bind"}
+	cases := []struct {
+		name string
+		p    *Project
+		want []VolumeDir
+	}{
+		{"magento", &Project{Type: "magento", Root: volumeRoot(t, true)},
+			[]VolumeDir{{"var", false}, {"generated", false}, {"node_modules", false}}},
+		{"magento no package.json", &Project{Type: "magento", Root: volumeRoot(t, false)},
+			[]VolumeDir{{"var", false}, {"generated", false}}},
+		{"laravel", &Project{Type: "laravel", Root: volumeRoot(t, true), VolumeDirs: []string{"storage", "var"}},
+			[]VolumeDir{{"node_modules", false}, {"storage", true}, {"var", true}}},
+		{"duplicate of a default dropped", &Project{Type: "magento", Root: volumeRoot(t, false), VolumeDirs: []string{"var", "pub/media"}},
+			[]VolumeDir{{"var", false}, {"generated", false}, {"pub/media", true}}},
+		{"php without package.json", &Project{Type: "php", Root: volumeRoot(t, false)}, nil},
+		{"none", &Project{Type: "magento", Root: volumeRoot(t, true), PerformanceMode: "none"}, nil},
+	}
+	for _, c := range cases {
+		if got := c.p.VolumeDirsFor(bind); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: %v want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestValidateVolumeDirs(t *testing.T) {
+	bad := map[string]struct {
+		typ  string
+		dirs []string
+	}{
+		"parent":        {"php", []string{"../x"}},
+		"absolute":      {"php", []string{"/abs"}},
+		"lodev":         {"php", []string{".lodev/x"}},
+		"lodev itself":  {"php", []string{".lodev"}},
+		"root":          {"php", []string{"."}},
+		"empty segment": {"php", []string{"a//b"}},
+		"space":         {"php", []string{"pub media"}},
+		"nested":        {"php", []string{"pub", "pub/media"}},
+		"same volume":   {"php", []string{"a-b", "a/b"}},
+		"in default":    {"magento", []string{"var/log"}},
+		"in node":       {"php", []string{"node_modules/x"}},
+	}
+	for name, c := range bad {
+		p := valid()
+		p.Type, p.VolumeDirs = c.typ, c.dirs
+		if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "volume_dirs") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for _, dirs := range [][]string{{"pub/media"}, {"var", "var"}, {"node_modules"}} {
+		p := valid()
+		p.Type, p.VolumeDirs = "magento", dirs
+		if err := p.Validate(); err != nil {
+			t.Errorf("%v: %v", dirs, err)
+		}
+	}
+}
+
+func TestValidatePerformanceMode(t *testing.T) {
+	want := `performance_mode "mutagen" is invalid (allowed: bind, none)`
+	p := valid()
+	p.PerformanceMode = "mutagen"
+	if err := p.Validate(); err == nil || err.Error() != want {
+		t.Errorf("project: %v", err)
+	}
+	g := defaultGlobal()
+	g.PerformanceMode = "mutagen"
+	if err := g.Validate(); err == nil || err.Error() != want {
+		t.Errorf("global: %v", err)
+	}
+	g.PerformanceMode = "bind"
+	if err := g.Validate(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestVolumeName(t *testing.T) {
+	if got := VolumeName("shop", "pub/media"); got != "lodev-shop-pub-media" {
+		t.Fatal(got)
+	}
+}

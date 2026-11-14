@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -69,6 +70,10 @@ type Project struct {
 	// Cron runs CronJobs (or the type's default job) in the web container.
 	Cron     bool     `yaml:"cron,omitempty"`
 	CronJobs []string `yaml:"cron_jobs,omitempty"`
+	// PerformanceMode is bind or none; empty = the global value. With bind, VolumeDirs (plus the type's
+	// defaults) live in Docker volumes.
+	PerformanceMode string   `yaml:"performance_mode,omitempty"`
+	VolumeDirs      []string `yaml:"volume_dirs,omitempty"`
 	// Environment is set in the web container; .lodev/.env overrides it.
 	Environment map[string]string `yaml:"environment,omitempty"`
 	// LodevVersionConstraint makes start and restart refuse a lodev outside it, e.g. ">= 1.4.0, < 2".
@@ -124,6 +129,91 @@ func checkWorkingDir(d string) error {
 	for _, s := range systemDirs {
 		if d == s || strings.HasPrefix(d, s+"/") {
 			return fmt.Errorf("working_dir %q is inside the container's %s", d, s)
+		}
+	}
+	return nil
+}
+
+var (
+	PerformanceModes = []string{"bind", "none"}
+	// hostOS is swapped in tests.
+	hostOS      = runtime.GOOS
+	volumeDirRe = regexp.MustCompile(`^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`)
+)
+
+// EffectivePerformanceMode is the project's mode, else the global one, else bind on macOS and none elsewhere.
+func (p *Project) EffectivePerformanceMode(g *Global) string {
+	switch {
+	case p.PerformanceMode != "":
+		return p.PerformanceMode
+	case g != nil && g.PerformanceMode != "":
+		return g.PerformanceMode
+	case hostOS == "darwin":
+		return "bind"
+	}
+	return "none"
+}
+
+// VolumeDir is a project folder kept in a Docker volume; Seed copies the host folder into a new volume.
+type VolumeDir struct {
+	Path string
+	Seed bool
+}
+
+// typeVolumeDirs are the folders a type keeps in volumes (node_modules only with a package.json).
+func typeVolumeDirs(typ string) []string {
+	if typ == "magento" {
+		return []string{"var", "generated", "node_modules"}
+	}
+	return []string{"node_modules"}
+}
+
+// VolumeDirsFor is the folders kept in volumes: the type's defaults, then volume_dirs. Nil when the mode is none.
+func (p *Project) VolumeDirsFor(g *Global) []VolumeDir {
+	if p.EffectivePerformanceMode(g) != "bind" {
+		return nil
+	}
+	var out []VolumeDir
+	for _, d := range typeVolumeDirs(p.Type) {
+		if d != "node_modules" || exists(filepath.Join(p.Root, "package.json")) {
+			out = append(out, VolumeDir{d, false})
+		}
+	}
+	n := len(out)
+	for _, d := range p.VolumeDirs {
+		if !slices.ContainsFunc(out[:n], func(v VolumeDir) bool { return v.Path == d }) {
+			out = append(out, VolumeDir{d, true})
+		}
+	}
+	return out
+}
+
+// VolumeName is the Docker volume for a project folder.
+func VolumeName(project, dir string) string {
+	return "lodev-" + project + "-" + strings.ReplaceAll(dir, "/", "-")
+}
+
+func (p *Project) checkVolumeDirs() error {
+	all := typeVolumeDirs(p.Type) // nesting counts node_modules whether or not package.json exists
+	for _, d := range p.VolumeDirs {
+		if slices.Contains(all, d) {
+			continue
+		}
+		if !volumeDirRe.MatchString(d) || path.Clean(d) != d || d == "." || d == ".." || strings.HasPrefix(d, "../") ||
+			d == ".lodev" || strings.HasPrefix(d, ".lodev/") {
+			return fmt.Errorf("volume_dirs %q must be a folder inside the project, not .lodev (segments of a-z, 0-9, . _ -, joined by /)", d)
+		}
+		all = append(all, d)
+	}
+	for i, a := range all {
+		for _, b := range all[i+1:] {
+			switch {
+			case a == b: // a repeated own entry
+			case strings.HasPrefix(a, b+"/"), strings.HasPrefix(b, a+"/"):
+				return fmt.Errorf("volume_dirs %q and %q are nested (a folder in a volume cannot contain another)", a, b)
+			case VolumeName("", a) == VolumeName("", b):
+				return fmt.Errorf("volume_dirs %q and %q map to the same volume", a, b)
+			}
 		}
 	}
 	return nil
@@ -245,6 +335,14 @@ func (p *Project) ValidateTLD(tld string) error {
 		return fmt.Errorf("docroot %q must be a folder inside the project", d)
 	}
 	if err := validateHooks(p.Hooks); err != nil {
+		return err
+	}
+	if p.PerformanceMode != "" {
+		if err := oneOf("performance_mode", p.PerformanceMode, PerformanceModes); err != nil {
+			return err
+		}
+	}
+	if err := p.checkVolumeDirs(); err != nil {
 		return err
 	}
 	if err := checkWorkingDir(p.WorkingDir); err != nil {

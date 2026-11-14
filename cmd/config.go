@@ -92,6 +92,7 @@ func projectValues(p *config.Project, list func([]string) string) [][2]string {
 		{"enable_xdebug", strconv.FormatBool(p.EnableXdebug)},
 		{"varnish", strconv.FormatBool(p.Varnish)}, {"varnish_version", p.VarnishVersion},
 		{"cron", strconv.FormatBool(p.Cron)},
+		{"performance_mode", p.PerformanceMode}, {"volume_dirs", list(p.VolumeDirs)},
 	}
 }
 
@@ -137,7 +138,7 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 	for _, s := range []struct{ flag, key string }{
 		{"type", "type"}, {"php-version", "php"}, {"webserver", "webserver"},
 		{"docroot", "docroot"}, {"nodejs-version", "nodejs"}, {"user", "user"},
-		{"varnish-version", "varnish_version"},
+		{"varnish-version", "varnish_version"}, {"performance-mode", "performance_mode"},
 	} {
 		if !fl.Changed(s.flag) {
 			continue
@@ -175,6 +176,7 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 	}{
 		{"domains", "domains", old.Domains}, {"services", "services", old.Services},
 		{"php-extensions", "php_extensions", old.PHPExtensions}, {"packages", "packages", old.Packages},
+		{"volume-dirs", "volume_dirs", old.VolumeDirs},
 	} {
 		v, ok := editList(c, l.flag, l.cur)
 		switch {
@@ -343,9 +345,11 @@ func newConfigCmd() *cobra.Command {
 	f.String("varnish", "", `put Varnish in front of the web server: true | false ("" = false)`)
 	f.String("cron", "", `run cron_jobs (or the type's default job) in the web container: true | false ("" = false)`)
 	f.String("varnish-version", "", `Varnish version, e.g. 7.6 or 9.1 ("" = `+config.DefaultVarnishVersion+`)`)
+	f.String("performance-mode", "", `bind | none: keep var, generated, node_modules and volume-dirs in Docker volumes ("" = the global value)`)
 	for _, l := range []struct{ name, what string }{
 		{"domains", "domains (.<tld>)"}, {"services", "shared services"},
 		{"php-extensions", "PHP extensions"}, {"packages", "apt packages"},
+		{"volume-dirs", "folders kept in Docker volumes besides the defaults (with performance_mode bind)"},
 	} {
 		f.StringSlice(l.name, nil, "replace the "+l.what)
 		f.StringSlice("add-"+l.name, nil, "add "+l.what)
@@ -372,7 +376,7 @@ func globalValues(g *config.Global) [][2]string {
 		[2]string{"node_version", g.NodeVersion}, [2]string{"container_timeout", g.ContainerTimeout}, [2]string{"tld", g.TLD},
 		[2]string{"use_docker_compose_system", strconv.FormatBool(g.UseDockerComposeSystem)},
 		[2]string{"use_docker_buildx_system", strconv.FormatBool(g.UseDockerBuildxSystem)})
-	rows = append(rows, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
+	rows = append(rows, [2]string{"performance_mode", g.PerformanceMode}, [2]string{"data_dir", g.DataPath()}, [2]string{"mount_volume", strconv.FormatBool(g.MountVolume)})
 	for _, s := range config.DataServices {
 		rows = append(rows, [2]string{"mount_paths." + s, g.MountPaths[s]})
 	}
@@ -488,6 +492,10 @@ func globalChanges(c *cobra.Command) ([]change, error) {
 		v, _ := fl.GetString("node-version")
 		set([]string{"node_version"}, "node-version", v)
 	}
+	if fl.Changed("performance-mode") {
+		v, _ := fl.GetString("performance-mode")
+		set([]string{"performance_mode"}, "performance-mode", v)
+	}
 	if fl.Changed("opensearch-memory") {
 		v, _ := fl.GetString("opensearch-memory")
 		set([]string{"memory", "opensearch"}, "opensearch-memory", v)
@@ -591,6 +599,7 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("auto-create-db", "", `lodev start/restart create the project's database: true | false ("" = true)`)
 	f.String("use-docker-compose-system", "", `run the system docker compose instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
+	f.String("performance-mode", "", `bind | none: project folders in Docker volumes ("" = bind on macOS, none elsewhere)`)
 	f.String("data-dir", "", `folder for project homes and mounted service data ("" = ~/.lodev/data)`)
 	f.String("mount-volume", "", `keep shared service data in folders under data_dir, not Docker volumes: true | false ("" = false)`)
 	for _, s := range config.DataServices {

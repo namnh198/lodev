@@ -41,6 +41,8 @@ type Global struct {
 	// Run the system docker compose / docker build instead of lodev's pinned binaries.
 	UseDockerComposeSystem bool `yaml:"use_docker_compose_system"`
 	UseDockerBuildxSystem  bool `yaml:"use_docker_buildx_system"`
+	// PerformanceMode is bind or none; empty = bind on macOS, none elsewhere. A project's value wins.
+	PerformanceMode string `yaml:"performance_mode"`
 	// DataDir holds each project's home and, with MountVolume, the shared services' data.
 	DataDir     string            `yaml:"data_dir,omitempty"`
 	MountVolume bool              `yaml:"mount_volume"`
@@ -213,6 +215,11 @@ func (g *Global) Validate() error {
 		}
 		if !versionRe.MatchString(g.Versions[s]) {
 			return fmt.Errorf("versions.%s %q is not a version (e.g. 8.0)", s, g.Versions[s])
+		}
+	}
+	if g.PerformanceMode != "" {
+		if err := oneOf("performance_mode", g.PerformanceMode, PerformanceModes); err != nil {
+			return err
 		}
 	}
 	if g.DataDir != "" {

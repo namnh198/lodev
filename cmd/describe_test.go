@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -117,6 +119,18 @@ func TestDescribeMongoDB(t *testing.T) {
 	if me := rowNamed(t, rows, "Mongo Express"); me[2] != "https://mongo.test" {
 		t.Errorf("Mongo Express %q", me)
 	}
+}
+
+func TestDescribePerformance(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "package.json"), []byte("{}"), 0o644)
+	p := describeProject("nginx")
+	p.Type, p.Root = "magento", root
+	state := func(string) string { return "" }
+	web := func(g *config.Global) string { return rowNamed(t, describeRows(p, g, state, nil), "web")[3] }
+
+	mustContain(t, web(&config.Global{PerformanceMode: "bind"}), "Performance: bind (var, generated, node_modules)")
+	mustContain(t, web(&config.Global{PerformanceMode: "none"}), "Performance: none")
 }
 
 func rowsHave(rows [][]string, name string) bool {

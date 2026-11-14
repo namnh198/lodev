@@ -48,6 +48,15 @@ func describeRows(p *config.Project, g *config.Global, state func(string) string
 	}
 	user, _ := p.ContainerUser()
 	info = append(info, "User: "+user)
+	perf := p.EffectivePerformanceMode(g)
+	if dirs := p.VolumeDirsFor(g); len(dirs) > 0 {
+		names := make([]string, len(dirs))
+		for i, d := range dirs {
+			names[i] = d.Path
+		}
+		perf += " (" + strings.Join(names, ", ") + ")"
+	}
+	info = append(info, "Performance: "+perf)
 	rows := [][]string{{"web", stat(state("lodev-" + p.Name + "-web")), strings.Join(web, "\n"), strings.Join(info, "\n")}}
 
 	if db := p.DB(); db != "" {

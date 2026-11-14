@@ -214,6 +214,7 @@ auto_create_db: true  # lodev start/restart create the project's database (CREAT
                       # false = you manage databases yourself (db-import still creates its target)
 use_docker_compose_system: false  # true = the system `docker compose` instead of lodev's pinned one
 use_docker_buildx_system: false   # true = the system `docker build` (buildx) instead of lodev's pinned one
+performance_mode: ""              # bind | none; "" = bind on macOS, none elsewhere (see Performance mode)
 data_dir: ~/.lodev/data           # project homes and mounted service data ("" = ~/.lodev/data)
 mount_volume: false               # true = shared service data in <data_dir>/<service>, not Docker volumes
 mount_paths:                      # optional, per service: mysql mariadb redis opensearch rabbitmq mongodb
@@ -283,6 +284,8 @@ enable_xdebug: true          # optional: Xdebug on at every start (default false
 varnish: true                # optional: Varnish in front of the web server (default false)
 varnish_version: "7.6"       # optional: the varnish image tag (default 7.6)
 cron: true                   # optional: run cron jobs in the web container (default false)
+performance_mode: bind       # optional: bind | none (default: the global value; see Performance mode)
+volume_dirs: [pub/media]     # optional: more folders in Docker volumes; ignored when performance_mode is none
 cron_jobs:                   # optional: empty = the type's default job (see Cron)
   - '*/5 * * * * php bin/magento indexer:reindex >> var/log/reindex.log 2>&1'
 environment:                 # optional: variables for the web container (see Environment variables)
@@ -382,6 +385,31 @@ restarts the projects that are running; stopped ones pick the new domains up on 
 Nothing is written if any project cannot move. On macOS `.local` goes through mDNS (slow, may skip
 `/etc/hosts`), so `test` or `localhost` work better there. After editing `tld` in the file by hand,
 run `lodev config-global --tld=<new> --from-tld=<old>`.
+
+## Performance mode
+
+With `performance_mode: bind` (the default on macOS, where bind mounts are slow; Linux defaults to `none`),
+some project folders live in Docker volumes instead of the bind mount. Set it per project
+(`lodev config --performance-mode=bind|none`) or for all (`lodev config-global --performance-mode=...`);
+`""` goes back to the next level (project, then global, then the OS default).
+
+| Type | Folders in volumes |
+|---|---|
+| magento | `var`, `generated`, `node_modules`* |
+| laravel, wordpress, php | `node_modules`* |
+
+\* only when `package.json` exists at the project root.
+
+Laravel's `storage` stays on the bind mount (it holds real data); add it to `volume_dirs` if you want it
+in a volume. `volume_dirs` adds your own folders (`lodev config --add-volume-dirs=pub/media`): relative
+paths of `A-Z a-z 0-9 . _ -` segments, not `.lodev`, no folder inside another one in volumes, and no two
+that map to the same volume name (`lodev-<name>-<folder with / as ->`).
+
+- `var`, `generated` and `node_modules` start empty in their volume. Every `volume_dirs` folder is copied
+  from the host once, when its volume is created.
+- The host no longer sees what the container has in these folders: read logs with `lodev logs` or
+  `lodev exec tail`, and host-side `npm` or IDE indexing of `generated/` need `performance_mode: none`.
+- `lodev describe` shows the effective mode and folders.
 
 ## Varnish
 

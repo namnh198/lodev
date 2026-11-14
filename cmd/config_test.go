@@ -604,3 +604,33 @@ func TestConfigGlobalAutoCreateDB(t *testing.T) {
 	out, _, _ = runConfig(t, newConfigGlobalCmd)
 	mustContain(t, out, "auto_create_db", "false")
 }
+
+func TestConfigPerformanceMode(t *testing.T) {
+	root := newShop(t)
+	if _, _, err := runConfig(t, newConfigCmd, "--performance-mode=none", "--add-volume-dirs=pub/media"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readShop(t, root), "performance_mode: none", "volume_dirs: [pub/media]")
+	out, _, err := runConfig(t, newConfigCmd, "--performance-mode=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readShop(t, root), "performance_mode") {
+		t.Fatalf("kept:\n%s", readShop(t, root))
+	}
+	mustContain(t, out, "performance_mode: none → ")
+	if _, _, err := runConfig(t, newConfigCmd, "--performance-mode=mutagen"); err == nil {
+		t.Fatal("mutagen accepted")
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--add-volume-dirs=../x"); err == nil {
+		t.Fatal("../x accepted")
+	}
+}
+
+func TestConfigGlobalPerformanceMode(t *testing.T) {
+	newGlobalHome(t, "")
+	if _, _, err := runConfig(t, newConfigGlobalCmd, "--performance-mode=bind"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readGlobal(t), "performance_mode: bind")
+}
