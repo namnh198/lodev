@@ -104,9 +104,9 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 	}
 
 	// addTree lists the files and symlinks below the repo folder dir.
-	addTree := func(dir, label string, skipExamples bool) error {
+	addTree := func(dir, label string) error {
 		return walkTree(filepath.Join(p.Root, dir), func(_, rel string, d fs.DirEntry) error {
-			if skipExamples && strings.HasSuffix(rel, ".example") || !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0 {
+			if d.IsDir() {
 				return nil
 			}
 			key := dir + "/" + rel
@@ -114,11 +114,11 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 			return nil
 		})
 	}
-	if err := addTree(".lodev/homeadditional", "home file: ", true); err != nil {
+	if err := addTree(".lodev/homeadditional", "home file: "); err != nil {
 		return nil, err
 	}
 	// Apache runs piped logs and other commands from its config; nginx's config cannot.
-	if err := addTree(".lodev/apache", "apache config: ", true); err != nil {
+	if err := addTree(".lodev/apache", "apache config: "); err != nil {
 		return nil, err
 	}
 	if conf := ".lodev/apache-webserver.conf"; !generated(filepath.Join(p.Root, conf)) {
@@ -157,8 +157,10 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 	return items, nil
 }
 
-// walkTree calls fn for every entry below dir with its slash path relative to dir, following dir
-// itself when it is a symlink (start mounts what it points to). A missing dir has no entries.
+// walkTree calls fn for the folders, regular files and symlinks below the repo folder dir, with their
+// slash path relative to dir, following dir itself when it is a symlink; *.example files are left
+// out. It is the one place that decides which repo files the trust list shows and start copies. A
+// missing dir has no entries.
 func walkTree(dir string, fn func(path, rel string, d fs.DirEntry) error) error {
 	root, err := filepath.EvalSymlinks(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -175,7 +177,11 @@ func walkTree(dir string, fn func(path, rel string, d fs.DirEntry) error) error 
 		if err != nil {
 			return err
 		}
-		return fn(path, filepath.ToSlash(rel), d)
+		rel = filepath.ToSlash(rel)
+		if !d.IsDir() && (strings.HasSuffix(rel, ".example") || !d.Type().IsRegular() && d.Type()&fs.ModeSymlink == 0) {
+			return nil
+		}
+		return fn(path, rel, d)
 	})
 }
 

@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"lodev/internal/config"
@@ -152,5 +154,49 @@ func TestRemoveMountsKeepsHome(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(home, snap)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s snapshot kept: %v", snap, err)
 		}
+	}
+}
+
+// The question at lodev create lists exactly the repo files the web mounts copy: a copied file
+// nobody was asked about, or a listed one never copied, is a bug.
+func TestTrustListsEveryCopiedFile(t *testing.T) {
+	g, p := mountsFixture(t)
+	p.Webserver = "apache"
+	add := filepath.Join(p.Root, ".lodev", "homeadditional")
+	writeFile(t, filepath.Join(add, ".gitconfig"), "x")
+	writeFile(t, filepath.Join(add, ".config", "app.ini"), "x")
+	writeFile(t, filepath.Join(add, ".bash_aliases.example"), "x")
+	os.Symlink(".gitconfig", filepath.Join(add, "link"))
+	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "logs.conf"), "x")
+	writeFile(t, filepath.Join(p.Root, ".lodev", "apache", "example.conf.example"), "x")
+	writeFile(t, WebserverConfFile(p), "<VirtualHost>\n") // the user's own: no lodev marker
+
+	m, err := prepareMounts(g, p, "img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copied []string
+	for snap, repo := range map[string]string{m.ProjectHomeAdditional: ".lodev/homeadditional/", filepath.Join(m.ApacheSnapshot, "custom.d"): ".lodev/apache/"} {
+		filepath.WalkDir(snap, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(snap, path)
+			copied = append(copied, repo+filepath.ToSlash(rel))
+			return nil
+		})
+	}
+	if _, err := os.Stat(filepath.Join(m.ApacheSnapshot, "webserver.conf")); err == nil {
+		copied = append(copied, ".lodev/apache-webserver.conf")
+	}
+	slices.Sort(copied)
+	var listed []string
+	for _, k := range trustKeys(t, p) {
+		if strings.HasPrefix(k, ".lodev/homeadditional/") || strings.HasPrefix(k, ".lodev/apache") {
+			listed = append(listed, k)
+		}
+	}
+	if !slices.Equal(copied, listed) {
+		t.Errorf("copied %q\nlisted %q", copied, listed)
 	}
 }
