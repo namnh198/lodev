@@ -115,7 +115,7 @@ archives, `.deb` files, `checksums.txt`, `lodev.rb`, `PKGBUILD` and `.SRCINFO` (
 like `v1.3.0-rc1`, is marked pre-release). A stable tag also commits `lodev.rb` to
 `Formula/lodev.rb` in `namnh198/homebrew-tap` ("feat: release lodev vX.Y.Z"); that needs a repository
 secret `HOMEBREW_TAP_TOKEN`, a token with Contents read/write on the tap repo. The rest is manual:
-`PKGBUILD` + `.SRCINFO` to the `lodev-bin` AUR repo; bump `version` in `flake.nix`.
+bump `version` in `flake.nix` (the `PKGBUILD` is only published as a release file, not on the AUR).
 
 A stable tag also builds the PHP image for amd64 and arm64 (native runners) and pushes it to
 `ghcr.io/namnh198/lodev-webserver:<tag>`; that lodev version pulls it instead of building it.

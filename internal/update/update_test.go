@@ -135,5 +135,5 @@ func TestDetectManager(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(PacmanLocalDir, "lodev-bin-1.2.0-1"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	check("/usr/bin/lodev", "AUR", "update lodev-bin from the AUR (e.g. yay -Syu lodev-bin)")
+	check("/usr/bin/lodev", "pacman", "download the PKGBUILD from https://github.com/namnh198/lodev/releases/latest and run: makepkg -si")
 }

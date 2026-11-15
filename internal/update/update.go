@@ -71,13 +71,13 @@ func DetectManager(exe string) Manager {
 	case strings.HasPrefix(exe, "/nix/store/"):
 		return Manager{"Nix", "update lodev with nix (e.g. nix profile upgrade lodev)"}
 	}
-	// The .deb and AUR packages install /usr/bin/lodev; a manual install elsewhere stays upgradable.
+	// The .deb and the release's PKGBUILD install /usr/bin/lodev; a manual install elsewhere stays upgradable.
 	if exe == "/usr/bin/lodev" {
 		if _, err := os.Stat(filepath.Join(DpkgInfoDir, "lodev.list")); err == nil {
 			return Manager{"apt", "download the .deb from https://github.com/namnh198/lodev/releases/latest and run: sudo apt install ./lodev_*.deb"}
 		}
 		if m, _ := filepath.Glob(filepath.Join(PacmanLocalDir, "lodev-bin-*")); len(m) > 0 {
-			return Manager{"AUR", "update lodev-bin from the AUR (e.g. yay -Syu lodev-bin)"}
+			return Manager{"pacman", "download the PKGBUILD from https://github.com/namnh198/lodev/releases/latest and run: makepkg -si"}
 		}
 	}
 	return Manager{Command: "lodev self-upgrade"}
