@@ -16,7 +16,9 @@ func TestWebserverConfigNextjsGolden(t *testing.T) {
 	b := must(t)(WebserverConfig(nextjsProject()))
 	golden(t, "webserver-nextjs", b)
 	s := string(b)
-	for _, want := range []string{"proxy_pass http://127.0.0.1:3000;", "proxy_set_header Upgrade $http_upgrade;", "# lodev-generated"} {
+	// proxy_buffering off: streamed RSC/Suspense must reach the browser as it renders.
+	for _, want := range []string{"proxy_pass http://127.0.0.1:3000;", "proxy_set_header Upgrade $http_upgrade;", "# lodev-generated",
+		"proxy_buffering off;"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("lacks %q", want)
 		}

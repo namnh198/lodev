@@ -67,7 +67,10 @@ func ensureVolumes(p *config.Project, g *config.Global, img string) ([]templates
 		for _, l := range report {
 			ui.Info("%s", l)
 		}
-		hint := []string{"run lodev npm install"}
+		var hint []string
+		if p.Type != "nextjs" { // its daemon installs with the lockfile's manager; npm would make a package-lock.json
+			hint = append(hint, "run lodev npm install")
+		}
 		if p.Type == "magento" {
 			hint = append(hint, "lodev magento setup:di:compile if you need generated code up front")
 		}

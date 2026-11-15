@@ -144,3 +144,20 @@ func TestWarnNextjsAllowedDevOrigins(t *testing.T) {
 		t.Errorf("php project: %q", w)
 	}
 }
+
+// The nextjs daemon installs with the lockfile's manager: pointing at npm would switch a pnpm project to npm.
+func TestEnsureVolumesHintNextjs(t *testing.T) {
+	p, g, _ := volumeFixture(t, missing)
+	p.Type, p.VolumeDirs = "nextjs", nil
+	writeFile(t, filepath.Join(p.Root, "package.json"), "{}")
+	out, _, restore := ui.Capture(false)
+	defer restore()
+	if _, err := ensureVolumes(p, g, "img"); err != nil {
+		t.Fatal(err)
+	}
+	s := out.String()
+	if strings.Contains(s, "lodev npm install") {
+		t.Errorf("nextjs hint points at npm: %s", s)
+	}
+	mustContain(t, s, "daemons retry on their own")
+}
