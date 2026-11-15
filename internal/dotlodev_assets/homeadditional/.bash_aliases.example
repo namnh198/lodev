@@ -1,0 +1,5 @@
+# Rename to .bash_aliases: lodev copies .lodev/homeadditional into the web container's home.
+# Applies to `lodev ssh` shells only; hooks, cron and daemons run `sh -c` (use environment: there).
+# alias ll='ls -la'
+# export EDITOR=vim
+# Scripts in .lodev/homeadditional/bin/ are on PATH.

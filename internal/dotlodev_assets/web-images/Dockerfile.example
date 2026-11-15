@@ -1,0 +1,2 @@
+# Rename to Dockerfile to extend the web image.
+RUN apt-get update && apt-get install -y --no-install-recommends imagemagick

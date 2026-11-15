@@ -1,0 +1,5 @@
+# Rename to <name>.compose.yml to merge extra services.
+# services:
+#   adminer:
+#     image: adminer
+#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web

@@ -1,0 +1,2 @@
+# Rename to <name>.conf to extend the nginx config.
+# location /api { ... }

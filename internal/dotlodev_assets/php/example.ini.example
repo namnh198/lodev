@@ -1,0 +1,2 @@
+; Rename to <name>.ini to apply PHP settings.
+; memory_limit = 4G

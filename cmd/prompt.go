@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"lodev/internal/config"
+	"lodev/internal/dotlodev_assets"
 )
 
 // askProject asks, one line each like `ddev config`, for every value whose flag was not given
@@ -117,37 +119,31 @@ func settleAnswers(p *config.Project, oldName, oldType string, docrootSet bool) 
 	}
 }
 
-// scaffold writes inert *.example files showing where to customize, and php/prepend.php; existing files are kept.
+// scaffold copies dotlodev_assets into .lodev: inert *.example files showing where to customize,
+// and php/prepend.php. Existing files are kept, and only the project's webserver folder is copied.
 func scaffold(root, webserver string) error {
-	files := map[string]string{
-		"web-images/Dockerfile.example": "# Rename to Dockerfile to extend the web image.\nRUN apt-get update && apt-get install -y --no-install-recommends imagemagick\n",
-		"php/example.ini.example":       "; Rename to <name>.ini to apply PHP settings.\n; memory_limit = 4G\n",
-		// zz-lodev.ini sets it as auto_prepend_file: it must exist or every PHP script fails.
-		"php/prepend.php":                       "<?php\n// Runs before every PHP script (web and CLI). e.g. $_SERVER['MAGE_RUN_CODE'] = 'default';\n",
-		"hooks/post-start.d/example.sh.example": "#!/bin/sh\n# Rename to <name>.sh (chmod +x) to run it after lodev start, in the web container.\n# composer install\n",
-		"homeadditional/.bash_aliases.example": "# Rename to .bash_aliases: lodev copies .lodev/homeadditional into the web container's home.\n" +
-			"# Applies to `lodev ssh` shells only; hooks, cron and daemons run `sh -c` (use environment: there).\n" +
-			"# alias ll='ls -la'\n# export EDITOR=vim\n# Scripts in .lodev/homeadditional/bin/ are on PATH.\n",
-		"example.compose.yml.example": "# Rename to <name>.compose.yml to merge extra services.\n# services:\n#   adminer:\n#     image: adminer\n#     networks: [lodev, default]   # lodev: reach mysql/redis; default: talk to web\n",
-	}
-	if webserver == "nginx" || webserver == "apache" {
-		files[webserver+"/example.conf.example"] = "# Rename to <name>.conf to extend the " + webserver + " config.\n# location /api { ... }\n"
-	}
 	// A symlinked homeadditional (a teammate's dotfiles) may not exist here: never write through it.
-	if fi, err := os.Lstat(filepath.Join(root, ".lodev", "homeadditional")); err == nil && fi.Mode()&os.ModeSymlink != 0 {
-		delete(files, "homeadditional/.bash_aliases.example")
-	}
-	for rel, body := range files {
-		path := filepath.Join(root, ".lodev", rel)
+	fi, err := os.Lstat(filepath.Join(root, ".lodev", "homeadditional"))
+	symlinkedHome := err == nil && fi.Mode()&os.ModeSymlink != 0
+	return fs.WalkDir(dotlodev_assets.FS, ".", func(rel string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		switch top, _, _ := strings.Cut(rel, "/"); {
+		case (top == "nginx" || top == "apache") && top != webserver, top == "homeadditional" && symlinkedHome:
+			return nil
+		}
+		path := filepath.Join(root, ".lodev", filepath.FromSlash(rel))
 		if _, err := os.Stat(path); err == nil {
-			continue
+			return nil
+		}
+		data, err := dotlodev_assets.FS.ReadFile(rel)
+		if err != nil {
+			return err
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
+		return os.WriteFile(path, data, 0o644)
+	})
 }

@@ -1,0 +1,2 @@
+# Rename to <name>.conf to extend the apache config.
+# location /api { ... }
