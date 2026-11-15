@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lodev/internal/hosts"
 	"lodev/internal/ui"
 	"lodev/internal/update"
 )
@@ -31,11 +32,7 @@ var (
 	downloadRelease = update.Download
 	geteuid         = os.Geteuid
 	lookSudo        = func() error { _, err := exec.LookPath("sudo"); return err }
-	runSudo         = func(args ...string) error {
-		c := exec.Command("sudo", args...)
-		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-		return c.Run()
-	}
+	runSudo         = hosts.Sudo
 )
 
 // nightlyTag is the rolling pre-release rebuilt on every push to main.

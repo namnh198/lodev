@@ -14,12 +14,15 @@ import (
 
 var File = "/etc/hosts"
 
-// runSudo runs sudo with the terminal attached, so it can ask for the password; swapped in tests.
-var runSudo = func(args ...string) error {
+// Sudo runs sudo with the terminal attached, so it can ask for the password.
+func Sudo(args ...string) error {
 	c := exec.Command("sudo", args...)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
 }
+
+// runSudo is Sudo; swapped in tests.
+var runSudo = Sudo
 
 // Render replaces (or appends) the block for name; no domains removes it.
 func Render(content, name string, domains []string) (string, error) {
