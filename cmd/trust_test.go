@@ -249,6 +249,18 @@ func TestConfirmRepoCommands(t *testing.T) {
 	}
 }
 
+// A repo's text cannot move the cursor or erase lines of the list it is approved from.
+func TestConfirmRepoCommandsEscapesControlCharacters(t *testing.T) {
+	p := hookProject(t, nil)
+	p.Environment = map[string]string{"A": "1\r\x1b[2K\x1b[1A\u009b\u202ex\tz", "B": "\xff"}
+	asTTY(t, false, "")
+	want := "project shop runs commands from its repo:\n  environment: A=1\\r\\x1b[2K\\x1b[1A\\u009b\\u202ex\tz\n  environment: B=\\xff\n" +
+		"run lodev create in a terminal to review them, or pass --yes"
+	if err := confirmRepoCommands(p, false); err == nil || err.Error() != want {
+		t.Fatalf("err = %q\nwant  %q", err, want)
+	}
+}
+
 // After create, start and hooks run the repo's commands without asking (the check is create-only).
 func TestStartDoesNotAsk(t *testing.T) {
 	p, _ := startStubs(t, "services:\n  web:\n    networks: {lodev: {}, default: {}}\n")

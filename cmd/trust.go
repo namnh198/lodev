@@ -8,7 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"lodev/internal/config"
 	"lodev/internal/docker"
@@ -185,6 +188,25 @@ func walkTree(dir string, fn func(path, rel string, d fs.DirEntry) error) error 
 	})
 }
 
+// escapeControl writes the terminal controls in s (but newline and tab) as Go escapes, so repo text
+// cannot move the cursor, erase or reorder the lines it is approved from.
+func escapeControl(s string) string {
+	var b strings.Builder
+	for len(s) > 0 {
+		r, n := utf8.DecodeRuneInString(s)
+		switch {
+		case r == utf8.RuneError && n == 1: // a lone byte such as 0x9b, the 8-bit CSI
+			fmt.Fprintf(&b, `\x%02x`, s[0])
+		case r != '\n' && r != '\t' && (unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)):
+			b.WriteString(strings.Trim(strconv.QuoteRune(r), "'"))
+		default:
+			b.WriteString(s[:n])
+		}
+		s = s[n:]
+	}
+	return b.String()
+}
+
 // trustTTY reports whether lodev can ask; swapped in tests.
 var trustTTY = stdinTTY
 
@@ -197,7 +219,7 @@ func confirmRepoCommands(p *config.Project, yes bool) error {
 	}
 	lines := make([]string, len(items))
 	for i, it := range items {
-		lines[i] = "  " + strings.ReplaceAll(it.Display, "\n", "\n  ")
+		lines[i] = "  " + strings.ReplaceAll(escapeControl(it.Display), "\n", "\n  ")
 	}
 	list := fmt.Sprintf("project %s runs commands from its repo:\n%s", p.Name, strings.Join(lines, "\n"))
 	if !trustTTY() {

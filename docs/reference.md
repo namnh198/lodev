@@ -487,7 +487,8 @@ and your own apache config: the files in `.lodev/apache/` (not `.example` ones) 
 `Run these commands? [y/N]` once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
 whose repo already has `.lodev` files; nothing to run asks nothing). A declined question registers
 nothing. Where lodev cannot ask (no terminal) it fails with the list; pass `--yes` to `create` to
-approve it. Nothing is stored: `start`, `restart` and the hooks run by `stop`, `db-import` and
+approve it. Control characters in the list (escape sequences, carriage returns, bidi
+overrides) are shown as escapes like `\x1b`, so the repo's text cannot hide a line. Nothing is stored: `start`, `restart` and the hooks run by `stop`, `db-import` and
 `snapshot restore` do not ask again.
 
 Accepted risk: a `git pull` that adds or changes a hook, daemon, compose file, web-image part,
