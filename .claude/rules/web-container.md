@@ -1,14 +1,13 @@
 ---
 paths:
-  - "assets/webserver/**"
-  - "assets/templates/**"
+  - "containers/webserver/**"
   - "internal/templates/**"
   - "cmd/project.go"
 ---
 
 # The web container
 
-- The image tag is a hash of everything under `assets/webserver/` (skel dotfiles included), so
+- The image tag is a hash of everything under `containers/webserver/` (skel dotfiles included), so
   any change there rebuilds the image on the next `lodev start`; check a change with
   `docker run` against the built image before calling it done.
 - Host → container contract (change both sides together, plus the golden files):

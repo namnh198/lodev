@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"lodev/assets"
+	"lodev/containers"
 	"lodev/internal/config"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
@@ -186,7 +186,7 @@ func BuildImage(sub string, args func(dir string) []string) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	if err := assets.Extract(sub, dir); err != nil {
+	if err := containers.Extract(sub, dir); err != nil {
 		return err
 	}
 	return Run(args(dir)...)
@@ -206,7 +206,7 @@ var (
 	run     = Run
 	pull    = func(ref string) error { return Run("pull", ref) }
 	tag     = func(src, dst string) error { _, err := Output("tag", src, dst); return err }
-	phpHash = func() (string, error) { return assets.Hash("webserver") }
+	phpHash = func() (string, error) { return containers.Hash("webserver") }
 )
 
 // pullBase fetches a stable release's base image from the registry and tags it as base; false

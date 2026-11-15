@@ -2,20 +2,20 @@
 // (label and build args), so the release workflow builds the image lodev would build:
 //
 //	args=(); while IFS= read -r a; do args+=("$a"); done < <(go run ./tools/webimage)
-//	docker buildx build "${args[@]}" ... assets/webserver
+//	docker buildx build "${args[@]}" ... containers/webserver
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"lodev/assets"
+	"lodev/containers"
 	"lodev/internal/config"
 	"lodev/internal/docker"
 )
 
 func flags() ([]string, error) {
-	h, err := assets.Hash("webserver")
+	h, err := containers.Hash("webserver")
 	if err != nil {
 		return nil, err
 	}

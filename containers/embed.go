@@ -1,5 +1,5 @@
-// Package assets holds files embedded into the lodev binary.
-package assets
+// Package containers holds the Docker build contexts embedded into the lodev binary.
+package containers
 
 import (
 	"crypto/sha256"
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//go:embed all:webserver all:mkcert all:templates
+//go:embed all:webserver all:mkcert
 var FS embed.FS
 
 // Extract copies the embedded subtree sub into dst.

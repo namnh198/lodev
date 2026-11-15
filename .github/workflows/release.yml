@@ -40,7 +40,7 @@ jobs:
           args=(); while IFS= read -r a; do args+=("$a"); done < <(go run ./tools/webimage)
           docker buildx build "${args[@]}" --platform "$PLATFORM" --metadata-file meta.json \
             --output "type=image,name=ghcr.io/namnh198/lodev-webserver,push-by-digest=true,name-canonical=true,push=true" \
-            assets/webserver
+            containers/webserver
           mkdir -p digests
           digest=$(jq -r '."containerimage.digest"' meta.json)
           touch "digests/${digest#sha256:}"

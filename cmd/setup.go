@@ -10,12 +10,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"lodev/assets"
 	"lodev/internal/certs"
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/dockertools"
 	"lodev/internal/registry"
+	"lodev/internal/templates"
 	"lodev/internal/ui"
 )
 
@@ -48,7 +48,7 @@ func firstRunSetup() {
 		return
 	}
 	ui.Info("First run: setting up lodev in %s", config.Home())
-	data, err := assets.FS.ReadFile("templates/global-config.yaml")
+	data, err := templates.FS.ReadFile("global-config.yaml")
 	if setupOS == "linux" { // macOS resolves .local through mDNS (slow); Linux reads /etc/hosts first
 		data = regexp.MustCompile(`(?m)^tld: test\b`).ReplaceAll(data, []byte("tld: local"))
 	}

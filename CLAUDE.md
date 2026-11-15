@@ -10,7 +10,7 @@ command); `README.md` is only the landing page. `make help` lists build targets.
 - `go vet ./... && go test ./...` is the gate (CI runs the same plus `make packages`).
 - Run Go commands outside the sandbox with `GOCACHE=$TMPDIR/gocache`: inside, Go cannot reach
   its module cache or verify TLS, and `httptest` cannot bind a port.
-- `gofmt -l cmd internal tools assets` prints nothing before a commit.
+- `gofmt -l cmd internal tools containers` prints nothing before a commit.
 - Golden files: `go test ./internal/templates/ ./internal/config/ -update`, then read the diff.
 
 ## Change discipline

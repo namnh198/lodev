@@ -3,15 +3,20 @@ package templates
 
 import (
 	"bytes"
+	"embed"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
 	"text/template"
 
-	"lodev/assets"
 	"lodev/internal/config"
 )
+
+// FS holds the templates and the files lodev copies as they are (db.cnf, global-config.yaml).
+//
+//go:embed *.tmpl db.cnf global-config.yaml
+var FS embed.FS
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 	"q": strconv.Quote, // a Go-quoted string is a valid YAML double-quoted scalar
@@ -22,7 +27,7 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 		}
 		return config.DataVolume(svc) + ":" + config.DataTarget(svc)
 	},
-}).ParseFS(assets.FS, "templates/*.tmpl"))
+}).ParseFS(FS, "*.tmpl"))
 
 func render(name string, data any) ([]byte, error) {
 	var b bytes.Buffer

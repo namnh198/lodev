@@ -13,9 +13,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"lodev/assets"
 	"lodev/internal/config"
 	"lodev/internal/dockertools"
+	"lodev/internal/templates"
 )
 
 // TestMain keeps every other test away from the first-run setup and the real Docker daemon.
@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestGlobalConfigTemplateIsTheDefaults(t *testing.T) {
-	data, err := assets.FS.ReadFile("templates/global-config.yaml")
+	data, err := templates.FS.ReadFile("global-config.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

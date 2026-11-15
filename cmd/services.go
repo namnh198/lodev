@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"lodev/assets"
 	"lodev/internal/certs"
 	"lodev/internal/config"
 	"lodev/internal/registry"
@@ -58,7 +57,7 @@ func checkPort(p int) error {
 // missing; the user's edits are kept (and moved from the older ~/.lodev/<db>/). Created here, not
 // by Docker, which would make a root-owned folder.
 func ensureDBConfig() error {
-	data, err := assets.FS.ReadFile("templates/db.cnf")
+	data, err := templates.FS.ReadFile("db.cnf")
 	if err != nil {
 		return err
 	}
