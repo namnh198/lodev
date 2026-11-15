@@ -114,8 +114,15 @@ func warnings(t *testing.T, p *config.Project, mode string) string {
 func TestWarnNextjsHostNodeModules(t *testing.T) {
 	p := nextjsConfProject(t)
 	os.MkdirAll(filepath.Join(p.Root, "node_modules"), 0o755)
-	if w := warnings(t, p, "none"); !strings.Contains(w, "node_modules") || !strings.Contains(w, "lodev config --performance-mode=bind") {
-		t.Errorf("mode none: %q", w)
+	want := "warning: performance_mode is none: the container installs Linux packages into the host's node_modules; run lodev config --performance-mode=bind to keep them in a volume\n"
+	if w := warnings(t, p, "none"); w != want {
+		t.Errorf("mode none, node_modules:\n got %q\nwant %q", w, want)
+	}
+	// Both folders: one warning naming them.
+	os.MkdirAll(filepath.Join(p.Root, ".next"), 0o755)
+	want = "warning: performance_mode is none: the container installs Linux packages into the host's node_modules, .next; run lodev config --performance-mode=bind to keep them in a volume\n"
+	if w := warnings(t, p, "none"); w != want {
+		t.Errorf("mode none, both:\n got %q\nwant %q", w, want)
 	}
 	if w := warnings(t, p, "bind"); strings.Contains(w, "node_modules") {
 		t.Errorf("mode bind: %q", w)

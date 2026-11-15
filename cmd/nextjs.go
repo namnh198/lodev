@@ -28,10 +28,14 @@ func warnNextjs(p *config.Project, g *config.Global) {
 		return
 	}
 	if p.EffectivePerformanceMode(g) != "bind" {
+		var shared []string
 		for _, d := range []string{"node_modules", ".next"} {
 			if fi, err := os.Stat(filepath.Join(p.Root, d)); err == nil && fi.IsDir() {
-				ui.Warn("performance_mode is none: the container installs Linux packages into the host's %s; run lodev config --performance-mode=bind to keep them in a volume", d)
+				shared = append(shared, d)
 			}
+		}
+		if len(shared) > 0 {
+			ui.Warn("performance_mode is none: the container installs Linux packages into the host's %s; run lodev config --performance-mode=bind to keep them in a volume", strings.Join(shared, ", "))
 		}
 	}
 	if len(p.Domains) == 0 {
