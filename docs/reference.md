@@ -447,6 +447,21 @@ present wins). With `performance_mode: bind`, `node_modules` (when there is a `p
 `.next` live in Docker volumes, empty at first, so the container's Linux packages never land in the
 host's folders.
 
+On start lodev adds a daemon named `nextjs` (see [Daemons](#daemons); output in `lodev logs`) that
+installs, then runs your `dev` script on port 3000:
+
+| Lockfile | Command |
+|---|---|
+| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile && PORT=3000 exec pnpm run dev` |
+| `yarn.lock` | `yarn install && PORT=3000 exec yarn run dev` |
+| `package-lock.json` | `npm ci && PORT=3000 exec npm run dev` |
+| none | `pnpm install && PORT=3000 exec pnpm run dev` |
+
+The generated `.lodev/nginx-webserver.conf` proxies every request to it, websockets included (HMR);
+delete its marker line to take it over. The web container gets
+`NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem`, so server-side `fetch` trusts other lodev projects'
+https domains (`https://magento2.test/graphql`); `environment:` or `.lodev/.env` can override it.
+
 ## Environment variables
 
 The web container gets lodev's variables (`DB_HOST`, `REDIS_HOST`, …), then `environment:` from

@@ -314,11 +314,12 @@ func writeVarnishVCL(p *config.Project) error {
 	return os.WriteFile(path, vcl, 0o644)
 }
 
-// writeDaemons rewrites .lodev/daemons/ (a script per web_extra_daemons entry, plus daemons.conf) and removes it when there are none.
+// writeDaemons rewrites .lodev/daemons/ (a script per daemon, web_extra_daemons and the type's, plus daemons.conf) and removes it when there are none.
 // The folder itself is kept: a running container bind-mounts it, and a new inode would leave it looking at a deleted folder.
 func writeDaemons(p *config.Project) error {
 	dir := filepath.Join(p.Root, ".lodev", "daemons")
-	if len(p.WebExtraDaemons) == 0 {
+	daemons := p.Daemons()
+	if len(daemons) == 0 {
 		return os.RemoveAll(dir)
 	}
 	conf, err := templates.DaemonsConf(p)
@@ -337,7 +338,7 @@ func writeDaemons(p *config.Project) error {
 			return err
 		}
 	}
-	for _, d := range p.WebExtraDaemons {
+	for _, d := range daemons {
 		if err := os.WriteFile(filepath.Join(dir, d.Name+".sh"), templates.DaemonScript(p, d), 0o755); err != nil {
 			return err
 		}

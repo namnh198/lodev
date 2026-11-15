@@ -114,8 +114,12 @@ func webEnv(in ProjectInput) []string {
 	if len(p.CronLines()) > 0 {
 		kv = append(kv, [2]string{"LODEV_CRON", "1"})
 	}
-	if len(p.WebExtraDaemons) > 0 {
+	if len(p.Daemons()) > 0 {
 		kv = append(kv, [2]string{"LODEV_DAEMONS", "1"})
+	}
+	if p.Type == "nextjs" {
+		// The dev server's fetch reaches other projects' https domains, served with lodev's CA.
+		kv = append(kv, [2]string{"NODE_EXTRA_CA_CERTS", "/etc/lodev/rootCA.pem"})
 	}
 	if len(p.ExposedHosts()) > 0 {
 		for _, e := range slices.SortedFunc(slices.Values(p.WebExtraExposedPorts), func(a, b config.ExposedPort) int { return strings.Compare(a.Name, b.Name) }) {
@@ -178,6 +182,8 @@ func WebserverConfig(p *config.Project) ([]byte, error) {
 	switch {
 	case p.Webserver == "apache":
 		name = "apache-vhost.conf.tmpl"
+	case p.Webserver == "nginx" && p.Type == "nextjs":
+		return render("nginx-nextjs.conf.tmpl", struct{ Port int }{config.NextjsPort})
 	case p.Webserver == "nginx" && p.Type == "magento":
 		name = "nginx-magento.conf.tmpl"
 	case p.Webserver == "nginx":

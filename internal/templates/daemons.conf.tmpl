@@ -1,4 +1,4 @@
-{{range $i, $d := .WebExtraDaemons}}{{if $i}}
+{{range $i, $d := .Daemons}}{{if $i}}
 {{end}}[program:daemon-{{$d.Name}}]
 command=/bin/bash /etc/lodev/daemons/{{$d.Name}}.sh
 user=%(ENV_LODEV_USER)s
