@@ -50,7 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | VE
 or `lodev self-upgrade --version nightly`. A nightly build reports its `git describe` version
 (e.g. `v0.1.1-3-g238f647`), shows no new-version notice, and `lodev self-upgrade` keeps it on nightly.
 Go back to stable with `lodev self-upgrade --version v1.2.3`. Nightly has archives only (no `.deb`,
-Homebrew or AUR).
+Homebrew or `PKGBUILD`).
 
 ### Homebrew (macOS, Linux)
 
@@ -67,10 +67,15 @@ Download `lodev_<version>_amd64.deb` (or `_arm64.deb`) from the
 sudo apt install ./lodev_<version>_amd64.deb
 ```
 
-### Arch Linux (AUR)
+### Arch Linux
+
+lodev is not on the AUR: each release ships the `lodev-bin` `PKGBUILD` (and its `.SRCINFO`) as
+release files. Build and install it with makepkg; repeat to upgrade:
 
 ```bash
-yay -S lodev-bin        # or paru -S lodev-bin
+mkdir lodev-bin && cd lodev-bin
+curl -fLO https://github.com/namnh198/lodev/releases/latest/download/PKGBUILD
+makepkg -si
 ```
 
 ### Nix
@@ -777,7 +782,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL |
 | `lodev clean [--dry-run] [--yes] [--keep-cache]` | Remove lodev images no container uses (older versions, `lodev/php`, removed projects, and `ghcr.io/namnh198/lodev-webserver` images: older ones on a stable release, all of them on nightly, which builds its own) and Docker build cache older than 7 days; lists them and asks first; never touches volumes |
 | `lodev doctor` | Check Docker, the pinned compose/buildx, the global config, ports, the local CA, `/etc/hosts`, the shared services, the projects, userns-remap and Docker disk use; each row says how to fix it; exits 1 on a problem |
-| `lodev self-upgrade [--version vX.Y.Z]` | Replace lodev (and the completions installed next to it) with the latest release, or the given one; verifies the release's signature and sha256 (unsigned releases are refused) and asks for your sudo password when the folder needs root. Homebrew, apt, AUR and Nix installs are upgraded with their package manager instead |
+| `lodev self-upgrade [--version vX.Y.Z]` | Replace lodev (and the completions installed next to it) with the latest release, or the given one; verifies the release's signature and sha256 (unsigned releases are refused) and asks for your sudo password when the folder needs root. Homebrew, apt, pacman (the release's `PKGBUILD`) and Nix installs are upgraded their own way instead |
 | `lodev version` | lodev, Docker, Docker Compose and Docker Buildx versions, OS and architecture; `lodev -v` prints only `lodev version <v>` |
 | `lodev --debug <cmd>` | Also print every docker command lodev runs (or set `LODEV_DEBUG=1`); set `NO_COLOR=1` to turn colors off |
 

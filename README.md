@@ -11,23 +11,60 @@ The CLI tool for creating and managing local PHP development environments with D
 
 You need macOS or Linux with Docker (Docker Desktop, OrbStack, …).
 
+### Bash script (Recommend)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | sh
 ```
 
-You can also install it with `brew install namnh198/tap/lodev`, a `.deb` from the
-[releases](https://github.com/namnh198/lodev/releases), `yay -S lodev-bin`, or
-`nix profile add github:namnh198/lodev`.
+Options: `VERSION=v1.2.3` (default: latest), `PREFIX` (default: `/usr/local`):
 
 ```bash
-lodev service start      # shared MySQL, Redis, OpenSearch, Mailpit, phpMyAdmin, Traefik
-cd ~/Sites/myshop
-lodev create             # detects Laravel / WordPress / Magento / plain PHP
-lodev start              # → https://myshop.test
+curl -fsSL https://raw.githubusercontent.com/namnh198/lodev/main/install.sh | PREFIX="$HOME/.local" sh
 ```
 
-`start` asks for your password once to add the `.test` names to `/etc/hosts`. Without
-[mkcert](https://github.com/FiloSottile/mkcert), lodev prints the command to trust its local CA.
+### Brew
+
+```bash
+brew install namnh198/tap/lodev
+```
+
+### Arch Linux
+
+lodev is not on the AUR; each release ships the `PKGBUILD` instead:
+
+```bash
+mkdir lodev-bin && cd lodev-bin
+curl -fLO https://github.com/namnh198/lodev/releases/latest/download/PKGBUILD
+makepkg -si
+```
+
+Run the same commands again to upgrade.
+
+### NixOS
+
+```bash
+nix profile add github:namnh198/lodev
+```
+
+### Ubuntu/Debian
+
+Download the `.deb` for your CPU from the [latest release](https://github.com/namnh198/lodev/releases/latest)
+and install it with apt (set `VERSION` to that release, without the `v`):
+
+```bash
+VERSION=0.1.11
+curl -fLO https://github.com/namnh198/lodev/releases/download/v$VERSION/lodev_${VERSION}_$(dpkg --print-architecture).deb
+sudo apt install ./lodev_${VERSION}_$(dpkg --print-architecture).deb
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/namnh198/lodev.git
+make && sudo make install # build as yourself, install to /usr/local
+make && make install PREFIX=~/.local # no sudo
+```
 
 ## Why LODEV?
 
@@ -38,6 +75,27 @@ lodev start              # → https://myshop.test
   image. It detects the framework and sets up the database, HTTPS domains and mail capture for you.
 - **Your config travels with the repo.** `.lodev/config.yaml` holds the project's settings, hooks,
   cron and extra services. Personal toggles such as Xdebug stay in the uncommitted `config.local.yaml`.
+
+## Starting with new project
+
+```bash
+lodev service start      # Start the shared services (mysql, redis, opensearch, mailpit, phpmyadmin, traefik)
+cd ~/Sites/myshop
+lodev create             # detects magento / laravel / wordpress / nextjs / php
+lodev start              # → https://myshop.test
+```
+
+How `https://myshop.test` reaches your project:
+
+- **Names (no DNS server).** lodev writes each project's domains into its own block in `/etc/hosts`,
+  pointing them at `127.0.0.1`; `lodev start` asks for your password when that file needs `sudo`, and
+  `lodev remove` takes the block out again.
+- **HTTPS.** Traefik serves every domain with a certificate made by
+  [mkcert](https://github.com/FiloSottile/mkcert). With mkcert installed, lodev uses it and its CA is
+  added to your trust store once. Without it, lodev runs mkcert in a container, keeps its own CA in
+  `~/.lodev/rootCA`, and prints the one command that makes your system and browsers trust it.
+- **Between projects.** The web containers trust the same CA and resolve every project's domains, so
+  one project can call another over HTTPS (e.g. a Next.js front end querying `https://myshop.test/graphql`).
 
 ## Everyday Commands
 
