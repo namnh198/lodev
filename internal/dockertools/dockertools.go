@@ -29,11 +29,25 @@ const (
 	Buildx
 )
 
-// Pinned versions; a lodev release bumps them.
+// Pinned versions; a lodev release bumps them together with pinnedSums.
 const (
 	ComposeVersion = "v5.7.0"
 	BuildxVersion  = "v0.38.2"
 )
+
+// pinnedSums is the sha256 of each pinned asset, copied from the releases' checksums.txt (buildx's
+// macOS ones from checksums-signed.txt). Kept here, not fetched: a release's checksums.txt cannot
+// vouch for an asset served next to it. Swapped in tests.
+var pinnedSums = map[string]string{
+	"docker-compose-darwin-aarch64": "54495ff81dd8cae11861455f0308a293a530149beba8f1d90ff3f295b11cf035",
+	"docker-compose-darwin-x86_64":  "f57fad1fc3a942309b76da99e0a1c49dc97f7c56d4a03593d71bb01577aeeb29",
+	"docker-compose-linux-aarch64":  "15861535d14e26555736b49376c95e14bfd94285366c8446bfac7156a972e76f",
+	"docker-compose-linux-x86_64":   "7758048ad38e580f22559603312874fec8bb638d021a9e64182385fc17cc12a2",
+	"buildx-v0.38.2.darwin-amd64":   "ad2418546e6d168a3e3b59fdf2a24997bc84263abeb4a5d9d0422cfe782743fc",
+	"buildx-v0.38.2.darwin-arm64":   "81702e18713cfd495bfe594943fa57f470eda16c0653ae3de15cd411df273c41",
+	"buildx-v0.38.2.linux-amd64":    "7992ec09413b80ff57ba4e081f56fc833d7bac1d5e71143c6c809e7e6065f6d6",
+	"buildx-v0.38.2.linux-arm64":    "46c0f334772de3cb0b341cc415caf7339fb5cfc8b8438ebcb5a10e7f23800d36",
+}
 
 // Release download bases, <base>/<version>/<asset>; swapped in tests.
 var (
@@ -146,9 +160,9 @@ func failedStamp(t Tool) string {
 
 func download(t Tool) error {
 	asset := Asset(t, runtime.GOOS, runtime.GOARCH)
-	sum, err := checksum(t, asset)
-	if err != nil {
-		return err
+	sum, ok := pinnedSums[asset]
+	if !ok {
+		return fmt.Errorf("%s %s has no pinned checksum for %s", t.Name(), t.Version(), asset)
 	}
 	dir := filepath.Dir(File(t))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -179,32 +193,6 @@ func download(t Tool) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), File(t))
-}
-
-// checksum finds asset in checksums.txt; buildx lists its code-signed macOS binaries only in
-// checksums-signed.txt.
-func checksum(t Tool, asset string) (string, error) {
-	files := []string{"checksums.txt"}
-	if t == Buildx {
-		files = append(files, "checksums-signed.txt")
-	}
-	for _, f := range files {
-		resp, err := get(t, f)
-		if err != nil {
-			return "", err
-		}
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		resp.Body.Close()
-		if err != nil {
-			return "", err
-		}
-		for _, line := range strings.Split(string(data), "\n") {
-			if fs := strings.Fields(line); len(fs) == 2 && strings.TrimPrefix(fs[1], "*") == asset {
-				return fs[0], nil
-			}
-		}
-	}
-	return "", fmt.Errorf("%s is not listed in the %s %s checksums", asset, t.Name(), t.Version())
 }
 
 func get(t Tool, file string) (*http.Response, error) {

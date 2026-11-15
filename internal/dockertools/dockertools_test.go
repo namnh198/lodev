@@ -22,9 +22,7 @@ type release struct {
 	requests int
 	asset    string
 	body     string
-	sums     string // checksums.txt
-	signed   string // checksums-signed.txt
-	missing  bool   // 404 for the asset
+	missing  bool // 404 for the asset
 }
 
 // fakeRelease serves t's pinned asset; LODEV_HOME is a temp dir and the progress output is discarded.
@@ -32,7 +30,9 @@ func fakeRelease(t *testing.T, tool Tool, body string) *release {
 	t.Helper()
 	t.Setenv("LODEV_HOME", t.TempDir())
 	r := &release{asset: Asset(tool, runtime.GOOS, runtime.GOARCH), body: body}
-	r.sums = fmt.Sprintf("%x *%s\n", sha256.Sum256([]byte(body)), r.asset)
+	oldSums := pinnedSums
+	pinnedSums = map[string]string{r.asset: fmt.Sprintf("%x", sha256.Sum256([]byte(body)))}
+	t.Cleanup(func() { pinnedSums = oldSums })
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		r.requests++
 		switch req.URL.Path {
@@ -42,10 +42,6 @@ func fakeRelease(t *testing.T, tool Tool, body string) *release {
 				return
 			}
 			w.Write([]byte(r.body))
-		case "/" + tool.Version() + "/checksums.txt":
-			w.Write([]byte(r.sums))
-		case "/" + tool.Version() + "/checksums-signed.txt":
-			w.Write([]byte(r.signed))
 		default:
 			http.NotFound(w, req)
 		}
@@ -127,7 +123,7 @@ func TestPathReplacesOtherVersion(t *testing.T) {
 
 func TestPathChecksumMismatch(t *testing.T) {
 	r := fakeRelease(t, Compose, composeScript)
-	r.sums = strings.Repeat("0", 64) + " *" + r.asset + "\n"
+	pinnedSums[r.asset] = strings.Repeat("0", 64)
 	if _, err := Path(Compose); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("err = %v", err)
 	}
@@ -152,23 +148,26 @@ func TestPathFailureKeepsOldFile(t *testing.T) {
 	}
 }
 
-func TestPathNotListed(t *testing.T) {
+func TestPathNotPinned(t *testing.T) {
 	r := fakeRelease(t, Compose, composeScript)
-	r.sums = "abc *something-else\n"
-	if _, err := Path(Compose); err == nil || !strings.Contains(err.Error(), "not listed") {
+	delete(pinnedSums, r.asset)
+	if _, err := Path(Compose); err == nil || err.Error() != "docker-compose v5.7.0 has no pinned checksum for "+r.asset {
 		t.Fatalf("err = %v", err)
+	}
+	if r.requests != 0 {
+		t.Errorf("%d requests before the checksum check", r.requests)
 	}
 }
 
-// buildx publishes the code-signed macOS binaries' sums only in checksums-signed.txt.
-func TestPathBuildxSignedChecksums(t *testing.T) {
-	r := fakeRelease(t, Buildx, buildxScript)
-	r.signed, r.sums = r.sums, "abc *buildx-v0.38.2.other\n"
-	if _, err := Path(Buildx); err != nil {
-		t.Fatal(err)
-	}
-	if got := Installed(Buildx); got != "v0.38.2" {
-		t.Errorf("Installed = %q", got)
+// The sha256 is lodev's, not the release's: a swapped asset and checksums.txt still fail.
+func TestPinnedSumsCoverUnixTargets(t *testing.T) {
+	for _, tool := range []Tool{Compose, Buildx} {
+		for _, target := range []string{"linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64"} {
+			goos, arch, _ := strings.Cut(target, "/")
+			if sum := pinnedSums[Asset(tool, goos, arch)]; len(sum) != 64 {
+				t.Errorf("%s %s: sum %q", tool.Name(), target, sum)
+			}
+		}
 	}
 }
 
@@ -215,10 +214,10 @@ func tempFiles(t *testing.T) []string {
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
-// The checksum fetch can fail before bin/ exists; the stamp must still be written.
+// The checksum check can fail before bin/ exists; the stamp must still be written.
 func TestPathFailureBeforeBinDir(t *testing.T) {
 	r := fakeRelease(t, Compose, composeScript)
-	r.sums = "" // asset not listed: fails before any file is written
+	delete(pinnedSums, r.asset) // fails before any file is written
 	Path(Compose)
 	if !fileExists(failedStamp(Compose)) {
 		t.Error("no stamp after an early failure")

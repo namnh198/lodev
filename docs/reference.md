@@ -150,7 +150,8 @@ signed with the old key stop verifying in new builds).
 
 The first `lodev` command (any but `help`, `version`, `completion`, `self-upgrade`) sets lodev up in
 `~/.lodev`: `config.yaml` with the defaults, `projects.json`, `data/`, the pinned `docker-compose` and
-`docker-buildx` in `bin/`, and, without mkcert and with Docker running, the local CA in `rootCA/`.
+`docker-buildx` in `bin/` (checked against the sha256 lodev ships, not a checksum file fetched
+next to them), and, without mkcert and with Docker running, the local CA in `rootCA/`.
 Commands that need Docker (`start`, `stop`, `ssh`, `services …`, the shortcuts, …) stop with an
 error when it is not running.
 
