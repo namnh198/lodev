@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"lodev/internal/atomicfile"
 	"lodev/internal/config"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
@@ -52,7 +53,7 @@ func writeProjectRoutes(p *config.Project, svcs []virtualService) error {
 	if err := os.MkdirAll(config.TraefikDir(), 0o755); err != nil {
 		return err
 	}
-	return config.WriteFileAtomic(projectRouteFile(p.Name), data, 0o644)
+	return atomicfile.Write(projectRouteFile(p.Name), data, 0o644)
 }
 
 func removeProjectRoutes(name string) error {
@@ -154,7 +155,7 @@ func writeServicesRoutes() error {
 	if err := os.MkdirAll(config.TraefikDir(), 0o755); err != nil {
 		return err
 	}
-	return config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "lodev-services.yaml"), data, 0o644)
+	return atomicfile.Write(filepath.Join(config.TraefikDir(), "lodev-services.yaml"), data, 0o644)
 }
 
 // oldTraefik reports a lodev-traefik from before routes came from files: it still mounts the Docker

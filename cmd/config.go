@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
 
+	"lodev/internal/atomicfile"
 	"lodev/internal/config"
 	"lodev/internal/registry"
 	"lodev/internal/ui"
@@ -60,7 +61,7 @@ func setLocal(root, key string, want bool) (restore func() error, err error) {
 	restore = func() error {
 		switch {
 		case rerr == nil:
-			return config.WriteFileAtomic(path, prev, mode)
+			return atomicfile.Write(path, prev, mode)
 		case errors.Is(rerr, os.ErrNotExist):
 			if err := os.Remove(path); !errors.Is(err, os.ErrNotExist) {
 				return err

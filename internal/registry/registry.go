@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 
+	"lodev/internal/atomicfile"
 	"lodev/internal/config"
 )
 
@@ -39,26 +40,8 @@ func (r Registry) Save() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(config.Home(), 0o755); err != nil {
-		return err
-	}
 	// A new file renamed into place: a crash or full disk never leaves broken JSON behind.
-	f, err := os.CreateTemp(config.Home(), "projects.json.*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, err = f.Write(data)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(f.Name(), 0o644)
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), file())
+	return atomicfile.Write(file(), data, 0o644)
 }
 
 // SamePath reports whether a and b are one folder, also when one reaches it through a symlink

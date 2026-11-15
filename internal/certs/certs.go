@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"lodev/internal/atomicfile"
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/templates"
@@ -199,7 +200,7 @@ func SyncTraefik() error {
 	if err != nil {
 		return err
 	}
-	return config.WriteFileAtomic(filepath.Join(config.TraefikDir(), "certs.yaml"), data, 0o644)
+	return atomicfile.Write(filepath.Join(config.TraefikDir(), "certs.yaml"), data, 0o644)
 }
 
 // RemoveLegacy deletes certs/dynamic.yaml, where older lodev kept the certs file: call it only once

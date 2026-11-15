@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"lodev/internal/atomicfile"
 )
 
 // LatestURL redirects to the newest stable release's tag page.
@@ -110,20 +112,5 @@ func SaveCache(p string, c Cache) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(p), ".update-check-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), p)
+	return atomicfile.Write(p, data, 0o644)
 }
