@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"lodev/internal/dotenv"
 	lodevupdate "lodev/internal/update" // not "update": edit_test.go declares that name
 )
 
@@ -600,11 +601,9 @@ func (p *Project) CronLines() []string {
 	return nil
 }
 
-var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
 // CheckEnvKey rejects names a shell cannot export and lodev's own LODEV_* variables.
 func CheckEnvKey(key string) error {
-	if !envKeyRe.MatchString(key) {
+	if !dotenv.ValidKey(key) {
 		return fmt.Errorf("environment key %q is invalid (A-Z, a-z, 0-9, _; not starting with a digit)", key)
 	}
 	if strings.HasPrefix(key, "LODEV_") {

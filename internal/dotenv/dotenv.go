@@ -16,6 +16,9 @@ type Entry struct {
 
 var keyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// ValidKey reports whether key is a name a shell can export.
+func ValidKey(key string) bool { return keyRe.MatchString(key) }
+
 // Parse reads every KEY=value line; an error names its line.
 func Parse(data []byte) ([]Entry, error) {
 	var out []Entry
@@ -28,7 +31,7 @@ func Parse(data []byte) ([]Entry, error) {
 		if !ok {
 			return nil, fmt.Errorf("line %d: want KEY=value", i+1)
 		}
-		if !keyRe.MatchString(key) {
+		if !ValidKey(key) {
 			return nil, fmt.Errorf("line %d: key %q is invalid", i+1, key)
 		}
 		v, err := value(raw)
