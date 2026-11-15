@@ -31,6 +31,9 @@ func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]b
 		{"php", "PHP version", &p.PHP, config.SupportedPHP, nil},
 	}
 	for _, s := range steps {
+		if s.flag == "php" && p.Type == "nextjs" { // nextjs runs node: its default php is never used
+			continue
+		}
 		if !set[s.flag] {
 			v, err := choose(in, r, out, s.flag, s.title, *s.val, s.opts, s.check)
 			if err != nil {
@@ -40,7 +43,7 @@ func askProject(in io.Reader, out io.Writer, p *config.Project, set map[string]b
 		}
 	}
 	settleAnswers(p, oldName, oldType, set["docroot"])
-	if !set["docroot"] {
+	if !set["docroot"] && p.Type != "nextjs" {
 		def := p.Docroot
 		if def == "" {
 			def = "."

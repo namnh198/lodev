@@ -462,6 +462,14 @@ delete its marker line to take it over. The web container gets
 `NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem`, so server-side `fetch` trusts other lodev projects'
 https domains (`https://magento2.test/graphql`); `environment:` or `.lodev/.env` can override it.
 
+`lodev create` gives a nextjs project no shared services and asks no PHP version or docroot. The
+[commands the repo runs](#commands-from-the-projects-repo) list it as `nextjs: <install> && <pm> run
+dev (package.json dev: "<script>")`. `lodev start` warns when `performance_mode` is `none` and the
+host has `node_modules` or `.next` (the container installs Linux packages into them), and when the
+root `next.config.*` does not mention the first domain: Next.js blocks its dev assets on other
+hosts, so add `allowedDevOrigins: ["<name>.test"]` to it. lodev never edits `next.config.*` or
+`package.json`.
+
 ## Environment variables
 
 The web container gets lodev's variables (`DB_HOST`, `REDIS_HOST`, …), then `environment:` from
@@ -506,7 +514,7 @@ itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import`
 ## Commands from the project's repo
 
 A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
-`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, extra `.lodev/*.compose.yml`
+`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, a nextjs project's `dev` script, extra `.lodev/*.compose.yml`
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
 followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides),
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),
@@ -749,7 +757,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 |---|---|
 | `lodev service start\|stop\|status\|logs [svc]` | Manage the shared stack (aliases `services`, `svc`; `up`/`down` for start/stop). `stop --volumes` deletes all data (asks first) |
 | `lodev service enable\|disable <svc>...` | Turn shared services on/off, several at once (data is kept) |
-| `lodev create [--name --type --php --webserver --docroot --no-ask --yes]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected); `--no-ask` skips it; `--docroot .` = project root. It also registers the project in `~/.lodev/projects.json`; in a folder that already has a `.lodev/config.yaml` (a cloned project, or after `lodev remove`) it warns and registers that config as it is; either way it first asks about the [commands the repo runs](#commands-from-the-projects-repo) (`--yes` approves them) |
+| `lodev create [--name --type --php --webserver --docroot --no-ask --yes]` | Create `.lodev/config.yaml` (alias `init`). On a terminal an interactive form asks name/type/PHP/docroot/webserver (detected values preselected; no PHP or docroot for [nextjs](#nextjs)); `--no-ask` skips it; `--docroot .` = project root. It also registers the project in `~/.lodev/projects.json`; in a folder that already has a `.lodev/config.yaml` (a cloned project, or after `lodev remove`) it warns and registers that config as it is; either way it first asks about the [commands the repo runs](#commands-from-the-projects-repo) (`--yes` approves them) |
 | `lodev dotenv set --key=value [...]` / `lodev dotenv get --key` | Set or print variables in `.lodev/.env` (`--app-key` is `APP_KEY`); apply with `lodev restart` |
 | `lodev config [flags]` | Show or change `.lodev/config.yaml` (e.g. `--php-version=8.4 --nodejs-version=24`, `--add-services=redis`); validated before saving, keeps comments; the local keys `--enable-xdebug` and `--opcache-validate-timestamps` go to `.lodev/config.local.yaml` instead; apply with `lodev restart` |
 | `lodev config-global [flags]` | Show or change `~/.lodev/config.yaml` (e.g. `--mysql-version=8.4`, `--enable-services=rabbitmq`, `--auto-create-db=false`); apply with `lodev service start` |

@@ -31,6 +31,9 @@ func (p *Project) nodeInstall() (pm, install string) {
 // NodePackageManager is pnpm, yarn or npm, from the project's lockfile; pnpm without one.
 func (p *Project) NodePackageManager() string { pm, _ := p.nodeInstall(); return pm }
 
+// NodeInstallCommand installs the project's packages: frozen to its lockfile when it has one.
+func (p *Project) NodeInstallCommand() string { _, install := p.nodeInstall(); return install }
+
 // Daemons is what supervisor runs: web_extra_daemons, then type nextjs's dev server.
 func (p *Project) Daemons() []Daemon {
 	if p.Type != "nextjs" {

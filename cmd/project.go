@@ -428,6 +428,7 @@ func start(p *config.Project, rebuild startOpts) error {
 	if err != nil {
 		return err
 	}
+	warnNextjs(p, g)
 	if err := ensurePHPImage(p.PHP, g.NodeVersion, rebuild.base); err != nil {
 		return err
 	}
