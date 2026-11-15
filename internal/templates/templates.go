@@ -164,11 +164,7 @@ func DaemonsConf(p *config.Project) ([]byte, error) {
 
 // DaemonScript is the shell script supervisor runs for d: cd to its directory, then exec the command line.
 func DaemonScript(p *config.Project, d config.Daemon) []byte {
-	dir := d.Directory
-	if dir == "" {
-		dir = p.WorkDir()
-	}
-	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(dir, "'", `'\''`) + "' || exit 1\nexec " + d.Command + "\n")
+	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(p.DaemonDir(d), "'", `'\''`) + "' || exit 1\nexec " + d.Command + "\n")
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.

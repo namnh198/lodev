@@ -81,11 +81,7 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 		add("cron", "cron: "+strings.Join(lines, "\ncron: "))
 	}
 	for _, d := range p.WebExtraDaemons {
-		dir := d.Directory
-		if dir == "" {
-			dir = p.WorkDir()
-		}
-		add("web_extra_daemons."+d.Name, fmt.Sprintf("daemon %s: %s (in %s)", d.Name, d.Command, dir))
+		add("web_extra_daemons."+d.Name, fmt.Sprintf("daemon %s: %s (in %s)", d.Name, d.Command, p.DaemonDir(d)))
 	}
 
 	composes, err := extraComposeFiles(filepath.Join(p.Root, ".lodev"))

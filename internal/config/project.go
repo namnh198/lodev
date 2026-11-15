@@ -97,6 +97,14 @@ type Daemon struct {
 	Directory string `yaml:"directory,omitempty"`
 }
 
+// DaemonDir is where d runs: its directory, else the working directory.
+func (p *Project) DaemonDir(d Daemon) string {
+	if d.Directory != "" {
+		return d.Directory
+	}
+	return p.WorkDir()
+}
+
 var daemonNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 func checkDaemons(ds []Daemon) error {
