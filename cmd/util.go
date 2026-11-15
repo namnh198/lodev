@@ -52,6 +52,14 @@ func servicesCompose(sub ...string) error {
 	return dockerRun(docker.ComposeArgs("lodev-services", file, sub...)...)
 }
 
+// writePrivate writes data readable by the user only; os.WriteFile alone keeps an existing file's mode.
+func writePrivate(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
 func readLine(prompt string) string {
 	fmt.Print(prompt + " ")
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')

@@ -80,10 +80,7 @@ func newDotenvCmd() *cobra.Command {
 				data = dotenv.Set(data, s.k, s.v)
 				keys[i] = s.k
 			}
-			if err := os.WriteFile(dotenvPath(p), data, 0o600); err != nil {
-				return err
-			}
-			if err := os.Chmod(dotenvPath(p), 0o600); err != nil { // WriteFile keeps an existing file's mode
+			if err := writePrivate(dotenvPath(p), data); err != nil {
 				return err
 			}
 			fmt.Fprintf(c.OutOrStdout(), "Set %s in .lodev/.env; run lodev restart to apply\n", strings.Join(keys, ", "))

@@ -144,7 +144,7 @@ func snapshotCreate(c *cobra.Command, args []string) error {
 	if err := os.RemoveAll(tmp); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(tmp, 0o755); err != nil {
+	if err := os.MkdirAll(tmp, 0o700); err != nil {
 		return err
 	}
 	meta := snapshotMeta{Created: time.Now(), Lodev: Version}
@@ -202,7 +202,7 @@ func dropDB(t dbTarget) error {
 }
 
 func dumpFile(t dbTarget, path string) error {
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) // the project's data
 	if err != nil {
 		return err
 	}

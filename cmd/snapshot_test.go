@@ -57,8 +57,12 @@ func TestSnapshotCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := snapshotDir("shop", "before")
-	if _, err := os.Stat(filepath.Join(dir, "mysql.sql.gz")); err != nil {
-		t.Errorf("dump: %v", err)
+	// The project's data, readable by the user only.
+	if fi, err := os.Stat(filepath.Join(dir, "mysql.sql.gz")); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("dump: %v %v", fi, err)
+	}
+	if fi, _ := os.Stat(dir); fi.Mode().Perm() != 0o700 {
+		t.Errorf("dir mode %v", fi.Mode())
 	}
 	var m snapshotMeta
 	b, _ := os.ReadFile(filepath.Join(dir, "meta.json"))

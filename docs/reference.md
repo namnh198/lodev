@@ -440,7 +440,8 @@ export default { server: {
 
 The web container gets lodev's variables (`DB_HOST`, `REDIS_HOST`, …), then `environment:` from
 `.lodev/config.yaml`, then `.lodev/.env`; a later one wins, so either can override `DB_HOST`.
-`LODEV_*` names are reserved. `.lodev/.env` is local (git-ignored, mode 0600), for secrets:
+`LODEV_*` names are reserved. `.lodev/.env` is local (git-ignored, mode 0600), for secrets; the
+generated `.lodev/lodev.compose-*.yml` that carry its values are 0600 too:
 
 ```bash
 lodev dotenv set --app-key=abc --mage-run-code=default   # APP_KEY=abc, MAGE_RUN_CODE=default
@@ -733,7 +734,7 @@ With `webserver: none` it checks the mount and the PHP CLI. Shared services use 
 | `lodev poweroff` | Remove every project's containers and networks and take the shared services down (data, project images, hosts entries and certificates are kept) |
 | `lodev db-export [db \| -n db] [-s svc] [-f file] [-c gz] [-e 'options']` | Dump a database of the shared `mysql`, `mariadb` or `mongodb` (default: the project's database and service) to `<db>-<time>.sql[.gz]` (`.archive` for MongoDB), or `-f -` for stdout. `-e` adds options to mysqldump / mariadb-dump / mongodump, split like a shell (quotes work, repeatable), e.g. `lodev db-export -c gz -f dump.sql.gz -e '--skip-add-locks'` |
 | `lodev db-import [db \| -n db] -f file [-s svc] [-e 'options']` | Load a dump into a database (created if missing; plain or gzip, detected); replaces its tables/collections; `-f -` reads stdin. MongoDB dumps can land in another database name. Into a Magento project's own database it then sets the base URLs on every scope to `https://<domain>/`, clears CDN static/media URLs and the cookie domain, and flushes the cache (`--no-magento` skips it); `--no-hooks` skips `post-db-import`. `-e` adds options to mysql / mariadb / mongorestore, like db-export's |
-| `lodev snapshot create\|list\|restore\|delete [name] [-p project]` | Save the project's databases (its MySQL/MariaDB one, plus MongoDB) to `~/.lodev/snapshots/<project>/<name>/`, list them, load one back (default: the newest; asks first, `--yes` skips; runs `post-snapshot-restore`), or delete one |
+| `lodev snapshot create\|list\|restore\|delete [name] [-p project]` | Save the project's databases (its MySQL/MariaDB one, plus MongoDB) to `~/.lodev/snapshots/<project>/<name>/` (readable by you only), list them, load one back (default: the newest; asks first, `--yes` skips; runs `post-snapshot-restore`), or delete one |
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
