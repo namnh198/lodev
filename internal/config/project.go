@@ -201,6 +201,8 @@ var (
 	// hostOS is swapped in tests.
 	hostOS      = runtime.GOOS
 	volumeDirRe = regexp.MustCompile(`^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`)
+	// docroot lands unquoted in the nginx and apache config: no space, ; or newline to add directives.
+	docrootRe = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 )
 
 // EffectivePerformanceMode is the project's mode, else the global one, else bind on macOS and none elsewhere.
@@ -404,7 +406,7 @@ func (p *Project) ValidateTLD(tld string) error {
 	if err := oneOf("webserver", p.Webserver, Webservers); err != nil {
 		return err
 	}
-	if d := p.Docroot; d != "" && !insideProject(d) {
+	if d := p.Docroot; d != "" && (!insideProject(d) || !docrootRe.MatchString(d)) {
 		return fmt.Errorf("docroot %q must be a folder inside the project", d)
 	}
 	if err := validateHooks(p.Hooks); err != nil {

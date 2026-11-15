@@ -407,7 +407,15 @@ func TestDocrootMustStayInProject(t *testing.T) {
 			t.Errorf("%q: %v", d, err)
 		}
 	}
-	for _, d := range []string{"public", "web/sub", ""} {
+	// It lands unquoted in the nginx and apache config: a newline or ; would add directives.
+	for _, d := range []string{"pub\n    CustomLog \"|sh\" common", "pub;", "my pub", "pub\"", "pub{"} {
+		p := base
+		p.Docroot = d
+		if err := p.Validate(); err == nil || err.Error() != fmt.Sprintf("docroot %q must be a folder inside the project", d) {
+			t.Errorf("%q: %v", d, err)
+		}
+	}
+	for _, d := range []string{"public", "web/sub", "", ".", "./pub", "pub/", "my_site-1.2"} {
 		p := base
 		p.Docroot = d
 		if err := p.Validate(); err != nil {
