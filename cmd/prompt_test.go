@@ -28,7 +28,7 @@ func TestAskProjectDefaults(t *testing.T) {
 	}
 	mustContain(t, out.String(),
 		"Project name (shop): ",
-		"Project type [laravel, wordpress, magento, php] (laravel): ",
+		"Project type [laravel, wordpress, magento, nextjs, php] (laravel): ",
 		"PHP version [7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5] (8.4): ",
 		`Document root, relative to the project; "." for the project root (public): `,
 		"Webserver [nginx, apache, none] (nginx): ")
@@ -41,7 +41,7 @@ func TestAskProjectRetriesInvalid(t *testing.T) {
 	if err := askProject(strings.NewReader(in), &out, p, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, out.String(), "  must be one of: laravel, wordpress, magento, php")
+	mustContain(t, out.String(), "  must be one of: laravel, wordpress, magento, nextjs, php")
 	// type change moves the docroot default before it is asked
 	mustContain(t, out.String(), `project root (pub): `)
 	if p.Type != "magento" || p.PHP != "8.2" || p.Docroot != "pub" {
@@ -110,7 +110,7 @@ func TestAskProjectSelectsTypeAndWebserver(t *testing.T) {
 	if err := askProject(strings.NewReader("\n\n\n"), &out, p, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Project type|laravel,wordpress,magento,php|laravel", "Webserver|nginx,apache,none|nginx"}
+	want := []string{"Project type|laravel,wordpress,magento,nextjs,php|laravel", "Webserver|nginx,apache,none|nginx"}
 	if strings.Join(asked, " ") != strings.Join(want, " ") {
 		t.Errorf("selects %q", asked)
 	}
