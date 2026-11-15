@@ -22,7 +22,7 @@ import (
 var (
 	SupportedPHP   = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
 	BundledPHP     = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
-	Types          = []string{"laravel", "wordpress", "magento", "php"}
+	Types          = []string{"laravel", "wordpress", "magento", "nextjs", "php"}
 	Webservers     = []string{"nginx", "apache", "none"}
 	SharedServices = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb", "mongodb", "mongo-express"}
 	// DefaultOff lists shared services that stay off until enabled (or a project needs them).
@@ -234,8 +234,11 @@ type VolumeDir struct {
 
 // typeVolumeDirs are the folders a type keeps in volumes (node_modules only with a package.json).
 func typeVolumeDirs(typ string) []string {
-	if typ == "magento" {
+	switch typ {
+	case "magento":
 		return []string{"var", "generated", "node_modules"}
+	case "nextjs":
+		return []string{"node_modules", ".next"}
 	}
 	return []string{"node_modules"}
 }
@@ -434,6 +437,14 @@ func (p *Project) ValidateTLD(tld string) error {
 	if err := checkDaemons(p.WebExtraDaemons); err != nil {
 		return err
 	}
+	if p.Type == "nextjs" {
+		if p.Webserver != "nginx" {
+			return fmt.Errorf("nextjs needs webserver nginx (webserver is %s)", p.Webserver)
+		}
+		if slices.ContainsFunc(p.WebExtraDaemons, func(d Daemon) bool { return d.Name == NextjsDaemon }) {
+			return fmt.Errorf("web_extra_daemons name %q is reserved for type nextjs", NextjsDaemon)
+		}
+	}
 	if strings.ContainsAny(p.PHPIDEConfig, "\r\n") {
 		return fmt.Errorf("php_ide_config %q must be one line", p.PHPIDEConfig)
 	}
@@ -584,6 +595,8 @@ func DetectType(root string) string {
 		return "laravel"
 	case exists(filepath.Join(root, "wp-login.php")), exists(filepath.Join(root, "wp-config.php")), exists(filepath.Join(root, "wp-includes")):
 		return "wordpress"
+	case exists(filepath.Join(root, "next.config.ts")), exists(filepath.Join(root, "next.config.js")), exists(filepath.Join(root, "next.config.mjs")):
+		return "nextjs"
 	}
 	return "php"
 }

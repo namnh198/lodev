@@ -320,7 +320,7 @@ saves nothing when the result is invalid. `lodev config` alone prints the curren
 
 ```yaml
 name: myshop                 # a-z 0-9 -; database name uses _ instead of -
-type: magento                # laravel | wordpress | magento | php
+type: magento                # laravel | wordpress | magento | nextjs | php
 php: "8.4"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
 webserver: nginx             # nginx | apache | none (CLI-only, no domain)
 docroot: pub                 # a folder inside the project: A-Z a-z 0-9 . _ - /
@@ -435,6 +435,17 @@ export default { server: {
   hmr: { host: new URL(url).hostname, protocol: 'wss', clientPort: 443 },
 }};
 ```
+
+## Next.js
+
+`type: nextjs` runs a Next.js app behind its domain (`https://<name>.test`, no `:3000`). `lodev create`
+picks it when the project root has `next.config.ts`, `next.config.js` or `next.config.mjs` (after the
+Magento, Laravel and WordPress checks). It needs `webserver: nginx`, and `nextjs` is not available as a
+`web_extra_daemons` name there. The package manager follows the lockfile, checked on every start:
+`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm, none → pnpm (the first one
+present wins). With `performance_mode: bind`, `node_modules` (when there is a `package.json`) and
+`.next` live in Docker volumes, empty at first, so the container's Linux packages never land in the
+host's folders.
 
 ## Environment variables
 
