@@ -1,6 +1,6 @@
-# lodev
+<img src="docs/logo/lodev-logo.svg" alt="lodev" height="64">
 
-The CLI tool for create and manage local PHP development environments with Docker.
+The CLI tool for creating and managing local PHP development environments with Docker.
 
 [![Install](https://img.shields.io/badge/install-555)](#getting-started)
 [![Latest release](https://img.shields.io/github/v/release/namnh198/lodev)](https://github.com/namnh198/lodev/releases/latest)

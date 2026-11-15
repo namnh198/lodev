@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 64" width="236" height="64" role="img" aria-label="lodev">
+  <style>
+    .word { fill: #1F2433; }
+    .lo { fill: #5B4BD0; }
+    @media (prefers-color-scheme: dark) {
+      .word { fill: #F2F3F7; }
+      .lo { fill: #A99DFF; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C6CF0"/>
+      <stop offset="1" stop-color="#4A3AA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <polyline points="15,20 27,32 15,44" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="33" y="19.5" width="17" height="5.5" rx="2.75" fill="#5EEAA8"/>
+  <rect x="33" y="29.25" width="17" height="5.5" rx="2.75" fill="#FFFFFF"/>
+  <rect x="33" y="39" width="17" height="5.5" rx="2.75" fill="#FFFFFF" fill-opacity="0.7"/>
+  <!-- "lo"(cal) in the mark's violet, "dev" in the text color -->
+  <text x="80" y="45" font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="40" font-weight="700" letter-spacing="-1"><tspan class="lo">lo</tspan><tspan class="word">dev</tspan></text>
+</svg>
