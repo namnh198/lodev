@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -321,6 +322,9 @@ func TestValidateAcceptsSubdomains(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// userRe is a valid Debian user name: what SanitizeUser must produce.
+var userRe = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 
 func TestSanitizeUser(t *testing.T) {
 	cases := map[string]string{

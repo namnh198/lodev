@@ -34,7 +34,6 @@ var (
 	nodeRe  = regexp.MustCompile(`^(lts|latest|current|[0-9]+(\.[0-9]+){0,2})$`)
 	extRe   = regexp.MustCompile(`^[a-z0-9_]+$`)
 	pkgRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)
-	userRe  = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 	nonUser = regexp.MustCompile(`[^a-z0-9_-]`)
 )
 
