@@ -1,6 +1,11 @@
 # lodev
 
-A lightweight, DDEV-like CLI for local PHP development with Docker.
+The CLI tool for create and manage local PHP development environments with Docker.
+
+[![Install](https://img.shields.io/badge/install-555)](#getting-started)
+[![Latest release](https://img.shields.io/github/v/release/namnh198/lodev)](https://github.com/namnh198/lodev/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/namnh198/lodev/total)](https://github.com/namnh198/lodev/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## Getting Started
 
@@ -36,19 +41,19 @@ lodev start              # → https://myshop.test
 
 ## Everyday Commands
 
-| Command | What it does |
-|---|---|
-| `lodev start` / `stop` / `restart` | Start, stop or restart the current project (`start --all` / `restart --all` for every project) |
-| `lodev list` | All projects with status and domains |
-| `lodev describe` | URLs, services, ports and credentials of the project |
-| `lodev ssh` / `lodev exec <cmd>` | Shell or command in the project's web container |
-| `lodev composer` / `npm` / `artisan` / `wp` / `magento` … | Run the tool inside the container |
-| `lodev db-import -f dump.sql` / `lodev db-export` | Load or dump the project's database |
-| `lodev snapshot create` / `restore` | Save and restore the project's databases |
-| `lodev xdebug on` / `off` | Toggle Xdebug (port 9003) |
-| `lodev open` | Open the project in the browser |
-| `lodev doctor` | Check Docker, ports, certificates and services, with a fix for each problem |
-| `lodev self-upgrade` | Upgrade to the latest signed release |
+| Command                                                   | What it does                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `lodev start` / `stop` / `restart`                        | Start, stop or restart the current project (`start --all` / `restart --all` for every project) |
+| `lodev list`                                              | All projects with status and domains                                                           |
+| `lodev describe`                                          | URLs, services, ports and credentials of the project                                           |
+| `lodev ssh` / `lodev exec <cmd>`                          | Shell or command in the project's web container                                                |
+| `lodev composer` / `npm` / `artisan` / `wp` / `magento` … | Run the tool inside the container                                                              |
+| `lodev db-import -f dump.sql` / `lodev db-export`         | Load or dump the project's database                                                            |
+| `lodev snapshot create` / `restore`                       | Save and restore the project's databases                                                       |
+| `lodev xdebug on` / `off`                                 | Toggle Xdebug (port 9003)                                                                      |
+| `lodev open`                                              | Open the project in the browser                                                                |
+| `lodev doctor`                                            | Check Docker, ports, certificates and services, with a fix for each problem                    |
+| `lodev self-upgrade`                                      | Upgrade to the latest signed release                                                           |
 
 Every command takes `--help`. Until the docs site exists, the full reference lives in
 [docs/reference.md](docs/reference.md): configuration, hooks, services and every command.
