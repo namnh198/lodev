@@ -27,7 +27,8 @@ func warnNextjs(p *config.Project, g *config.Global) {
 	if p.Type != "nextjs" {
 		return
 	}
-	if p.EffectivePerformanceMode(g) != "bind" {
+	// A Linux host can use the container's Linux packages, so only other hosts are warned.
+	if p.EffectivePerformanceMode(g) == "none" && setupOS != "linux" {
 		var shared []string
 		for _, d := range []string{"node_modules", ".next"} {
 			if fi, err := os.Stat(filepath.Join(p.Root, d)); err == nil && fi.IsDir() {

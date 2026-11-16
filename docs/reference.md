@@ -473,8 +473,8 @@ https domains (`https://magento2.test/graphql`); `environment:` or `.lodev/.env`
 
 `lodev create` gives a nextjs project no shared services and asks no PHP version or docroot. The
 [commands the repo runs](#commands-from-the-projects-repo) list it as `nextjs: <install> && <pm> run
-dev (package.json dev: "<script>")`. `lodev start` warns when `performance_mode` is `none` and the
-host has `node_modules` or `.next` (the container installs Linux packages into them), and when the
+dev (package.json dev: "<script>")`. `lodev start` warns when `performance_mode` is `none`, the host
+is not Linux and it has `node_modules` or `.next` (the container installs Linux packages into them), and when the
 root `next.config.*` does not mention the first domain: Next.js blocks its dev assets on other
 hosts, so add `allowedDevOrigins: ["<name>.test"]` to it. lodev never edits `next.config.*` or
 `package.json`.
