@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/templates"
 	"lodev/internal/ui"
 )
 
@@ -30,6 +31,62 @@ func TestWriteDaemonsNextjs(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(p.Root, ".lodev", "daemons", "nextjs.sh"))
 	if err != nil || !strings.HasSuffix(string(b), "exec sh -c 'pnpm install && PORT=3000 exec pnpm run dev'\n") {
 		t.Fatalf("nextjs.sh: %q %v", b, err)
+	}
+}
+
+// A nextjs.sh the user took over (marker line deleted) is kept, said so, tracked by git and listed as a repo command.
+func TestWriteDaemonsKeepsTakenOverNextjs(t *testing.T) {
+	p := nextjsConfProject(t)
+	f := filepath.Join(p.Root, ".lodev", "daemons", "nextjs.sh")
+	writeFile(t, f, "#!/bin/bash\nexec bun dev\n")
+	o, _, restore := ui.Capture(false)
+	err := writeDaemons(p)
+	restore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(f); string(b) != "#!/bin/bash\nexec bun dev\n" {
+		t.Fatalf("taken-over nextjs.sh rewritten: %q", b)
+	}
+	if !strings.Contains(o.String(), ".lodev/daemons/nextjs.sh is user-managed; not regenerating") {
+		t.Errorf("no message: %q", o.String())
+	}
+	if _, err := os.Stat(filepath.Join(p.Root, ".lodev", "daemons", "daemons.conf")); err != nil {
+		t.Errorf("daemons.conf: %v", err)
+	}
+	if err := writeLodevGitignore(p); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(p.Root, ".lodev", ".gitignore")); !strings.Contains(string(b), "/daemons/*\n!/daemons/nextjs.sh\n") {
+		t.Errorf("nextjs.sh still ignored: %q", b)
+	}
+	items, err := trustItems(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i := slices.IndexFunc(items, func(it trustItem) bool { return it.Key == "nextjs" }); i < 0 || items[i].Display != "nextjs: .lodev/daemons/nextjs.sh" {
+		t.Errorf("trust items: %v", items)
+	}
+	// The project stops being nextjs: lodev still never deletes the user's script.
+	p.Type, p.Webserver = "php", "nginx"
+	if err := writeDaemons(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(f); err != nil {
+		t.Errorf("user's nextjs.sh deleted: %v", err)
+	}
+}
+
+// An older lodev wrote nextjs.sh without the marker: it is still lodev's, so it gets regenerated.
+func TestWriteDaemonsUpgradesUnmarkedNextjs(t *testing.T) {
+	p := nextjsConfProject(t)
+	f := filepath.Join(p.Root, ".lodev", "daemons", "nextjs.sh")
+	writeFile(t, f, "#!/bin/bash\ncd '/app' || exit 1\nexec sh -c 'pnpm install && PORT=3000 exec pnpm run dev'\n")
+	if err := writeDaemons(p); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(f); !strings.HasPrefix(string(b), templates.GeneratedMarker+"\n") {
+		t.Fatalf("old nextjs.sh not regenerated: %q", b)
 	}
 }
 

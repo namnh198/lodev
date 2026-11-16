@@ -83,7 +83,9 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 	for _, d := range p.WebExtraDaemons {
 		add("web_extra_daemons."+d.Name, fmt.Sprintf("daemon %s: %s (in %s)", d.Name, d.Command, p.DaemonDir(d)))
 	}
-	if p.Type == "nextjs" {
+	if p.Type == "nextjs" && userNextjsScript(p) {
+		add(config.NextjsDaemon, "nextjs: .lodev/daemons/nextjs.sh")
+	} else if p.Type == "nextjs" {
 		script := "package.json has no dev script"
 		if s := nextjsDevScript(p.Root); s != "" {
 			script = fmt.Sprintf("package.json dev: %q", s)

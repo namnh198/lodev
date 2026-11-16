@@ -463,7 +463,11 @@ installs, then runs your `dev` script on port 3000:
 | none | `pnpm install && PORT=3000 exec pnpm run dev` |
 
 The generated `.lodev/nginx-webserver.conf` proxies every request to it, websockets included (HMR);
-delete its marker line to take it over. The web container gets
+delete its marker line to take it over. The daemon's script, `.lodev/daemons/nextjs.sh`, works the
+same way: it starts with `# lodev-generated: delete this line to manage this file yourself`; delete
+that line to run your own command (e.g. `exec bun dev`; it must serve port 3000). lodev then prints
+`.lodev/daemons/nextjs.sh is user-managed; not regenerating` on start, never rewrites or deletes it,
+and stops git-ignoring it so you can commit it. The web container gets
 `NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem`, so server-side `fetch` trusts other lodev projects'
 https domains (`https://magento2.test/graphql`); `environment:` or `.lodev/.env` can override it.
 
@@ -519,7 +523,7 @@ itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import`
 ## Commands from the project's repo
 
 A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
-`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, a nextjs project's `dev` script, extra `.lodev/*.compose.yml`
+`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, a nextjs project's `dev` script (or its `.lodev/daemons/nextjs.sh` once you take it over), extra `.lodev/*.compose.yml`
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
 followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides),
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),

@@ -10,7 +10,7 @@ paths:
 # Commands from the project's repo
 
 - A cloned repo can make lodev run code: hooks (and the scripts and `.d` files they name), cron,
-  `web_extra_daemons`, a nextjs project's `dev` script, `.lodev/*.compose.yml`, `.lodev/web-images/`, `.lodev/homeadditional/`,
+  `web_extra_daemons`, a nextjs project's `dev` script (or a taken-over `.lodev/daemons/nextjs.sh`), `.lodev/*.compose.yml`, `.lodev/web-images/`, `.lodev/homeadditional/`,
   `environment:`, `.lodev/.env` (names only: it holds secrets), and apache config. `trustItems`
   in `cmd/trust.go` lists every one of them.
 - A new config key or `.lodev/` folder that lodev executes, mounts or copies into the container

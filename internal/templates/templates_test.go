@@ -692,6 +692,11 @@ func TestDaemonScript(t *testing.T) {
 	if want := "#!/bin/bash\ncd '/it'\\''s/here' || exit 1\nexec node -e \"console.log('50%')\"\n"; got != want {
 		t.Errorf("quoting: %q", got)
 	}
+	// Only nextjs.sh can be taken over; supervisor runs it with bash, so the marker may precede the shebang.
+	got = string(DaemonScript(p, config.Daemon{Name: config.NextjsDaemon, Command: "pnpm run dev"}))
+	if want := GeneratedMarker + "\n#!/bin/bash\ncd '/app' || exit 1\nexec pnpm run dev\n"; got != want {
+		t.Errorf("nextjs: %q", got)
+	}
 }
 
 func TestProjectComposeDaemons(t *testing.T) {

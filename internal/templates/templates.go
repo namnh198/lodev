@@ -172,8 +172,13 @@ func DaemonsConf(p *config.Project) ([]byte, error) {
 }
 
 // DaemonScript is the shell script supervisor runs for d: cd to its directory, then exec the command line.
+// The nextjs one starts with GeneratedMarker (supervisor runs it with bash, so the shebang can follow).
 func DaemonScript(p *config.Project, d config.Daemon) []byte {
-	return []byte("#!/bin/bash\ncd '" + strings.ReplaceAll(p.DaemonDir(d), "'", `'\''`) + "' || exit 1\nexec " + d.Command + "\n")
+	marker := ""
+	if d.Name == config.NextjsDaemon {
+		marker = GeneratedMarker + "\n"
+	}
+	return []byte(marker + "#!/bin/bash\ncd '" + strings.ReplaceAll(p.DaemonDir(d), "'", `'\''`) + "' || exit 1\nexec " + d.Command + "\n")
 }
 
 // WebserverConfig returns the nginx/apache config for p, or nil for webserver none.
