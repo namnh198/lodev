@@ -29,6 +29,8 @@ func shortcutCmd(name string) []string {
 
 var errServiceName = errors.New("-s/--service needs a service name")
 
+var errProjectNotRunning = errors.New("project is not running. run 'lodev start'")
+
 // splitService consumes one leading -s/--service flag; the rest is the command, unchanged.
 func splitService(args []string) (svc string, rest []string, err error) {
 	if len(args) == 0 {
@@ -73,6 +75,9 @@ func runInProject(p *config.Project, service, user string, cmd []string) error {
 func execInWeb(p *config.Project, cmd []string) error { return execIn(p, "web", "", cmd) }
 
 func execIn(p *config.Project, service, user string, cmd []string) error {
+	if !containerRunning(p.WebContainer()) {
+		return errProjectNotRunning
+	}
 	workdir := ""
 	if service == "web" {
 		workdir = p.WorkDir()

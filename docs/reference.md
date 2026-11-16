@@ -621,6 +621,9 @@ upgrade, or `ssh`/`exec` won't find your user.
 `lodev exec -s redis-commander ls`. Those use the image's default user and directory, `bash` if the
 image has it, else `sh`. For `exec` the flag only counts before the command.
 
+`ssh`, `exec`, the shortcuts (`php`, `composer`, `magento`…) and `xdebug status` need the project
+running: when its web container is down they stop with `project is not running. run 'lodev start'`.
+
 ## Customizing the web image
 
 Put `Dockerfile*` files in `.lodev/web-images/` (added in name order after the generated

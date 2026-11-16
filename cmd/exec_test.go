@@ -147,9 +147,10 @@ func TestSSHByName(t *testing.T) {
 	config.SaveProject(p)
 	registry.Registry{"shop": {Path: p.Root}}.Save()
 	t.Chdir(t.TempDir()) // not inside any project
-	oldRun, oldReady := dockerRun, userReady
-	t.Cleanup(func() { dockerRun, userReady = oldRun, oldReady })
+	oldRun, oldReady, oldUp := dockerRun, userReady, containerRunning
+	t.Cleanup(func() { dockerRun, userReady, containerRunning = oldRun, oldReady, oldUp })
 	userReady = func(*config.Project, string) bool { return true }
+	containerRunning = func(string) bool { return true }
 	var got []string
 	dockerRun = func(a ...string) error { got = a; return nil }
 	ssh, _, _ := rootCmd.Find([]string{"ssh"})
@@ -164,5 +165,28 @@ func TestSSHByName(t *testing.T) {
 	rootCmd.SetArgs([]string{"ssh", "nope"})
 	if err := rootCmd.Execute(); err == nil || err.Error() != `unknown project "nope" (see: lodev list)` {
 		t.Errorf("unknown: %v", err)
+	}
+}
+
+func TestExecNeedsRunningProject(t *testing.T) {
+	root := newShop(t)
+	registry.Registry{"shop": {Path: root}}.Save()
+	oldRun, oldUp, oldReady := dockerRun, containerRunning, userReady
+	t.Cleanup(func() { dockerRun, containerRunning, userReady = oldRun, oldUp, oldReady })
+	containerRunning = func(string) bool { return false }
+	userReady = func(*config.Project, string) bool { t.Error("probed user"); return false }
+	dockerRun = func(a ...string) error { t.Errorf("docker ran: %q", a); return nil }
+	for _, args := range [][]string{
+		{"exec", "ls"},
+		{"php", "-v"},
+		{"composer", "install"},
+		{"ssh"},
+		{"ssh", "shop"},
+		{"xdebug", "status"},
+		{"ssh", "-s", "redis-commander"}, // last: runRoot resets -s only at cleanup
+	} {
+		if err := runRoot(t, args...); err == nil || err.Error() != "project is not running. run 'lodev start'" {
+			t.Errorf("%q: %v", args, err)
+		}
 	}
 }
