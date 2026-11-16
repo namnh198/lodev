@@ -41,7 +41,7 @@ func TestWebImageTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(b)
-	for _, w := range []string{"redis-tools", "gcc", "g++", "make"} {
+	for _, w := range []string{"redis-tools", "gcc", "g++", "make", "patch"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("webserver/Dockerfile does not mention %s", w)
 		}

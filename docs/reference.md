@@ -184,7 +184,7 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 
 All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
 with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24) with pnpm, Yarn 1.x and
-grunt-cli, wp-cli, n98-magerun2, nano, vim-tiny and sqlite3. For native extensions and the
+grunt-cli, wp-cli, n98-magerun2, nano, vim-tiny, sqlite3 and patch. For native extensions and the
 services: gcc, g++, make, autoconf, pkg-config, `phpize` and `pecl` (`php<ver>-dev` is installed),
 and the `mysql` and `redis-cli` clients. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
 first `lodev start`; nightly and dev builds, a `node_version` other than 24, `--rebuild-base` or a
