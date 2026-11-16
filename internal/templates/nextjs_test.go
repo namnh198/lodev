@@ -18,7 +18,7 @@ func TestWebserverConfigNextjsGolden(t *testing.T) {
 	s := string(b)
 	// proxy_buffering off: streamed RSC/Suspense must reach the browser as it renders.
 	for _, want := range []string{"proxy_pass http://127.0.0.1:3000;", "proxy_set_header Upgrade $http_upgrade;", "# lodev-generated",
-		"proxy_buffering off;"} {
+		"proxy_buffering off;", "proxy_buffer_size 16k;", "proxy_buffers 8 16k;"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("lacks %q", want)
 		}
