@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"crypto/rand"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,6 +50,19 @@ func findComponent(doc, name string) (start, openEnd, end int, ok bool) {
 	return start, openEnd, openEnd + strings.Index(doc[openEnd:], "</component>"), true
 }
 
+// ideaComplete is whether doc is well-formed XML with a closing </project>, which the splicing relies on.
+func ideaComplete(doc string) bool {
+	if !strings.Contains(doc, "</project>") {
+		return false
+	}
+	d := xml.NewDecoder(strings.NewReader(doc))
+	for {
+		if _, err := d.Token(); err != nil {
+			return err == io.EOF
+		}
+	}
+}
+
 // insertBeforeProjectEnd adds text (whole lines) just before </project>.
 func insertBeforeProjectEnd(doc, text string) string {
 	i := strings.LastIndex(doc, "</project>")
@@ -69,7 +84,7 @@ func ensureComponentList(doc, component, list string) string {
 	switch {
 	case !ok:
 		return insertBeforeProjectEnd(doc, `  <component name="`+xmlAttr(component)+"\">\n"+empty+"  </component>\n")
-	case openEnd == end: // self-closing
+	case doc[openEnd-2] == '/': // self-closing, not merely empty
 		open := strings.TrimSuffix(strings.TrimSuffix(doc[start:openEnd], "/>"), " ") + ">"
 		return doc[:start] + open + "\n" + empty + "  </component>" + doc[end:]
 	}
@@ -196,27 +211,38 @@ func writePhpstorm(p *config.Project, yes bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	edits := map[string]func(string) string{
-		"php.xml": func(doc string) string {
+	edits := []struct {
+		name string
+		edit func(string) string
+	}{
+		{"php.xml", func(doc string) string {
 			return upsertElement(doc, "PhpInterpreters", "interpreters", "interpreter", "lodev", phpstormInterpreter(p))
-		},
-		"workspace.xml": func(doc string) string {
+		}},
+		{"workspace.xml", func(doc string) string {
 			doc = upsertElement(doc, "PhpServers", "servers", "server", p.IDEServerName(), phpstormServer(p))
 			return setComponentAttr(doc, "PhpWorkspaceProjectConfiguration", "interpreter_name", "lodev")
-		},
+		}},
 	}
-	for name, edit := range edits {
-		path := filepath.Join(dir, name)
+	// Both files are checked and edited before either is written, so a broken one leaves both as they were.
+	outs := map[string]string{}
+	for _, e := range edits {
+		path := filepath.Join(dir, e.name)
 		doc := ideaSkeleton
-		if b, err := os.ReadFile(path); err == nil {
+		if b, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(b)) != "" {
 			doc = string(b)
-		} else if !os.IsNotExist(err) {
+		} else if err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		if out := edit(doc); out != doc {
-			if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
-				return err
-			}
+		if !ideaComplete(doc) {
+			return fmt.Errorf(".idea/%s is not a complete PhpStorm file: fix or delete it, then run lodev phpstorm again", e.name)
+		}
+		if out := e.edit(doc); out != doc {
+			outs[path] = out
+		}
+	}
+	for path, out := range outs {
+		if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+			return err
 		}
 	}
 	ui.Success("PhpStorm: interpreter lodev (php%s), server %s → %s; reopen the project if it is open", p.PHP, p.IDEServerName(), p.WorkDir())

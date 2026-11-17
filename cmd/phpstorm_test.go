@@ -301,3 +301,45 @@ func TestPhpstormCommand(t *testing.T) {
 	}
 	mustContain(t, ideaText(t, p, "workspace.xml"), `host="shop.test"`)
 }
+
+func TestUpsertElementEmptyComponent(t *testing.T) {
+	doc := "<project version=\"4\">\n  <component name=\"PhpServers\"></component>\n</project>\n"
+	out := upsertElement(doc, "PhpServers", "servers", "server", "shop", func(id string) string { return "      <server name=\"shop\" />\n" })
+	if strings.Contains(out, ">>") || strings.Count(out, "</component>") != 1 {
+		t.Fatalf("empty component mangled:\n%s", out)
+	}
+	mustContain(t, out, "<servers>\n      <server name=\"shop\" />\n    </servers>")
+}
+
+func TestPhpstormEmptyFileIsFresh(t *testing.T) {
+	p := phpstormProject(t)
+	writeFile(t, filepath.Join(p.Root, ".idea", "workspace.xml"), "")
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := writePhpstorm(p, false); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, ideaText(t, p, "workspace.xml"), `name="shop"`, `interpreter_name="lodev"`)
+}
+
+func TestPhpstormBrokenFile(t *testing.T) {
+	for _, broken := range []string{
+		"<project version=\"4\">\n  <component name=\"PhpServers\">\n    <servers>\n",
+		"<project version=\"4\" />\n",
+		"<project version=\"4\">\n  <component name=\"PhpServers\"\n",
+		"<project version=\"4\">\n  <component name=\"PhpServers\">\n    <servers>\n      <server name=\"shop\">\n    </servers>\n  </component>\n</project>\n",
+	} {
+		p := phpstormProject(t)
+		writeFile(t, filepath.Join(p.Root, ".idea", "workspace.xml"), broken)
+		err := writePhpstorm(p, false)
+		if err == nil || err.Error() != ".idea/workspace.xml is not a complete PhpStorm file: fix or delete it, then run lodev phpstorm again" {
+			t.Fatalf("%q: err = %v", broken, err)
+		}
+		if _, err := os.Stat(filepath.Join(p.Root, ".idea", "php.xml")); !os.IsNotExist(err) {
+			t.Fatalf("%q: php.xml written although workspace.xml is broken", broken)
+		}
+		if got := ideaText(t, p, "workspace.xml"); got != broken {
+			t.Fatalf("broken file changed: %q", got)
+		}
+	}
+}
