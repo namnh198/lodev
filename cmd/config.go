@@ -182,7 +182,8 @@ func listForTable(l []string) string { return strings.Join(l, "\n") }
 func projectValues(p *config.Project, list func([]string) string) [][2]string {
 	return [][2]string{
 		{"name", p.Name}, {"type", p.Type}, {"php", p.PHP}, {"webserver", p.Webserver},
-		{"docroot", p.Docroot}, {"domains", list(p.Domains)}, {"services", list(p.Services)},
+		{"docroot", p.Docroot}, {"container_port", strconv.Itoa(p.EffectiveContainerPort())},
+		{"domains", list(p.Domains)}, {"services", list(p.Services)},
 		{"nodejs", p.NodeJS}, {"php_extensions", list(p.PHPExtensions)},
 		{"packages", list(p.Packages)}, {"user", p.User},
 		{"working_dir", p.WorkDir()}, {"php_ide_config", p.IDEServerName()},
@@ -251,6 +252,18 @@ func projectChanges(c *cobra.Command, old *config.Project) ([]change, error) {
 			out = append(out, change{key: []string{s.key}, del: true})
 		default:
 			out = append(out, change{key: []string{s.key}, value: v})
+		}
+	}
+	if fl.Changed("container-port") {
+		v, _ := fl.GetString("container-port")
+		n, err := strconv.Atoi(v)
+		switch {
+		case v == "":
+			out = append(out, change{key: []string{"container_port"}, del: true})
+		case err != nil:
+			return nil, fmt.Errorf("--container-port %q is not a number", v)
+		default:
+			out = append(out, change{key: []string{"container_port"}, value: n})
 		}
 	}
 	for _, k := range []string{"varnish", "cron"} {
@@ -469,6 +482,7 @@ func newConfigCmd() *cobra.Command {
 	f.String("php-version", "", "PHP version ("+strings.Join(config.SupportedPHP, ", ")+")")
 	f.String("webserver", "", `nginx | apache | none ("" = nginx)`)
 	f.String("docroot", "", `document root relative to the project; "." or "" for the project root`)
+	f.String("container-port", "", `Next.js dev server port, type nextjs only ("" = 3000 for nextjs, 80 otherwise)`)
 	f.String("nodejs-version", "", `Node.js version: lts | latest | current | 20 | 20.11 ("" removes Node.js)`)
 	f.String("user", "", `shell user in the web container ("" = your host username)`)
 	f.String("varnish", "", `put Varnish in front of the web server: true | false ("" = false)`)

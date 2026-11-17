@@ -711,3 +711,45 @@ func TestConfigGlobalPerformanceMode(t *testing.T) {
 	}
 	mustContain(t, readGlobal(t), "performance_mode: bind")
 }
+
+func TestConfigContainerPort(t *testing.T) {
+	root := newShop(t)
+	writeShop(t, root, "name: web\ntype: nextjs\nphp: \"8.4\"\nwebserver: nginx\n")
+	out, _, err := runConfig(t, newConfigCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, out, "container_port", "3000")
+	if _, _, err := runConfig(t, newConfigCmd, "--container-port=4000"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, readShop(t, root), "container_port: 4000\n")
+	if p, err := config.LoadProject(root); err != nil || p.ContainerPort != 4000 {
+		t.Fatalf("reload: %+v %v", p, err)
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--container-port="); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readShop(t, root), "container_port") {
+		t.Fatalf("kept:\n%s", readShop(t, root))
+	}
+	for _, v := range []string{"abc", "80"} {
+		before := readShop(t, root)
+		if _, _, err := runConfig(t, newConfigCmd, "--container-port="+v); err == nil {
+			t.Errorf("%s accepted", v)
+		}
+		if readShop(t, root) != before {
+			t.Errorf("%s: file changed", v)
+		}
+	}
+	if _, _, err := runConfig(t, newConfigCmd, "--container-port=abc"); err == nil || err.Error() != `--container-port "abc" is not a number` {
+		t.Errorf("abc: %v", err)
+	}
+	writeShop(t, root, shopConf)
+	if _, _, err := runConfig(t, newConfigCmd, "--container-port=8080"); err == nil {
+		t.Error("8080 accepted on a non-nextjs project")
+	}
+	if readShop(t, root) != shopConf {
+		t.Errorf("php project changed:\n%s", readShop(t, root))
+	}
+}

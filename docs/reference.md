@@ -463,7 +463,7 @@ installs, then runs your `dev` script on `container_port` (default 3000):
 | `package-lock.json` | `npm ci && PORT=3000 exec npm run dev` |
 | none | `pnpm install && PORT=3000 exec pnpm run dev` |
 
-`PORT` is `container_port`; nginx
+`PORT` is `container_port` (e.g. `lodev config --container-port=4000`, then `lodev restart`); nginx
 keeps listening on 80 and proxies to that port. It must not be 80, no `web_extra_exposed_ports`
 entry may use it, and other project types accept only 80.
 
