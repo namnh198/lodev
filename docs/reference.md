@@ -329,6 +329,7 @@ type: magento                # laravel | wordpress | magento | nextjs | php
 php: "8.4"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
 webserver: nginx             # nginx | apache | none (CLI-only, no domain)
 docroot: pub                 # a folder inside the project: A-Z a-z 0-9 . _ - /
+container_port: 3000         # optional, type nextjs only: the Next dev server's port (default 3000; nginx stays on 80)
 domains:                     # default <name>.<tld>; all must end in .<tld> (tld in the global config)
   - myshop.test
   - store-en.test
@@ -453,7 +454,7 @@ present wins). With `performance_mode: bind`, `node_modules` (when there is a `p
 host's folders.
 
 On start lodev adds a daemon named `nextjs` (see [Daemons](#daemons); output in `lodev logs`) that
-installs, then runs your `dev` script on port 3000:
+installs, then runs your `dev` script on `container_port` (default 3000):
 
 | Lockfile | Command |
 |---|---|
@@ -462,10 +463,14 @@ installs, then runs your `dev` script on port 3000:
 | `package-lock.json` | `npm ci && PORT=3000 exec npm run dev` |
 | none | `pnpm install && PORT=3000 exec pnpm run dev` |
 
+`PORT` is `container_port`; nginx
+keeps listening on 80 and proxies to that port. It must not be 80, no `web_extra_exposed_ports`
+entry may use it, and other project types accept only 80.
+
 The generated `.lodev/nginx-webserver.conf` proxies every request to it, websockets included (HMR);
 delete its marker line to take it over. The daemon's script, `.lodev/daemons/nextjs.sh`, works the
 same way: it starts with `# lodev-generated: delete this line to manage this file yourself`; delete
-that line to run your own command (e.g. `exec bun dev`; it must serve port 3000). lodev then prints
+that line to run your own command (e.g. `exec bun dev`; it must serve `container_port`). lodev then prints
 `.lodev/daemons/nextjs.sh is user-managed; not regenerating` on start, never rewrites or deletes it,
 and stops git-ignoring it so you can commit it. The web container gets
 `NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem`, so server-side `fetch` trusts other lodev projects'

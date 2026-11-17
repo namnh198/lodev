@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 )
 
-// NextjsDaemon is the implicit daemon of type nextjs; NextjsPort is where its dev server listens.
+// NextjsDaemon is the implicit daemon of type nextjs; NextjsPort is its dev server's default port.
 const (
 	NextjsDaemon = "nextjs"
 	NextjsPort   = 3000
@@ -41,6 +41,17 @@ func (p *Project) Daemons() []Daemon {
 	}
 	pm, install := p.nodeInstall()
 	// sh -c: the daemon script execs its command, so `a && b` needs a shell to reach b.
-	cmd := fmt.Sprintf("sh -c '%s && PORT=%d exec %s run dev'", install, NextjsPort, pm)
+	cmd := fmt.Sprintf("sh -c '%s && PORT=%d exec %s run dev'", install, p.EffectiveContainerPort(), pm)
 	return append(append([]Daemon{}, p.WebExtraDaemons...), Daemon{Name: NextjsDaemon, Command: cmd})
+}
+
+// EffectiveContainerPort is container_port, else NextjsPort for type nextjs, else 80.
+func (p *Project) EffectiveContainerPort() int {
+	switch {
+	case p.ContainerPort != 0:
+		return p.ContainerPort
+	case p.Type == "nextjs":
+		return NextjsPort
+	}
+	return 80
 }

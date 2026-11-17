@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -83,6 +84,10 @@ func TestNextjsDaemons(t *testing.T) {
 	if got := p.Daemons(); !slices.Equal(got, p.WebExtraDaemons) {
 		t.Errorf("php: %+v", got)
 	}
+	p = &Project{Type: "nextjs", Root: t.TempDir(), ContainerPort: 4000}
+	if got := p.Daemons(); len(got) != 1 || got[0].Command != `sh -c 'pnpm install && PORT=4000 exec pnpm run dev'` {
+		t.Errorf("container_port 4000: %+v", got)
+	}
 }
 
 func TestValidateNextjs(t *testing.T) {
@@ -118,5 +123,50 @@ func TestNextjsVolumeDirs(t *testing.T) {
 	}
 	if got := p.VolumeDirsFor(&Global{PerformanceMode: "none"}); got != nil {
 		t.Errorf("none: %+v", got)
+	}
+}
+
+func TestEffectiveContainerPort(t *testing.T) {
+	for _, c := range []struct {
+		typ  string
+		port int
+		want int
+	}{{"nextjs", 0, 3000}, {"nextjs", 4000, 4000}, {"php", 0, 80}, {"magento", 80, 80}} {
+		p := &Project{Type: c.typ, ContainerPort: c.port}
+		if got := p.EffectiveContainerPort(); got != c.want {
+			t.Errorf("%s/%d: %d, want %d", c.typ, c.port, got, c.want)
+		}
+	}
+}
+
+func TestValidateContainerPort(t *testing.T) {
+	with := func(typ string, port int, exposed ...int) Project {
+		p := Project{Name: "x", Type: typ, PHP: "8.4", Webserver: "nginx", Domains: []string{"x.test"}, ContainerPort: port}
+		for _, e := range exposed {
+			p.WebExtraExposedPorts = append(p.WebExtraExposedPorts, ExposedPort{Name: "x", ContainerPort: e})
+		}
+		return p
+	}
+	for _, p := range []Project{with("nextjs", 0), with("nextjs", 4000, 3000), with("php", 0), with("php", 80)} {
+		if err := p.ValidateTLD("test"); err != nil {
+			t.Errorf("%s %d: %v", p.Type, p.ContainerPort, err)
+		}
+	}
+	const rng = "container_port %d must be from 1 to 65535, not 80 (nginx listens on 80)"
+	const taken = `web_extra_exposed_ports "x" container_port %d is the Next.js dev server's port (container_port)`
+	for _, c := range []struct {
+		p    Project
+		want string
+	}{
+		{with("nextjs", 80), fmt.Sprintf(rng, 80)},
+		{with("nextjs", 70000), fmt.Sprintf(rng, 70000)},
+		{with("nextjs", -1), fmt.Sprintf(rng, -1)},
+		{with("php", 8080), "container_port is only used by type nextjs (type is php); remove it or set 80"},
+		{with("nextjs", 0, 3000), fmt.Sprintf(taken, 3000)},
+		{with("nextjs", 4000, 4000), fmt.Sprintf(taken, 4000)},
+	} {
+		if err := c.p.ValidateTLD("test"); err == nil || err.Error() != c.want {
+			t.Errorf("%s %d %v: %v", c.p.Type, c.p.ContainerPort, c.p.WebExtraExposedPorts, err)
+		}
 	}
 }

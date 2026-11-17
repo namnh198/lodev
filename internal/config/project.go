@@ -47,11 +47,13 @@ var currentUsername = func() (string, error) {
 }
 
 type Project struct {
-	Name          string   `yaml:"name"`
-	Type          string   `yaml:"type"`
-	PHP           string   `yaml:"php"`
-	Webserver     string   `yaml:"webserver"`
-	Docroot       string   `yaml:"docroot"`
+	Name      string `yaml:"name"`
+	Type      string `yaml:"type"`
+	PHP       string `yaml:"php"`
+	Webserver string `yaml:"webserver"`
+	Docroot   string `yaml:"docroot"`
+	// ContainerPort is the Next dev server's port (type nextjs); nginx stays on 80.
+	ContainerPort int      `yaml:"container_port,omitempty"`
 	Domains       []string `yaml:"domains,omitempty"`
 	Services      []string `yaml:"services"`
 	NodeJS        string   `yaml:"nodejs,omitempty"`
@@ -444,6 +446,16 @@ func (p *Project) ValidateTLD(tld string) error {
 		if slices.ContainsFunc(p.WebExtraDaemons, func(d Daemon) bool { return d.Name == NextjsDaemon }) {
 			return fmt.Errorf("web_extra_daemons name %q is reserved for type nextjs", NextjsDaemon)
 		}
+		if n := p.ContainerPort; n != 0 && (n < 1 || n > 65535 || n == 80) {
+			return fmt.Errorf("container_port %d must be from 1 to 65535, not 80 (nginx listens on 80)", n)
+		}
+		for _, e := range p.WebExtraExposedPorts {
+			if e.ContainerPort == p.EffectiveContainerPort() {
+				return fmt.Errorf("web_extra_exposed_ports %q container_port %d is the Next.js dev server's port (container_port)", e.Name, e.ContainerPort)
+			}
+		}
+	} else if p.ContainerPort != 0 && p.ContainerPort != 80 {
+		return fmt.Errorf("container_port is only used by type nextjs (type is %s); remove it or set 80", p.Type)
 	}
 	if strings.ContainsAny(p.PHPIDEConfig, "\r\n") {
 		return fmt.Errorf("php_ide_config %q must be one line", p.PHPIDEConfig)

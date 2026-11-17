@@ -66,3 +66,12 @@ func TestDaemonsConfNextjs(t *testing.T) {
 		t.Errorf("daemons.conf:\n%s", s)
 	}
 }
+
+func TestWebserverConfigNextjsContainerPort(t *testing.T) {
+	p := nextjsProject()
+	p.ContainerPort = 4000
+	s := string(must(t)(WebserverConfig(p)))
+	if !strings.Contains(s, "proxy_pass http://127.0.0.1:4000;") || !strings.Contains(s, "listen 80;") {
+		t.Errorf("got:\n%s", s)
+	}
+}

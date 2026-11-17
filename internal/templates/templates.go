@@ -188,7 +188,7 @@ func WebserverConfig(p *config.Project) ([]byte, error) {
 	case p.Webserver == "apache":
 		name = "apache-vhost.conf.tmpl"
 	case p.Webserver == "nginx" && p.Type == "nextjs":
-		return render("nginx-nextjs.conf.tmpl", struct{ Port int }{config.NextjsPort})
+		return render("nginx-nextjs.conf.tmpl", struct{ Port int }{p.EffectiveContainerPort()})
 	case p.Webserver == "nginx" && p.Type == "magento":
 		name = "nginx-magento.conf.tmpl"
 	case p.Webserver == "nginx":
