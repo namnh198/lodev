@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
+	"lodev/internal/ui"
 )
 
 // Trimmed from a PhpStorm 2026.x .idea/php.xml with a hand-made Docker Compose interpreter.
@@ -173,4 +178,126 @@ func TestNewUUID(t *testing.T) {
 	if !re.MatchString(a) || a == b {
 		t.Fatalf("newUUID = %q, %q", a, b)
 	}
+}
+
+// phpstormProject is a started php project (its compose file exists); PhpStorm is not running.
+func phpstormProject(t *testing.T) *config.Project {
+	t.Helper()
+	t.Setenv("LODEV_HOME", t.TempDir())
+	p := &config.Project{Name: "shop", Type: "php", PHP: "8.4", Domains: []string{"shop.test"}, Root: t.TempDir()}
+	writeFile(t, composeFull(p), "services: {}\n")
+	old := phpstormRunning
+	t.Cleanup(func() { phpstormRunning = old })
+	phpstormRunning = func() bool { return false }
+	return p
+}
+
+func ideaText(t *testing.T, p *config.Project, file string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(p.Root, ".idea", file))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestPhpstormFreshProject(t *testing.T) {
+	p := phpstormProject(t)
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := writePhpstorm(p, false); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, ideaText(t, p, "php.xml"),
+		`<component name="PhpInterpreters">`, `name="lodev" home="docker-compose://DATA"`,
+		`INTERPRETER_PATH="/usr/bin/php8.4"`, `DOCKER_COMPOSE_SERVICE_NAME="web"`, `<type_data command="EXEC" />`,
+		`<item value="$PROJECT_DIR$/.lodev/lodev.compose-full.yml" />`, `debugger_id="php.debugger.XDebug"`)
+	mustContain(t, ideaText(t, p, "workspace.xml"),
+		`<server host="shop.test" id="`, `name="shop" use_path_mappings="true"`,
+		`<mapping local-root="$PROJECT_DIR$" remote-root="/app" />`,
+		`<component name="PhpWorkspaceProjectConfiguration" interpreter_name="lodev" />`)
+}
+
+func TestPhpstormKeepsUserSettings(t *testing.T) {
+	p := phpstormProject(t)
+	writeFile(t, filepath.Join(p.Root, ".idea", "php.xml"), phpXMLFixture)
+	writeFile(t, filepath.Join(p.Root, ".idea", "workspace.xml"), workspaceXMLFixture)
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := writePhpstorm(p, false); err != nil {
+		t.Fatal(err)
+	}
+	php, ws := ideaText(t, p, "php.xml"), ideaText(t, p, "workspace.xml")
+	mustContain(t, php, fixtureWebInterpreter, fixtureInfoCache, `name="LaravelPint"`, `name="lodev"`)
+	mustContain(t, ws, `name="laravel"`, `remote-root="/var/www/html"`, `<component name="PhpDebugGeneral" listening_started="true" />`,
+		`<component name="PhpWorkspaceProjectConfiguration" interpreter_name="lodev">`, `vendor/monolog/monolog`, `name="shop"`)
+
+	if err := writePhpstorm(p, false); err != nil {
+		t.Fatal(err)
+	}
+	if ideaText(t, p, "php.xml") != php || ideaText(t, p, "workspace.xml") != ws {
+		t.Fatal("second run changed .idea")
+	}
+}
+
+func TestPhpstormUsesConfig(t *testing.T) {
+	p := phpstormProject(t)
+	p.PHPIDEConfig, p.WorkingDir, p.PHP = "myshop", "/var/www", "8.2"
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := writePhpstorm(p, false); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, ideaText(t, p, "workspace.xml"), `name="myshop"`, `remote-root="/var/www"`)
+	mustContain(t, ideaText(t, p, "php.xml"), `INTERPRETER_PATH="/usr/bin/php8.2"`)
+}
+
+func TestPhpstormNoCompose(t *testing.T) {
+	p := phpstormProject(t)
+	os.Remove(composeFull(p))
+	err := writePhpstorm(p, false)
+	if err == nil || err.Error() != ".lodev/lodev.compose-full.yml is missing: run lodev start first" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPhpstormNextjs(t *testing.T) {
+	p := phpstormProject(t)
+	p.Type = "nextjs"
+	err := writePhpstorm(p, false)
+	if err == nil || err.Error() != "nextjs projects have no php interpreter for phpstorm" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPhpstormRunningDeclined(t *testing.T) {
+	p := phpstormProject(t)
+	phpstormRunning = func() bool { return true }
+	asTTY(t, true, "n")
+	_, e, restore := ui.Capture(false)
+	defer restore()
+	err := writePhpstorm(p, false)
+	if err == nil || err.Error() != "phpstorm is running: close the project first, or pass --yes" {
+		t.Fatalf("err = %v", err)
+	}
+	mustContain(t, e.String(), "PhpStorm is running and may overwrite .idea/workspace.xml when it saves")
+	if _, err := os.Stat(filepath.Join(p.Root, ".idea")); !os.IsNotExist(err) {
+		t.Fatalf(".idea written after a no: %v", err)
+	}
+	if err := writePhpstorm(p, true); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, ideaText(t, p, "php.xml"), `name="lodev"`)
+}
+
+func TestPhpstormCommand(t *testing.T) {
+	p := phpstormProject(t)
+	writeFile(t, config.ProjectPath(p.Root), "name: shop\ntype: php\nphp: \"8.4\"\n")
+	t.Chdir(p.Root)
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := runRoot(t, "phpstorm"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, ideaText(t, p, "workspace.xml"), `host="shop.test"`)
 }

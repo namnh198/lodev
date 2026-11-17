@@ -2,9 +2,18 @@ package cmd
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
+
+	"lodev/internal/config"
+	"lodev/internal/ui"
 )
 
 // ideaSkeleton is an empty PhpStorm project file, for a .idea file that does not exist yet.
@@ -135,4 +144,99 @@ func setComponentAttr(doc, component, attr, value string) string {
 		open = strings.TrimSuffix(open, ">") + " " + pair + ">"
 	}
 	return doc[:start] + open + doc[openEnd:]
+}
+
+// phpstormRunning is whether a PhpStorm process exists; -x matches the name, never `lodev phpstorm` itself.
+var phpstormRunning = func() bool { return exec.Command("pgrep", "-ix", "phpstorm").Run() == nil }
+
+// phpstormInterpreter is the project's Docker Compose CLI interpreter, as PhpStorm writes it.
+func phpstormInterpreter(p *config.Project) func(id string) string {
+	return func(id string) string {
+		return `      <interpreter id="` + xmlAttr(id) + `" name="lodev" home="docker-compose://DATA" auto="false" debugger_id="php.debugger.XDebug">
+        <remote_data INTERPRETER_PATH="/usr/bin/php` + xmlAttr(p.PHP) + `" HELPERS_PATH="/opt/.phpstorm_helpers" VALID="true" RUN_AS_ROOT_VIA_SUDO="false" DOCKER_ACCOUNT_NAME="Docker" DOCKER_COMPOSE_SERVICE_NAME="web" DOCKER_REMOTE_PROJECT_PATH="/opt/project">
+          <type_data command="EXEC" />
+          <dockerComposeConfigurationPaths>
+            <item value="$PROJECT_DIR$/.lodev/lodev.compose-full.yml" />
+          </dockerComposeConfigurationPaths>
+          <envs />
+        </remote_data>
+      </interpreter>
+`
+	}
+}
+
+// phpstormServer is the debug server PHP_IDE_CONFIG names, mapping the project to working_dir.
+func phpstormServer(p *config.Project) func(id string) string {
+	return func(id string) string {
+		return `      <server host="` + xmlAttr(p.Domains[0]) + `" id="` + xmlAttr(id) + `" name="` + xmlAttr(p.IDEServerName()) + `" use_path_mappings="true">
+        <path_mappings>
+          <mapping local-root="$PROJECT_DIR$" remote-root="` + xmlAttr(p.WorkDir()) + `" />
+        </path_mappings>
+      </server>
+`
+	}
+}
+
+// writePhpstorm writes lodev's interpreter, debug server and selected interpreter into .idea/,
+// leaving every other setting as it is.
+func writePhpstorm(p *config.Project, yes bool) error {
+	if p.Type == "nextjs" {
+		return errors.New("nextjs projects have no php interpreter for phpstorm")
+	}
+	if _, err := os.Stat(composeFull(p)); err != nil {
+		return errors.New(".lodev/lodev.compose-full.yml is missing: run lodev start first")
+	}
+	if phpstormRunning() {
+		ui.Warn("PhpStorm is running and may overwrite .idea/workspace.xml when it saves")
+		if !confirm("Write .idea anyway?", yes) {
+			return errors.New("phpstorm is running: close the project first, or pass --yes")
+		}
+	}
+	dir := filepath.Join(p.Root, ".idea")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	edits := map[string]func(string) string{
+		"php.xml": func(doc string) string {
+			return upsertElement(doc, "PhpInterpreters", "interpreters", "interpreter", "lodev", phpstormInterpreter(p))
+		},
+		"workspace.xml": func(doc string) string {
+			doc = upsertElement(doc, "PhpServers", "servers", "server", p.IDEServerName(), phpstormServer(p))
+			return setComponentAttr(doc, "PhpWorkspaceProjectConfiguration", "interpreter_name", "lodev")
+		},
+	}
+	for name, edit := range edits {
+		path := filepath.Join(dir, name)
+		doc := ideaSkeleton
+		if b, err := os.ReadFile(path); err == nil {
+			doc = string(b)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		if out := edit(doc); out != doc {
+			if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	ui.Success("PhpStorm: interpreter lodev (php%s), server %s → %s; reopen the project if it is open", p.PHP, p.IDEServerName(), p.WorkDir())
+	return nil
+}
+
+func init() {
+	var yes bool
+	c := &cobra.Command{
+		Use:   "phpstorm",
+		Short: "Write the PhpStorm interpreter, debug server and path mapping into .idea/",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			p, err := currentProject()
+			if err != nil {
+				return err
+			}
+			return writePhpstorm(p, yes)
+		},
+	}
+	c.Flags().BoolVar(&yes, "yes", false, "do not ask while PhpStorm is running")
+	rootCmd.AddCommand(c)
 }
