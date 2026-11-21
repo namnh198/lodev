@@ -1,0 +1,16 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: mysqlworkbench
+# Description: Open the project's MySQL/MariaDB database in MySQL Workbench; it asks for the password (needs ports.mysql or ports.mariadb)
+# Source: https://dev.mysql.com/doc/workbench/en/wb-command-line-options.html lists --query [connection]; the
+# user@host:port form comes from Workbench's man page (--query <user>@<host>:<port>). Not run here: no password option exists.
+[ -n "$LODEV_PROJECT" ] || { echo "not in a lodev project"; exit 1; }
+[ -n "$LODEV_DB_TYPE" ] || { echo "$LODEV_PROJECT has no MySQL/MariaDB service"; exit 1; }
+if [ -z "$LODEV_DB_PORT" ]; then
+  [ "$LODEV_DB_TYPE" = mariadb ] && p=3307 || p=3306
+  echo "$LODEV_DB_TYPE is not reachable from this machine: lodev config-global --$LODEV_DB_TYPE-port=$p, then lodev service start"
+  exit 1
+fi
+case $(uname -s) in
+  Darwin) open -a MySQLWorkbench --args --query "$LODEV_DB_USER@$LODEV_DB_HOST:$LODEV_DB_PORT" ;;
+  *) mysql-workbench --query "$LODEV_DB_USER@$LODEV_DB_HOST:$LODEV_DB_PORT" ;;
+esac

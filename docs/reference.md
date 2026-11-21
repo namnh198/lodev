@@ -629,6 +629,20 @@ the project or elsewhere in `~/.lodev/commands/` also replaces the shipped one. 
 only in laravel projects, `wp` only in wordpress ones, and `magento` and `n98` only in magento
 ones.
 
+lodev also ships these host commands, which open the project's MySQL/MariaDB database in a
+GUI. Each needs the database published on a host port (`lodev config-global --mysql-port=3306`
+or `--mariadb-port=3307`, then `lodev service start`) and exits 1 with the reason when there
+is no project, no database service, no published port, or the OS has no such app. The
+connection is named `lodev-<project>`.
+
+| Command | App | Notes |
+|---|---|---|
+| `tableplus` | TablePlus | `mysql://` or `mariadb://` URL; `xdg-open` on Linux |
+| `sequelace` | Sequel Ace | macOS only; `mysql://` URL, also for MariaDB |
+| `dbeaver` | DBeaver | `-con` connection string; `dbeaver` on Linux |
+| `mysqlworkbench` | MySQL Workbench | `--query user@host:port`; it asks for the password (`root`); `mysql-workbench` on Linux |
+| `tablepro` | TablePro | macOS only; `mysql://` or `mariadb://` URL; TablePro asks you to confirm the connection |
+
 **Web commands** run like `lodev exec`: as the project user, in `working_dir`, with a TTY when
 you have one, and their exit code. They need a running project.
 

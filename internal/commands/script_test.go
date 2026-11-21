@@ -81,3 +81,68 @@ func TestOpenScript(t *testing.T) {
 		t.Errorf("failing lodev: %q %q %d", out, calls, code)
 	}
 }
+
+func TestDBScripts(t *testing.T) {
+	const url = "mysql://root:root@127.0.0.1:3306/shop"
+	const dbeaver = "-con driver=mysql|host=127.0.0.1|port=3306|database=shop|user=root|password=root|name=lodev-shop|connect=true"
+	env := func(kv ...string) map[string]string {
+		e := map[string]string{"LODEV_PROJECT": "shop", "LODEV_DB_TYPE": "mysql", "LODEV_DB_HOST": "127.0.0.1",
+			"LODEV_DB_PORT": "3306", "LODEV_DB_USER": "root", "LODEV_DB_PASSWORD": "root", "LODEV_DB_NAME": "shop"}
+		for i := 0; i < len(kv); i += 2 {
+			e[kv[i]] = kv[i+1]
+		}
+		return e
+	}
+	run := func(script, osName string, e map[string]string) (string, []string, int) {
+		out, calls, code := runShipped(t, script, e, map[string]string{
+			"uname": "echo " + osName, "open": "true", "xdg-open": "true", "dbeaver": "true", "mysql-workbench": "true"})
+		return out, slices.DeleteFunc(calls, func(c string) bool { return strings.HasPrefix(c, "uname ") }), code
+	}
+
+	for _, c := range []struct{ script, os, want string }{
+		{"tableplus", "Darwin", "open -a TablePlus " + url + "?name=lodev-shop"},
+		{"tableplus", "Linux", "xdg-open " + url + "?name=lodev-shop"},
+		{"sequelace", "Darwin", "open -a Sequel Ace " + url},
+		{"dbeaver", "Darwin", "open -a DBeaver --args " + dbeaver},
+		{"dbeaver", "Linux", "dbeaver " + dbeaver},
+		{"mysqlworkbench", "Darwin", "open -a MySQLWorkbench --args --query root@127.0.0.1:3306"},
+		{"mysqlworkbench", "Linux", "mysql-workbench --query root@127.0.0.1:3306"},
+		{"tablepro", "Darwin", "open -a TablePro " + url + "?name=lodev-shop"},
+	} {
+		out, calls, code := run(c.script, c.os, env())
+		if code != 0 || out != "" || !slices.Equal(calls, []string{c.want}) {
+			t.Errorf("%s on %s: %q %q %d", c.script, c.os, out, calls, code)
+		}
+	}
+
+	for _, s := range []string{"sequelace", "tablepro"} {
+		out, calls, code := run(s, "Linux", env())
+		if code != 1 || !strings.Contains(out, "macOS only") || len(calls) != 0 {
+			t.Errorf("%s on Linux: %q %q %d", s, out, calls, code)
+		}
+	}
+
+	for _, s := range []string{"tableplus", "sequelace", "dbeaver", "mysqlworkbench", "tablepro"} {
+		// MariaDB takes its own scheme or driver where the app has one.
+		_, calls, code := run(s, "Darwin", env("LODEV_DB_TYPE", "mariadb"))
+		wantMaria := s != "mysqlworkbench" && s != "sequelace" // neither has a MariaDB scheme or driver
+		if len(calls) != 1 || code != 0 || strings.Contains(calls[0], "mariadb") != wantMaria {
+			t.Errorf("%s mariadb: %q %d", s, calls, code)
+		}
+		for _, c := range []struct {
+			name string
+			env  map[string]string
+			want string
+		}{
+			{"no port, mysql", env("LODEV_DB_PORT", ""), "lodev config-global --mysql-port=3306, then lodev service start"},
+			{"no port, mariadb", env("LODEV_DB_TYPE", "mariadb", "LODEV_DB_PORT", ""), "lodev config-global --mariadb-port=3307, then lodev service start"},
+			{"no database", env("LODEV_DB_TYPE", ""), "has no MySQL/MariaDB service"},
+			{"no project", env("LODEV_PROJECT", ""), "not in a lodev project"},
+		} {
+			out, calls, code := run(s, "Darwin", c.env)
+			if code != 1 || !strings.Contains(out, c.want) || len(calls) != 0 {
+				t.Errorf("%s, %s: %q %q %d", s, c.name, out, calls, code)
+			}
+		}
+	}
+}

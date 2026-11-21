@@ -1,0 +1,17 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: tableplus
+# Description: Open the project's MySQL/MariaDB database in TablePlus (needs ports.mysql or ports.mariadb)
+# Verified against https://tableplus.com/docs/gui-tools/manage-connections: driver://user:password@host:port/db?name=...
+# opened with open -a TablePlus (a bare open could pick another app that handles mysql://).
+[ -n "$LODEV_PROJECT" ] || { echo "not in a lodev project"; exit 1; }
+[ -n "$LODEV_DB_TYPE" ] || { echo "$LODEV_PROJECT has no MySQL/MariaDB service"; exit 1; }
+if [ -z "$LODEV_DB_PORT" ]; then
+  [ "$LODEV_DB_TYPE" = mariadb ] && p=3307 || p=3306
+  echo "$LODEV_DB_TYPE is not reachable from this machine: lodev config-global --$LODEV_DB_TYPE-port=$p, then lodev service start"
+  exit 1
+fi
+url="$LODEV_DB_USER:$LODEV_DB_PASSWORD@$LODEV_DB_HOST:$LODEV_DB_PORT/$LODEV_DB_NAME"
+case $(uname -s) in
+  Darwin) open -a TablePlus "$LODEV_DB_TYPE://$url?name=lodev-$LODEV_PROJECT" ;;
+  *) xdg-open "$LODEV_DB_TYPE://$url?name=lodev-$LODEV_PROJECT" ;;
+esac
