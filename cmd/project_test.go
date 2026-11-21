@@ -358,6 +358,26 @@ func TestScaffold(t *testing.T) {
 	}
 }
 
+// Shipped command files share dotlodev_assets/commands with the samples; only the samples are copied.
+func TestScaffoldCommandsOnlyExamples(t *testing.T) {
+	root := t.TempDir()
+	if err := scaffold(root, "nginx"); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	filepath.WalkDir(filepath.Join(root, ".lodev", "commands"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			rel, _ := filepath.Rel(root, p)
+			got = append(got, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	want := []string{".lodev/commands/host/hello.example", ".lodev/commands/web/hello.example"}
+	if !slices.Equal(got, want) {
+		t.Errorf("scaffolded commands = %q, want %q", got, want)
+	}
+}
+
 func TestCreateNoAsk(t *testing.T) {
 	t.Setenv("LODEV_HOME", t.TempDir()) // create registers the project
 	root := t.TempDir()

@@ -135,6 +135,8 @@ func scaffold(root, webserver string) error {
 		switch top, _, _ := strings.Cut(rel, "/"); {
 		case (top == "nginx" || top == "apache") && top != webserver, top == "homeadditional" && symlinkedHome:
 			return nil
+		case top == "commands" && !strings.HasSuffix(rel, ".example"): // shipped commands sync to ~/.lodev, never into a project
+			return nil
 		}
 		path := filepath.Join(root, ".lodev", filepath.FromSlash(rel))
 		if _, err := os.Stat(path); err == nil {

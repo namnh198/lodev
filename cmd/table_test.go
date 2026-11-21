@@ -10,20 +10,6 @@ import (
 	"lodev/internal/registry"
 )
 
-func TestShortPath(t *testing.T) {
-	t.Setenv("HOME", "/Users/u")
-	for in, want := range map[string]string{
-		"/Users/u/a/b": "~/a/b",
-		"/Users/u":     "~",
-		"/Users/uX/p":  "/Users/uX/p",
-		"/opt/x":       "/opt/x",
-	} {
-		if got := shortPath(in); got != want {
-			t.Errorf("shortPath(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestRenderTable(t *testing.T) {
 	out := renderTable([]string{"A", "B"}, [][]string{{"x\ny", "z"}})
 	if !strings.Contains(out, "╭") || !strings.Contains(out, "A") || !strings.Contains(out, "z") {

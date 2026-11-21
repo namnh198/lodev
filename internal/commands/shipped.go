@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,19 +10,20 @@ import (
 	"strings"
 
 	"lodev/internal/atomicfile"
+	"lodev/internal/dotlodev_assets"
 	"lodev/internal/templates"
 )
-
-//go:embed shipped
-var shippedFS embed.FS
 
 // Shipped is the command files embedded in lodev (Path "", Marker true), sorted by Kind then Name.
 func Shipped() []Command {
 	var cmds []Command
 	for _, kind := range []string{Host, Web} {
-		entries, _ := shippedFS.ReadDir(path.Join("shipped", kind))
+		entries, _ := dotlodev_assets.FS.ReadDir(path.Join("commands", kind))
 		for _, e := range entries {
-			data, _ := shippedFS.ReadFile(path.Join("shipped", kind, e.Name()))
+			if strings.HasSuffix(e.Name(), ".example") { // scaffolded samples, not shipped commands
+				continue
+			}
+			data, _ := dotlodev_assets.FS.ReadFile(path.Join("commands", kind, e.Name()))
 			if c, err := Parse(e.Name(), kind, "", data); err == nil { // a bad embedded file fails TestShippedWeb
 				c.Marker = true
 				cmds = append(cmds, c)

@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -33,19 +30,4 @@ func renderTable(headers []string, rows [][]string) string {
 // printTable writes the table to w, dropping colors w cannot show (a pipe, NO_COLOR).
 func printTable(w io.Writer, headers []string, rows [][]string) {
 	lipgloss.Fprintln(w, renderTable(headers, rows))
-}
-
-// shortPath shows paths under $HOME as ~/….
-func shortPath(p string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return p
-	}
-	if p == home {
-		return "~"
-	}
-	if rest, ok := strings.CutPrefix(p, home+string(filepath.Separator)); ok {
-		return "~/" + rest
-	}
-	return p
 }

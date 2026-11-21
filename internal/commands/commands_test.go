@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"lodev/internal/config"
 	"lodev/internal/templates"
 )
 
@@ -115,5 +117,50 @@ func TestLoadDir(t *testing.T) {
 		if got != 1 {
 			t.Errorf("%q should be in exactly one warning: %q", n, warns)
 		}
+	}
+}
+
+func TestShortPath(t *testing.T) {
+	t.Setenv("HOME", "/Users/u")
+	for in, want := range map[string]string{
+		"/Users/u/a/b": "~/a/b",
+		"/Users/u":     "~",
+		"/Users/uX/p":  "/Users/uX/p",
+		"/opt/x":       "/opt/x",
+	} {
+		if got := ShortPath(in); got != want {
+			t.Errorf("ShortPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestHostEnv(t *testing.T) {
+	g, _ := config.ParseGlobal(nil)
+	g.Ports.MySQL = "3306"
+	p := &config.Project{Name: "shop", Type: "php", Root: "/r", Webserver: "nginx", Domains: []string{"shop.test"}, Services: []string{"mysql"}}
+	env := HostEnv(p, g, "/r/app", "/bin/lodev", true)
+	for _, e := range []string{"LODEV_BIN=/bin/lodev", "LODEV_PWD=/r/app", "LODEV_TYPE=php", "LODEV_PROJECT_STATUS=running",
+		"LODEV_DB_TYPE=mysql", "LODEV_DB_HOST=127.0.0.1", "LODEV_DB_PORT=3306", "LODEV_DB_USER=root", "LODEV_DB_PASSWORD=root",
+		"LODEV_DB_NAME=shop", "LODEV_WEB_CONTAINER=lodev-shop-web", "LODEV_URL=https://shop.test"} {
+		if !slices.Contains(env, e) {
+			t.Errorf("env lacks %s: %q", e, env)
+		}
+	}
+	for _, e := range env {
+		if k, _, _ := strings.Cut(e, "="); !slices.Contains(HostEnvKeys, k) {
+			t.Errorf("HostEnvKeys lacks %s", k)
+		}
+	}
+	p.Services, p.Webserver = nil, "none"
+	for _, e := range HostEnv(p, g, "/r", "/bin/lodev", false) {
+		if strings.HasPrefix(e, "LODEV_DB_") {
+			t.Errorf("no db, got %s", e)
+		}
+		if strings.HasPrefix(e, "LODEV_URL=") && e != "LODEV_URL=" {
+			t.Errorf("webserver none: %s", e)
+		}
+	}
+	if env := HostEnv(nil, g, "/x", "/bin/lodev", false); !slices.Equal(env, []string{"LODEV_BIN=/bin/lodev", "LODEV_PWD=/x"}) {
+		t.Errorf("outside a project: %q", env)
 	}
 }

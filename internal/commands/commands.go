@@ -3,6 +3,7 @@ package commands
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,7 +35,7 @@ func Parse(name, kind, path string, data []byte) (Command, error) {
 	script := strings.ReplaceAll(string(data), "\r\n", "\n")
 	c := Command{Name: name, Kind: kind, Path: path, Script: script}
 	c.Use = name + " [args...]"
-	c.Short = "Custom command (" + shortPath(path) + ")"
+	c.Short = "Custom command (" + ShortPath(path) + ")"
 	for i, line := range strings.Split(script, "\n") {
 		if !strings.HasPrefix(line, "#") {
 			break
@@ -86,7 +87,7 @@ func LoadDir(dir, kind string) (cmds []Command, warnings []string) {
 		}
 		path := filepath.Join(dir, name)
 		if !ValidName(name) {
-			warnings = append(warnings, fmt.Sprintf("%s: %q is not a valid command name (a-z 0-9 -); skipped", shortPath(path), name))
+			warnings = append(warnings, fmt.Sprintf("%s: %q is not a valid command name (a-z 0-9 -); skipped", ShortPath(path), name))
 			continue
 		}
 		data, err := os.ReadFile(path)
@@ -97,14 +98,14 @@ func LoadDir(dir, kind string) (cmds []Command, warnings []string) {
 				continue
 			}
 		}
-		warnings = append(warnings, fmt.Sprintf("%s: %v; skipped", shortPath(path), err))
+		warnings = append(warnings, fmt.Sprintf("%s: %v; skipped", ShortPath(path), err))
 	}
 	sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name < cmds[j].Name })
 	return cmds, warnings
 }
 
 // shortPath shows paths under $HOME as ~/… (same rule as cmd/table.go; internal cannot import cmd).
-func shortPath(p string) string {
+func ShortPath(p string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return p
@@ -116,4 +117,124 @@ func shortPath(p string) string {
 		return "~/" + rest
 	}
 	return p
+}
+
+// loadScope reads dir/web and dir/host; a name in both keeps the web one.
+func loadScope(dir string, keep func(Command) bool) (map[string]Command, []string) {
+	web, warnings := LoadDir(filepath.Join(dir, Web), Web)
+	host, w := LoadDir(filepath.Join(dir, Host), Host)
+	warnings = append(warnings, w...)
+	byName := map[string]Command{}
+	for _, c := range append(web, host...) {
+		if !keep(c) {
+			continue
+		}
+		if prev, ok := byName[c.Name]; ok {
+			warnings = append(warnings, fmt.Sprintf("%s: %q is also in %s; using the web one", ShortPath(c.Path), c.Name, ShortPath(prev.Path)))
+			continue
+		}
+		byName[c.Name] = c
+	}
+	return byName, warnings
+}
+
+// Resolve layers shipped < global (<home>/commands, marker files dropped) < project
+// (<projectRoot>/.lodev/commands, only when registered), keeps the commands that apply to
+// projectType (all when it is ""), and skips builtin names. projectRoot "" means outside a project.
+func Resolve(shipped []Command, home string, projectRoot, projectType string, registered bool, builtin map[string]bool) (cmds []Command, warnings []string) {
+	applies := func(c Command) bool { return projectType == "" || c.Applies(projectType) }
+
+	byName := map[string]Command{}
+	for _, c := range shipped {
+		if applies(c) {
+			byName[c.Name] = c
+		}
+	}
+	// A marker file in ~/.lodev/commands is lodev's synced copy of a shipped one, not the user's.
+	global, warnings := loadScope(filepath.Join(home, "commands"), func(c Command) bool { return !c.Marker && applies(c) })
+	for n, c := range global {
+		byName[n] = c
+	}
+	if projectRoot != "" {
+		dir := filepath.Join(projectRoot, ".lodev", "commands")
+		if registered {
+			project, w := loadScope(dir, applies)
+			warnings = append(warnings, w...)
+			for n, c := range project {
+				byName[n] = c
+			}
+		} else {
+			web, _ := LoadDir(filepath.Join(dir, Web), Web)
+			host, _ := LoadDir(filepath.Join(dir, Host), Host)
+			if len(web)+len(host) > 0 {
+				warnings = append(warnings, ".lodev/commands is not loaded: run lodev create to review the project's commands")
+			}
+		}
+	}
+
+	for _, n := range slices.Sorted(maps.Keys(byName)) {
+		c := byName[n]
+		if builtin[n] {
+			warnings = append(warnings, fmt.Sprintf("%s: %q is a lodev command; skipped", ShortPath(c.Path), n))
+			continue
+		}
+		cmds = append(cmds, c)
+	}
+	return cmds, warnings
+}
+
+// HostEnvKeys is every variable HostEnv can set; inherited copies are dropped so a nested
+// command never sees another project's values.
+var HostEnvKeys = []string{"LODEV_BIN", "LODEV_PWD", "LODEV_PROJECT", "LODEV_ROOT", "LODEV_TYPE", "LODEV_URL",
+	"LODEV_WEB_CONTAINER", "LODEV_CONTAINER_USER", "LODEV_WORKDIR", "LODEV_PROJECT_STATUS",
+	"LODEV_DB_TYPE", "LODEV_DB_HOST", "LODEV_DB_PORT", "LODEV_DB_USER", "LODEV_DB_PASSWORD", "LODEV_DB_NAME"}
+
+// DropEnv returns environ without the HostEnvKeys entries.
+func DropEnv(environ []string) []string {
+	return slices.DeleteFunc(environ, func(e string) bool {
+		k, _, _ := strings.Cut(e, "=")
+		return slices.Contains(HostEnvKeys, k)
+	})
+}
+
+// HostEnv is the LODEV_* environment a host command gets on top of the user's.
+func HostEnv(p *config.Project, g *config.Global, pwd, bin string, running bool) []string {
+	env := []string{"LODEV_BIN=" + bin, "LODEV_PWD=" + pwd}
+	if p == nil {
+		return env
+	}
+	url := ""
+	if p.Webserver != "none" && len(p.Domains) > 0 {
+		url = "https://" + p.Domains[0]
+	}
+	user, _ := p.ContainerUser()
+	status := "stopped"
+	if running {
+		status = "running"
+	}
+	env = append(env,
+		"LODEV_PROJECT="+p.Name,
+		"LODEV_ROOT="+p.Root,
+		"LODEV_TYPE="+p.Type,
+		"LODEV_URL="+url,
+		"LODEV_WEB_CONTAINER="+p.WebContainer(),
+		"LODEV_CONTAINER_USER="+user,
+		"LODEV_WORKDIR="+p.WorkDir(),
+		"LODEV_PROJECT_STATUS="+status,
+	)
+	if db := p.DB(); db != "" {
+		port := g.Ports.MySQL
+		if db == "mariadb" {
+			port = g.Ports.MariaDB
+		}
+		env = append(env,
+			"LODEV_DB_TYPE="+db,
+			"LODEV_DB_HOST=127.0.0.1",
+			"LODEV_DB_PORT="+port,
+			"LODEV_DB_USER=root",
+			"LODEV_DB_PASSWORD=root",
+			"LODEV_DB_NAME="+p.DBName(),
+		)
+	}
+	return env
 }

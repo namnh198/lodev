@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lodev/internal/commands"
 	"lodev/internal/config"
 	"lodev/internal/registry"
 )
@@ -170,7 +171,7 @@ func init() {
 			}
 			w := c.OutOrStdout()
 			fmt.Fprintf(w, "Project: %s %s%s\nDocker platform: %s\nRouter: traefik\nlodev version: %s\n",
-				p.Name, shortPath(p.Root), primary, dockerValue("info", "--format", "{{.OperatingSystem}}"), lodevVersion())
+				p.Name, commands.ShortPath(p.Root), primary, dockerValue("info", "--format", "{{.OperatingSystem}}"), lodevVersion())
 			printTable(w, []string{"SERVICE", "STAT", "URL/PORT", "INFO"}, describeRows(p, g, containerState, extra))
 			return nil
 		},

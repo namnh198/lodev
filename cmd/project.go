@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"lodev/internal/certs"
+	"lodev/internal/commands"
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/hosts"
@@ -1014,7 +1015,7 @@ func init() {
 				if domains == "" {
 					domains = "CLI"
 				}
-				rows = append(rows, []string{name, status(name), typ, domains, shortPath(e.Path)})
+				rows = append(rows, []string{name, status(name), typ, domains, commands.ShortPath(e.Path)})
 			}
 			printTable(c.OutOrStdout(), []string{"NAME", "STATUS", "TYPE", "DOMAINS", "PATH"}, rows)
 			return nil

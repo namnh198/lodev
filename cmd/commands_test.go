@@ -144,37 +144,6 @@ func TestHostCommandDropsInheritedLodevVars(t *testing.T) {
 	}
 }
 
-func TestHostEnv(t *testing.T) {
-	g, _ := config.ParseGlobal(nil)
-	g.Ports.MySQL = "3306"
-	p := &config.Project{Name: "shop", Type: "php", Root: "/r", Webserver: "nginx", Domains: []string{"shop.test"}, Services: []string{"mysql"}}
-	env := hostEnv(p, g, "/r/app", "/bin/lodev", true)
-	for _, e := range []string{"LODEV_BIN=/bin/lodev", "LODEV_PWD=/r/app", "LODEV_TYPE=php", "LODEV_PROJECT_STATUS=running",
-		"LODEV_DB_TYPE=mysql", "LODEV_DB_HOST=127.0.0.1", "LODEV_DB_PORT=3306", "LODEV_DB_USER=root", "LODEV_DB_PASSWORD=root",
-		"LODEV_DB_NAME=shop", "LODEV_WEB_CONTAINER=lodev-shop-web", "LODEV_URL=https://shop.test"} {
-		if !slices.Contains(env, e) {
-			t.Errorf("env lacks %s: %q", e, env)
-		}
-	}
-	for _, e := range env {
-		if k, _, _ := strings.Cut(e, "="); !slices.Contains(hostEnvKeys, k) {
-			t.Errorf("hostEnvKeys lacks %s", k)
-		}
-	}
-	p.Services, p.Webserver = nil, "none"
-	for _, e := range hostEnv(p, g, "/r", "/bin/lodev", false) {
-		if strings.HasPrefix(e, "LODEV_DB_") {
-			t.Errorf("no db, got %s", e)
-		}
-		if strings.HasPrefix(e, "LODEV_URL=") && e != "LODEV_URL=" {
-			t.Errorf("webserver none: %s", e)
-		}
-	}
-	if env := hostEnv(nil, g, "/x", "/bin/lodev", false); !slices.Equal(env, []string{"LODEV_BIN=/bin/lodev", "LODEV_PWD=/x"}) {
-		t.Errorf("outside a project: %q", env)
-	}
-}
-
 func TestCustomPrecedence(t *testing.T) {
 	withoutShipped(t)
 	root := customProject(t, "php", true)
