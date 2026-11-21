@@ -184,17 +184,6 @@ func ParseGlobal(data []byte) (*Global, error) {
 	return g, nil
 }
 
-func SaveGlobal(g *Global) error {
-	data, err := yaml.Marshal(g)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(Home(), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(GlobalPath(), data, 0o644)
-}
-
 func (g *Global) Validate() error {
 	for _, p := range []struct{ key, val string }{{"mysql", g.Ports.MySQL}, {"mariadb", g.Ports.MariaDB}, {"mongodb", g.Ports.MongoDB}} {
 		if p.val == "" {

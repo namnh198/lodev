@@ -140,20 +140,6 @@ func TestGlobalVersions(t *testing.T) {
 	}
 }
 
-func TestGlobalSaveLoadRoundTrip(t *testing.T) {
-	writeGlobal(t, "")
-	g, _ := LoadGlobal()
-	g.Ports.MySQL = "3307"
-	g.Services["redis"] = false
-	if err := SaveGlobal(g); err != nil {
-		t.Fatal(err)
-	}
-	got, err := LoadGlobal()
-	if err != nil || !reflect.DeepEqual(got, g) {
-		t.Fatalf("%+v %v", got, err)
-	}
-}
-
 func TestPMAHosts(t *testing.T) {
 	writeGlobal(t, "")
 	g, _ := LoadGlobal()
