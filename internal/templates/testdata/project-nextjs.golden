@@ -53,6 +53,7 @@ services:
       - "pnpm_config_store_dir=/var/lib/lodev/home/.local/share/pnpm/store"
       - "LODEV_DAEMONS=1"
       - "NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem"
+      - "LODEV_NEXTJS_PORT=3000"
     networks: [lodev, default]
     # Every project's domains reach traefik, so one project can call another over https.
     extra_hosts:

@@ -34,7 +34,7 @@ func TestProjectComposeNextjsGolden(t *testing.T) {
 	b := must(t)(ProjectCompose(in))
 	golden(t, "project-nextjs", b)
 	web := parse(t, b)["web"]
-	for _, want := range []string{"NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem", "LODEV_DAEMONS=1"} {
+	for _, want := range []string{"NODE_EXTRA_CA_CERTS=/etc/lodev/rootCA.pem", "LODEV_DAEMONS=1", "LODEV_NEXTJS_PORT=3000"} {
 		if !slices.Contains(web.Environment, want) {
 			t.Errorf("env lacks %s: %v", want, web.Environment)
 		}
@@ -56,8 +56,8 @@ func TestProjectComposeNextjsGolden(t *testing.T) {
 	if n != 1 {
 		t.Errorf("NODE_EXTRA_CA_CERTS listed %d times", n)
 	}
-	if b := string(must(t)(ProjectCompose(projectInput("nginx")))); strings.Contains(b, "NODE_EXTRA_CA_CERTS") {
-		t.Error("a php project gets NODE_EXTRA_CA_CERTS")
+	if b := string(must(t)(ProjectCompose(projectInput("nginx")))); strings.Contains(b, "NODE_EXTRA_CA_CERTS") || strings.Contains(b, "LODEV_NEXTJS_PORT") {
+		t.Error("a php project gets NODE_EXTRA_CA_CERTS or LODEV_NEXTJS_PORT")
 	}
 }
 

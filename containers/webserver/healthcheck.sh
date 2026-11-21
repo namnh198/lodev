@@ -1,5 +1,5 @@
 #!/bin/sh
-# lodev web healthcheck (compose healthcheck): the project mount, the webserver and PHP behind it.
+# lodev web healthcheck (compose healthcheck): the project mount, the webserver and PHP (or Next) behind it.
 # Prints one line, e.g. "/app:OK nginx:OK php-fpm:OK phpstatus:OK"; exits 1 on any FAILED.
 rc=0
 check() { # name, command...
@@ -17,8 +17,14 @@ case "${LODEV_WEBSERVER:-nginx}" in
   *)
     check "$LODEV_WEBSERVER" running "$LODEV_WEBSERVER"
     check php-fpm running php-fpm
-    # Through the webserver to php-fpm: lodev-status.conf serves it on 127.0.0.1 for any project config.
-    check phpstatus curl -fsS --max-time 5 -o /dev/null http://127.0.0.1/phpstatus
+    if [ -n "${LODEV_NEXTJS_PORT:-}" ]; then
+      # nginx proxies to Next: until it listens, the site is a 502. A bare connect, no request,
+      # so next dev compiles and logs nothing.
+      check nextjs bash -c ': </dev/tcp/127.0.0.1/$1' _ "$LODEV_NEXTJS_PORT"
+    else
+      # Through the webserver to php-fpm: lodev-status.conf serves it on 127.0.0.1 for any project config.
+      check phpstatus curl -fsS --max-time 5 -o /dev/null http://127.0.0.1/phpstatus
+    fi
     ;;
 esac
 echo

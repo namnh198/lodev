@@ -120,6 +120,8 @@ func webEnv(in ProjectInput) []string {
 	if p.Type == "nextjs" {
 		// The dev server's fetch reaches other projects' https domains, served with lodev's CA.
 		kv = append(kv, [2]string{"NODE_EXTRA_CA_CERTS", "/etc/lodev/rootCA.pem"})
+		// The healthcheck waits for the Next server on this port, not php-fpm's /phpstatus.
+		kv = append(kv, [2]string{"LODEV_NEXTJS_PORT", strconv.Itoa(p.EffectiveContainerPort())})
 	}
 	if len(p.ExposedHosts()) > 0 {
 		for _, e := range slices.SortedFunc(slices.Values(p.WebExtraExposedPorts), func(a, b config.ExposedPort) int { return strings.Compare(a.Name, b.Name) }) {
