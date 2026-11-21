@@ -633,7 +633,9 @@ lodev also ships these host commands, which open the project's MySQL/MariaDB dat
 GUI. Each needs the database published on a host port (`lodev config-global --mysql-port=3306`
 or `--mariadb-port=3307`, then `lodev service start`) and exits 1 with the reason when there
 is no project, no database service, no published port, or the OS has no such app. The
-connection is named `lodev-<project>`.
+connection is named `lodev-<project>`. On Linux they also exit 1 when the app's command is
+not on PATH. `dbeaver` and `mysqlworkbench` pass their arguments through `open -a ... --args`,
+which macOS honors only when the app is not already running: quit it first.
 
 | Command | App | Notes |
 |---|---|---|

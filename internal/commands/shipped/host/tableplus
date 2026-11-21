@@ -6,12 +6,13 @@
 [ -n "$LODEV_PROJECT" ] || { echo "not in a lodev project"; exit 1; }
 [ -n "$LODEV_DB_TYPE" ] || { echo "$LODEV_PROJECT has no MySQL/MariaDB service"; exit 1; }
 if [ -z "$LODEV_DB_PORT" ]; then
-  [ "$LODEV_DB_TYPE" = mariadb ] && p=3307 || p=3306
-  echo "$LODEV_DB_TYPE is not reachable from this machine: lodev config-global --$LODEV_DB_TYPE-port=$p, then lodev service start"
+  [ "$LODEV_DB_TYPE" = mariadb ] && { n=MariaDB p=3307; } || { n=MySQL p=3306; }
+  echo "$n is not reachable from this machine: lodev config-global --$LODEV_DB_TYPE-port=$p, then lodev service start"
   exit 1
 fi
 url="$LODEV_DB_USER:$LODEV_DB_PASSWORD@$LODEV_DB_HOST:$LODEV_DB_PORT/$LODEV_DB_NAME"
 case $(uname -s) in
   Darwin) open -a TablePlus "$LODEV_DB_TYPE://$url?name=lodev-$LODEV_PROJECT" ;;
-  *) xdg-open "$LODEV_DB_TYPE://$url?name=lodev-$LODEV_PROJECT" ;;
+  *) command -v xdg-open >/dev/null || { echo "xdg-open is not installed (install xdg-utils)"; exit 1; }
+  xdg-open "$LODEV_DB_TYPE://$url?name=lodev-$LODEV_PROJECT" ;;
 esac

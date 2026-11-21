@@ -116,9 +116,21 @@ func TestDBScripts(t *testing.T) {
 	}
 
 	for _, s := range []string{"sequelace", "tablepro"} {
-		out, calls, code := run(s, "Linux", env())
+		out, calls, code := run(s, "Linux", env("LODEV_DB_PORT", "")) // the OS check comes first
 		if code != 1 || !strings.Contains(out, "macOS only") || len(calls) != 0 {
 			t.Errorf("%s on Linux: %q %q %d", s, out, calls, code)
+		}
+	}
+
+	// PATH holds only a uname fake, so no real CLI can answer.
+	bare := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bare, "uname"), []byte("#!/bin/sh\necho Linux\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ script, cli string }{{"tableplus", "xdg-open"}, {"dbeaver", "dbeaver"}, {"mysqlworkbench", "mysql-workbench"}} {
+		out, _, code := runShipped(t, c.script, env("PATH", bare), nil)
+		if code != 1 || !strings.Contains(out, c.cli+" is not installed") {
+			t.Errorf("%s without %s: %q %d", c.script, c.cli, out, code)
 		}
 	}
 
@@ -134,8 +146,8 @@ func TestDBScripts(t *testing.T) {
 			env  map[string]string
 			want string
 		}{
-			{"no port, mysql", env("LODEV_DB_PORT", ""), "lodev config-global --mysql-port=3306, then lodev service start"},
-			{"no port, mariadb", env("LODEV_DB_TYPE", "mariadb", "LODEV_DB_PORT", ""), "lodev config-global --mariadb-port=3307, then lodev service start"},
+			{"no port, mysql", env("LODEV_DB_PORT", ""), "MySQL is not reachable from this machine: lodev config-global --mysql-port=3306, then lodev service start"},
+			{"no port, mariadb", env("LODEV_DB_TYPE", "mariadb", "LODEV_DB_PORT", ""), "MariaDB is not reachable from this machine: lodev config-global --mariadb-port=3307, then lodev service start"},
 			{"no database", env("LODEV_DB_TYPE", ""), "has no MySQL/MariaDB service"},
 			{"no project", env("LODEV_PROJECT", ""), "not in a lodev project"},
 		} {
