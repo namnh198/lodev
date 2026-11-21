@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"slices"
@@ -100,8 +101,8 @@ func TestTrustItemsFindsHookFolderWithoutConfig(t *testing.T) {
 // asTTY makes the gate a terminal (or not) that answers answer.
 func asTTY(t *testing.T, tty bool, answer string) {
 	t.Helper()
-	oldTTY, oldIn := trustTTY, os.Stdin
-	t.Cleanup(func() { trustTTY, os.Stdin = oldTTY, oldIn })
+	oldTTY, oldIn, oldReader := trustTTY, os.Stdin, stdin
+	t.Cleanup(func() { trustTTY, os.Stdin, stdin = oldTTY, oldIn, oldReader })
 	trustTTY = func() bool { return tty }
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -109,7 +110,15 @@ func asTTY(t *testing.T, tty bool, answer string) {
 	}
 	w.WriteString(answer + "\n")
 	w.Close()
-	os.Stdin = r
+	os.Stdin, stdin = r, bufio.NewReader(r)
+}
+
+// Piped answers "y\ny\n" reach two prompts: a reader per prompt would swallow the second.
+func TestPromptsShareStdin(t *testing.T) {
+	asTTY(t, true, "y\ny")
+	if a, b := confirm("one?", false), confirm("two?", false); !a || !b {
+		t.Errorf("answers %v %v", a, b)
+	}
 }
 
 func hookedProject(t *testing.T) *config.Project {
@@ -260,7 +269,7 @@ func TestConfirmRepoCommands(t *testing.T) {
 	asTTY(t, true, "")
 	r, w, _ := os.Pipe()
 	w.Close()
-	os.Stdin = r
+	os.Stdin, stdin = r, bufio.NewReader(r)
 	if err := confirmRepoCommands(p, false); err == nil || err.Error() != "not approved: nothing was registered" {
 		t.Fatalf("EOF err = %v", err)
 	}

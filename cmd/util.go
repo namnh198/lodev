@@ -65,10 +65,13 @@ func readLine(prompt string) string {
 	return line
 }
 
+// stdin is shared: a reader per prompt would buffer past its line and lose the next answers of a pipe.
+var stdin = bufio.NewReader(os.Stdin)
+
 // readLineErr is readLine that also reports EOF or a read error.
 func readLineErr(prompt string) (string, error) {
 	fmt.Print(prompt + " ")
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	line, err := stdin.ReadString('\n')
 	return strings.TrimSpace(line), err
 }
 
