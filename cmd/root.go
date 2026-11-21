@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,9 @@ func StripDebugArg(args []string) ([]string, bool) {
 
 // Execute runs the CLI.
 func Execute() error {
+	// Before Execute: cobra must know the commands to parse the command line.
+	wd, _ := os.Getwd()
+	registerCustom(rootCmd, wd)
 	err := rootCmd.Execute()
 	finishUpdateCheck(time.Second)
 	return err

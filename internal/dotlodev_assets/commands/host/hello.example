@@ -1,0 +1,3 @@
+# Usage: hello [args...]
+# Description: Example: print the project's URL and the args on this machine (rename to hello to use)
+echo "$LODEV_URL args: $*"

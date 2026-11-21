@@ -13,6 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"lodev/internal/commands"
 	"lodev/internal/config"
 	"lodev/internal/docker"
 	"lodev/internal/dotenv"
@@ -127,6 +128,21 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 			add(key, label+key)
 			return nil
 		})
+	}
+	shipped := map[string]bool{}
+	for _, c := range shippedCommands() {
+		shipped[c.Name] = true
+	}
+	for kind, where := range map[string]string{commands.Web: "web container", commands.Host: "runs on this machine"} {
+		cmds, _ := commands.LoadDir(filepath.Join(p.Root, ".lodev", "commands", kind), kind)
+		for _, c := range cmds {
+			rel := ".lodev/commands/" + kind + "/" + c.Name
+			display := fmt.Sprintf("command lodev %s (%s): %s", c.Name, where, rel)
+			if shipped[c.Name] {
+				display += ", replaces lodev's " + c.Name
+			}
+			add(rel, display)
+		}
 	}
 	if err := addTree(".lodev/homeadditional", "home file: "); err != nil {
 		return nil, err

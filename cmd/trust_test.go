@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"lodev/internal/commands"
 	"lodev/internal/config"
 	"lodev/internal/registry"
 	"lodev/internal/templates"
@@ -299,5 +300,32 @@ func TestTrustItemsSkipsHomeAdditionalExamples(t *testing.T) {
 	writeRepoFile(t, p, ".lodev/homeadditional/.bash_aliases", "alias x=y")
 	if got := trustKeys(t, p); !slices.Equal(got, []string{".lodev/homeadditional/.bash_aliases"}) {
 		t.Fatalf("keys = %v", got)
+	}
+}
+
+func TestTrustItemsCommands(t *testing.T) {
+	p := hookProject(t, nil)
+	writeRepoFile(t, p, ".lodev/commands/web/a", "echo a\n")
+	writeRepoFile(t, p, ".lodev/commands/host/b", "echo b\n")
+	writeRepoFile(t, p, ".lodev/commands/host/c.example", "echo c\n")
+	items, err := trustItems(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, it := range items {
+		got = append(got, it.Display)
+	}
+	want := []string{"command lodev b (runs on this machine): .lodev/commands/host/b", "command lodev a (web container): .lodev/commands/web/a"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("displays = %q", got)
+	}
+
+	old := shippedCommands
+	t.Cleanup(func() { shippedCommands = old })
+	shippedCommands = func() []commands.Command { return []commands.Command{{Name: "a", Kind: commands.Web}} }
+	items, _ = trustItems(p)
+	if d := items[1].Display; d != "command lodev a (web container): .lodev/commands/web/a, replaces lodev's a" {
+		t.Errorf("shipped name: %q", d)
 	}
 }

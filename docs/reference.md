@@ -556,8 +556,9 @@ A cloned repo can make lodev run commands: hooks (config steps, the scripts they
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
 followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides),
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),
-and your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
-`.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
+your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
+`.lodev/apache-webserver.conf` once it no longer carries lodev's marker, and the
+[custom commands](#custom-commands) in `.lodev/commands/web/` and `.lodev/commands/host/`. lodev lists them and asks
 `Run these commands? [Y/n]` (enter approves) once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
 whose repo already has `.lodev` files; nothing to run asks nothing). A declined question registers
 nothing. Where lodev cannot ask (no terminal) it fails with the list; pass `--yes` to `create` to
@@ -568,6 +569,75 @@ overrides) are shown as escapes like `\x1b`, so the repo's text cannot hide a li
 Accepted risk: a `git pull` that adds or changes a hook, daemon, compose file, web-image part,
 homeadditional or apache file runs at the next start without a question. Review what a pull
 brings into `.lodev/` before starting the project.
+A pulled custom command runs only when you type `lodev <name>`, but a host one runs on your
+machine, outside the container, as you. Your own `~/.lodev/commands/` files are not listed.
+
+## Custom commands
+
+`lodev <name> [args...]` runs a bash script file found in one of these folders:
+
+| Scope | Runs in | Folder |
+|---|---|---|
+| global | the project's web container | `~/.lodev/commands/web/<name>` |
+| global | your machine | `~/.lodev/commands/host/<name>` |
+| project | the project's web container | `<project>/.lodev/commands/web/<name>` |
+| project | your machine | `<project>/.lodev/commands/host/<name>` |
+
+The file name is the command name: `a-z`, `0-9` and `-`, starting with a letter or digit. Dot
+files, folders and `*.example` files are skipped; any other bad name, or an unknown `Type`, is
+skipped with a warning. `lodev create` scaffolds `.lodev/commands/{web,host}/hello.example`:
+rename one to `hello` to try it.
+
+The leading `#` lines are the header. lodev reads three keys:
+
+```bash
+# Usage: hello [args...]
+# Description: Say hello in the web container
+# Type: laravel, php
+echo "hello $*"
+```
+
+- `Usage` is the help line; its first word must be the file name (else `<name> [args...]`).
+- `Description` is the help text (else `Custom command (<path>)`).
+- `Type`: a comma-separated list of project types. Inside a project, the command exists only
+  in projects of those types; outside one, it is not filtered. Without it, the command is for
+  every project.
+
+Scripts always run with `bash` (a shebang line is ignored); `$0` is the command name and `"$@"`
+the args, passed unchanged (lodev parses no flags after the name).
+
+**Precedence:** project beats global, whatever the folder. Within one scope, the same name in
+`web/` and `host/` warns and the web one wins. A file whose name is a lodev command or alias
+(`start`, `up`, `help`…) is skipped with a warning; it never replaces lodev's own. A file in
+`~/.lodev/commands/` whose first line is lodev's marker line is lodev's own copy, not yours.
+Type filtering comes first, so a project `magento` limited to `magento` does not hide a global one
+in a laravel project.
+
+**Project commands need a registered project** (one made by `lodev create`, which lists them for
+review, see [Commands from the project's repo](#commands-from-the-projects-repo)). In a cloned
+folder that is not registered, `.lodev/commands/` is ignored, with the hint
+`.lodev/commands is not loaded: run lodev create to review the project's commands`. When the
+project's `config.yaml` does not load, only global commands exist and the real command reports
+the error.
+
+**Web commands** run like `lodev exec`: as the project user, in `working_dir`, with a TTY when
+you have one, and their exit code. They need a running project.
+
+**Host commands** run in the project root (outside a project: the current folder), with your
+environment plus:
+
+| Variable | Value |
+|---|---|
+| `LODEV_BIN` | the lodev binary running the command: call `"$LODEV_BIN"`, not `lodev` from PATH |
+| `LODEV_PWD` | the folder lodev was run from |
+| `LODEV_PROJECT`, `LODEV_ROOT`, `LODEV_TYPE` | the project's name, root folder and type |
+| `LODEV_URL` | `https://<first domain>`, empty for `webserver: none` |
+| `LODEV_WEB_CONTAINER`, `LODEV_CONTAINER_USER`, `LODEV_WORKDIR` | the web container, its project user and `working_dir` |
+| `LODEV_PROJECT_STATUS` | `running` or `stopped` |
+| `LODEV_DB_TYPE`, `LODEV_DB_HOST`, `LODEV_DB_PORT`, `LODEV_DB_USER`, `LODEV_DB_PASSWORD`, `LODEV_DB_NAME` | with MySQL or MariaDB: `mysql`/`mariadb`, `127.0.0.1`, the global `ports.mysql`/`ports.mariadb` (empty when not published), `root`, `root`, the project's database |
+
+Only `LODEV_BIN` and `LODEV_PWD` are set outside a project. Host commands need `bash` on PATH,
+but no Docker and no running project.
 
 ## Domains and TLD
 
@@ -835,6 +905,7 @@ build) rather than reporting healthy while the site still answers 502. With `web
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
+| `lodev <name> [args...]` | A [custom command](#custom-commands) from `~/.lodev/commands/` or `.lodev/commands/` |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |

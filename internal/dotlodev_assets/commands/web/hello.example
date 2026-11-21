@@ -1,0 +1,3 @@
+# Usage: hello [args...]
+# Description: Example: print the web container's PHP version and the args (rename to hello to use)
+echo "php $(php -r 'echo PHP_VERSION;') args: $*"

@@ -4,5 +4,5 @@ package dotlodev_assets
 
 import "embed"
 
-//go:embed all:web-images all:php all:hooks all:homeadditional all:nginx all:apache example.compose.yml.example
+//go:embed all:commands all:web-images all:php all:hooks all:homeadditional all:nginx all:apache example.compose.yml.example
 var FS embed.FS
