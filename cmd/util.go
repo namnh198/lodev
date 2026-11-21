@@ -74,6 +74,12 @@ func confirm(prompt string, yes bool) bool {
 	return strings.EqualFold(readLine(prompt+" [y/N]"), "y")
 }
 
+// confirmDefaultYes asks [Y/n]: enter, y and Y approve; any other answer declines.
+func confirmDefaultYes(prompt string) bool {
+	a := readLine(prompt + " [Y/n]")
+	return a == "" || strings.EqualFold(a, "y")
+}
+
 // confirmTyped requires the user to type word exactly.
 func confirmTyped(prompt, word string) bool {
 	return readLine(prompt) == word

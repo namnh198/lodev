@@ -247,6 +247,14 @@ func TestConfirmRepoCommands(t *testing.T) {
 	if err := confirmRepoCommands(p, false); err != nil {
 		t.Fatalf("accept: %v", err)
 	}
+	asTTY(t, true, "")
+	if err := confirmRepoCommands(p, false); err != nil {
+		t.Fatalf("enter approves: %v", err)
+	}
+	asTTY(t, true, "no")
+	if err := confirmRepoCommands(p, false); err == nil || err.Error() != "not approved: nothing was registered" {
+		t.Fatalf("no err = %v", err)
+	}
 }
 
 // A repo's text cannot move the cursor or erase lines of the list it is approved from.

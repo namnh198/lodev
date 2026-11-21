@@ -558,7 +558,7 @@ followed; not `.example` ones), the project's `environment:` (from `config.yaml`
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),
 and your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker. lodev lists them and asks
-`Run these commands? [y/N]` once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
+`Run these commands? [Y/n]` (enter approves) once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
 whose repo already has `.lodev` files; nothing to run asks nothing). A declined question registers
 nothing. Where lodev cannot ask (no terminal) it fails with the list; pass `--yes` to `create` to
 approve it. Control characters in the list (escape sequences, carriage returns, bidi

@@ -237,7 +237,7 @@ func confirmRepoCommands(p *config.Project, yes bool) error {
 		return fmt.Errorf("%s\nrun lodev create in a terminal to review them, or pass --yes", list)
 	}
 	fmt.Println(list)
-	if !confirm("Run these commands?", false) {
+	if !confirmDefaultYes("Run these commands?") {
 		return errors.New("not approved: nothing was registered")
 	}
 	return nil
