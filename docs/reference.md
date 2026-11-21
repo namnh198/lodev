@@ -888,7 +888,9 @@ After `lodev start`, run `lodev phpstorm` in the project folder. It writes into 
   `PHP_IDE_CONFIG` to it. It also makes `lodev` the project's interpreter.
 
 Every other setting in `.idea/` is kept, and running it again only refreshes lodev's entries: do so
-after changing `php:`, `working_dir`, `php_ide_config` or domains. Close the project in PhpStorm
+after changing `php:`, `working_dir`, `php_ide_config` or domains. Once `.idea/` is written it
+opens PhpStorm on the project folder (`open -a PhpStorm` on macOS, `phpstorm` elsewhere); when
+that fails it warns and you open the project yourself. Close the project in PhpStorm
 first: it may overwrite `workspace.xml` when it saves (the command asks while PhpStorm runs;
 `--yes` skips the question). PhpStorm listens on ports 9000 and 9003 by default, and Xdebug
 (`lodev xdebug on`) connects on `host.docker.internal:9003`.
@@ -942,7 +944,7 @@ build) rather than reporting healthy while the site still answers 502. With `web
 | `lodev <name> [args...]` | A [custom command](#custom-commands) from `~/.lodev/commands/` or `.lodev/commands/` |
 | `lodev vscode` | Open VS Code attached to the web container (needs `code` on PATH and the Dev Containers extension; starts the project if stopped). A shipped host [custom command](#custom-commands) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
-| `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings |
+| `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings, then open PhpStorm |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
 | `lodev open [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik] [--print]` | Open the project here (or another one, or a shared service page) in the browser; `--print` only prints the URL. A shipped host [custom command](#custom-commands) (`open` on macOS, `xdg-open` on Linux) |
 | `lodev url [project\|phpmyadmin\|mailpit\|rabbitmq\|mongo-express\|traefik]` | Print the URL of the project here (or another one, or a shared service page) |

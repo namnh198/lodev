@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -189,6 +190,9 @@ func phpstormProject(t *testing.T) *config.Project {
 	old := phpstormRunning
 	t.Cleanup(func() { phpstormRunning = old })
 	phpstormRunning = func() bool { return false }
+	oldOpen := phpstormOpen
+	t.Cleanup(func() { phpstormOpen = oldOpen })
+	phpstormOpen = func(string) error { return nil }
 	return p
 }
 
@@ -294,12 +298,42 @@ func TestPhpstormCommand(t *testing.T) {
 	p := phpstormProject(t)
 	writeFile(t, config.ProjectPath(p.Root), "name: shop\ntype: php\nphp: \"8.4\"\n")
 	t.Chdir(p.Root)
+	var opened []string
+	phpstormOpen = func(root string) error { opened = append(opened, root); return nil }
 	_, _, restore := ui.Capture(false)
 	defer restore()
 	if err := runRoot(t, "phpstorm"); err != nil {
 		t.Fatal(err)
 	}
 	mustContain(t, ideaText(t, p, "workspace.xml"), `host="shop.test"`)
+	if len(opened) != 1 || opened[0] != p.Root {
+		t.Fatalf("phpstormOpen calls = %v, want [%s]", opened, p.Root)
+	}
+}
+
+func TestPhpstormCommandOpenFails(t *testing.T) {
+	p := phpstormProject(t)
+	writeFile(t, config.ProjectPath(p.Root), "name: shop\ntype: php\nphp: \"8.4\"\n")
+	t.Chdir(p.Root)
+	phpstormOpen = func(string) error { return errors.New("not found") }
+	_, e, restore := ui.Capture(false)
+	defer restore()
+	if err := runRoot(t, "phpstorm"); err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, e.String(), ".idea/ is set up; could not open PhpStorm (not found): open the project yourself")
+}
+
+func TestPhpstormCommandNoOpenWhenWriteFails(t *testing.T) {
+	p := phpstormProject(t)
+	writeFile(t, config.ProjectPath(p.Root), "name: shop\ntype: nextjs\n")
+	t.Chdir(p.Root)
+	phpstormOpen = func(string) error { t.Fatal("phpstormOpen called after a failed write"); return nil }
+	_, _, restore := ui.Capture(false)
+	defer restore()
+	if err := runRoot(t, "phpstorm"); err == nil {
+		t.Fatal("want an error for a nextjs project")
+	}
 }
 
 func TestUpsertElementEmptyComponent(t *testing.T) {

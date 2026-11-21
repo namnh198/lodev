@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -164,6 +165,14 @@ func setComponentAttr(doc, component, attr, value string) string {
 // phpstormRunning is whether a PhpStorm process exists; -x matches the name, never `lodev phpstorm` itself.
 var phpstormRunning = func() bool { return exec.Command("pgrep", "-ix", "phpstorm").Run() == nil }
 
+// phpstormOpen opens PhpStorm on the project root.
+var phpstormOpen = func(root string) error {
+	if runtime.GOOS == "darwin" {
+		return exec.Command("open", "-a", "PhpStorm", root).Run()
+	}
+	return exec.Command("phpstorm", root).Start()
+}
+
 // phpstormInterpreter is the project's Docker Compose CLI interpreter, as PhpStorm writes it.
 func phpstormInterpreter(p *config.Project) func(id string) string {
 	return func(id string) string {
@@ -253,14 +262,20 @@ func init() {
 	var yes bool
 	c := &cobra.Command{
 		Use:   "phpstorm",
-		Short: "Write the PhpStorm interpreter, debug server and path mapping into .idea/",
+		Short: "Write the PhpStorm interpreter, debug server and path mapping into .idea/, then open PhpStorm",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			p, err := currentProject()
 			if err != nil {
 				return err
 			}
-			return writePhpstorm(p, yes)
+			if err := writePhpstorm(p, yes); err != nil {
+				return err
+			}
+			if err := phpstormOpen(p.Root); err != nil {
+				ui.Warn(".idea/ is set up; could not open PhpStorm (%v): open the project yourself", err)
+			}
+			return nil
 		},
 	}
 	c.Flags().BoolVar(&yes, "yes", false, "do not ask while PhpStorm is running")
