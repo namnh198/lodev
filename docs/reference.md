@@ -569,8 +569,13 @@ overrides) are shown as escapes like `\x1b`, so the repo's text cannot hide a li
 Accepted risk: a `git pull` that adds or changes a hook, daemon, compose file, web-image part,
 homeadditional or apache file runs at the next start without a question. Review what a pull
 brings into `.lodev/` before starting the project.
-A pulled custom command runs only when you type `lodev <name>`, but a host one runs on your
-machine, outside the container, as you. Your own `~/.lodev/commands/` files are not listed.
+A custom command runs when you type `lodev <name>`, and a project file replaces a shipped or
+global command of the same name. A `git pull` that adds `.lodev/commands/host/composer` makes your
+next `lodev composer` run that script on your machine, outside the container, as you, with no
+question; the same goes for `npm`, `php` and the other shipped names. Projects registered before
+you upgraded to custom commands load the `.lodev/commands/` their repo already holds at once,
+without it having been listed. Review `.lodev/commands/` after a pull or an upgrade. Your own
+`~/.lodev/commands/` files are not listed.
 
 ## Custom commands
 
@@ -617,14 +622,18 @@ in a laravel project.
 review, see [Commands from the project's repo](#commands-from-the-projects-repo)). In a cloned
 folder that is not registered, `.lodev/commands/` is ignored, with the hint
 `.lodev/commands is not loaded: run lodev create to review the project's commands`. When the
-project's `config.yaml` does not load, only global commands exist and the real command reports
-the error.
+project's `config.yaml` does not load, the project's commands are not loaded and the type filter is
+off: the shipped and global commands all exist (`artisan` and `wp` too). A web one reports the
+config error when you run it; a host one runs as if outside a project, in the current folder, and
+does not report it.
 
 **Shipped commands.** lodev ships `php`, `composer`, `npm`, `node`, `pnpm`, `yarn`, `grunt`,
 `artisan`, `wp`, `magento` and `n98` as web command files, written to `~/.lodev/commands/web/`
 by any command except `help`, `version`, `completion` and `self-upgrade` (when missing, or
-when the file still has the marker line and differs). Delete the marker line to edit one: lodev
-then leaves the file alone and runs it instead of its own copy. A command of the same name in
+when the file still has the marker line and differs). The host commands below are synced the
+same way into `~/.lodev/commands/host/`. Delete the marker line to edit one, web or host: lodev
+then leaves the file alone and runs it instead of its own copy. A file lodev cannot read, or a
+symlink, is left as it is too. A command of the same name in
 the project or elsewhere in `~/.lodev/commands/` also replaces the shipped one. `artisan` exists
 only in laravel projects, `wp` only in wordpress ones, and `magento` and `n98` only in magento
 ones.
@@ -943,6 +952,7 @@ build) rather than reporting healthy while the site still answers 502. With `web
 | `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts, shipped [custom commands](#custom-commands) (`n98` runs `n98-magerun2`); `artisan` exists only in laravel projects, `wp` in wordpress ones, `magento` and `n98` in magento ones |
 | `lodev <name> [args...]` | A [custom command](#custom-commands) from `~/.lodev/commands/` or `.lodev/commands/` |
 | `lodev vscode` | Open VS Code attached to the web container (needs `code` on PATH and the Dev Containers extension; starts the project if stopped). A shipped host [custom command](#custom-commands) |
+| `lodev tableplus\|sequelace\|dbeaver\|mysqlworkbench\|tablepro` | Open the project's MySQL/MariaDB database in that GUI app. Shipped host [custom commands](#custom-commands); they need `ports.mysql` or `ports.mariadb` published (`lodev config-global --mysql-port=3306`) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings, then open PhpStorm |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |

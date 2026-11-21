@@ -4,6 +4,8 @@ paths:
   - "cmd/hooks.go"
   - "cmd/project.go"
   - "cmd/prompt.go"
+  - "cmd/commands.go"
+  - "internal/commands/**"
   - "internal/config/**"
 ---
 
