@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -51,6 +53,21 @@ func snapshotFile(service string) string {
 		return "mongodb.archive.gz"
 	}
 	return service + ".sql.gz"
+}
+
+// checkSnapshotFile reads the whole gzip stream, so a truncated or corrupt file is found before a restore drops anything.
+func checkSnapshotFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(io.Discard, zr)
+	return err
 }
 
 type snapshotEntry struct {
@@ -277,6 +294,11 @@ func newSnapshotCmd() *cobra.Command {
 			}
 			if yes, _ := c.Flags().GetBool("yes"); !yes && !confirmTyped(fmt.Sprintf("Restore %s over %s? Type 'yes':", s.name, strings.Join(over, ", ")), "yes") {
 				return errors.New("aborted")
+			}
+			for _, svc := range s.meta.Services {
+				if err := checkSnapshotFile(filepath.Join(snapshotDir(p.Name, s.name), snapshotFile(svc))); err != nil {
+					return fmt.Errorf("snapshot %s: %s is damaged (%w); nothing was changed", s.name, snapshotFile(svc), err)
+				}
 			}
 			for _, svc := range s.meta.Services {
 				t := dbTarget{svc, p.DBName()}

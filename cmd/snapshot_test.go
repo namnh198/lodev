@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"errors"
@@ -100,7 +101,11 @@ func writeSnapshot(t *testing.T, name string, created time.Time, services ...str
 	dir := snapshotDir("shop", name)
 	os.MkdirAll(dir, 0o755)
 	for _, s := range services {
-		os.WriteFile(filepath.Join(dir, snapshotFile(s)), []byte("dump of "+s), 0o644)
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		zw.Write([]byte("dump of " + s))
+		zw.Close()
+		os.WriteFile(filepath.Join(dir, snapshotFile(s)), buf.Bytes(), 0o644)
 	}
 	b, _ := json.Marshal(snapshotMeta{Created: created, Services: services, Lodev: "dev"})
 	os.WriteFile(filepath.Join(dir, "meta.json"), b, 0o644)
@@ -144,6 +149,26 @@ func TestSnapshotRestorePartialFailure(t *testing.T) {
 	_, _, err := runConfig(t, newSnapshotCmd, "restore", "both", "--yes")
 	if err == nil || !strings.Contains(err.Error(), "mongodb") || len(*ran) != 0 {
 		t.Errorf("err %v, hooks %q", err, *ran)
+	}
+}
+
+// A damaged snapshot file must be found before the first drop, not after the database is gone.
+func TestSnapshotRestoreDamagedDropsNothing(t *testing.T) {
+	root, restored := snapshotShop(t, "mysql, mongodb", "")
+	writeShop(t, root, strings.Replace(shopConf, "services: [mysql]", "services: [mysql, mongodb]", 1))
+	writeSnapshot(t, "bad", time.Now(), "mysql", "mongodb")
+	f := filepath.Join(snapshotDir("shop", "bad"), "mongodb.archive.gz")
+	b, _ := os.ReadFile(f)
+	os.WriteFile(f, b[:len(b)-8], 0o644)
+	var out []string
+	dockerOutput = func(a ...string) (string, error) { out = append(out, strings.Join(a, " ")); return "", nil }
+	_, _, err := runConfig(t, newSnapshotCmd, "restore", "bad", "--yes")
+	want := "snapshot bad: mongodb.archive.gz is damaged (unexpected EOF); nothing was changed"
+	if err == nil || err.Error() != want {
+		t.Errorf("err %v, want %s", err, want)
+	}
+	if all := strings.Join(out, "\n"); strings.Contains(all, "DROP") || strings.Contains(all, "dropDatabase") || len(*restored) != 0 {
+		t.Errorf("changed something: %s %q", all, *restored)
 	}
 }
 
