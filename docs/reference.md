@@ -192,6 +192,10 @@ failed pull build it locally instead (about a minute). PHP 7.4, 8.0 and
 8.1 add a small image (`lodev/webserver:<lodev version>-legacy-<ver>`) on top of it the first
 time a project uses them.
 
+Every PHP version is built with the PHP2Shell fixes (CVE-2026-109618/109619): 8.2.35, 8.3.36,
+8.4.27, 8.5.12 or newer, and deb.sury.org's backports for 7.4, 8.0 and 8.1. The build stops if a
+version comes out older.
+
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, the first `lodev start` builds the images for the new version.
   `lodev start --rebuild` rebuilds the project image without the build cache; `--rebuild-base` also

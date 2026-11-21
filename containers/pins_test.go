@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"lodev/internal/config"
 )
 
 // Every download in lodev's Dockerfiles is pinned and checked: a moved "latest" or a swapped file
@@ -70,5 +72,22 @@ func TestWebImageTools(t *testing.T) {
 	}
 	if strings.Contains(s, "php-pear") {
 		t.Error("webserver/Dockerfile installs php-pear before the sury source exists")
+	}
+}
+
+// Every supported PHP has a minimum package version in install-php.sh (the PHP2Shell fixes,
+// CVE-2026-109618/109619), so a build never ships an unpatched PHP from a stale mirror or cache.
+func TestPHPPatchedFloor(t *testing.T) {
+	b, err := FS.ReadFile("webserver/install-php.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range config.SupportedPHP {
+		if !regexp.MustCompile(`\n\s*` + regexp.QuoteMeta(v) + `\) min=\S+ ;;`).Match(b) {
+			t.Errorf("install-php.sh has no minimum version for PHP %s", v)
+		}
+	}
+	if !strings.Contains(string(b), `dpkg --compare-versions "$have" ge "$min"`) {
+		t.Error("install-php.sh does not check the installed version against its minimum")
 	}
 }

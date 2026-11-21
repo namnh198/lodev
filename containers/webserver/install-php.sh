@@ -25,6 +25,22 @@ apt-get update --error-on=any
 apt-get install -y --no-install-recommends "${pkgs[@]}"
 
 for v in "$@"; do
+  # The PHP2Shell fixes (CVE-2026-109618/109619): 8.2+ upstream, 7.4-8.1 as sury backports.
+  case $v in
+    7.4) min=1:7.4.33-31 ;;
+    8.0) min=1:8.0.30-25 ;;
+    8.1) min=8.1.34-9 ;;
+    8.2) min=8.2.35 ;;
+    8.3) min=8.3.36 ;;
+    8.4) min=8.4.27 ;;
+    8.5) min=8.5.12 ;;
+    *) echo "lodev-install-php: no patched minimum known for PHP $v" >&2; exit 1 ;;
+  esac
+  have=$(dpkg-query -W -f '${Version}' "php$v-cli")
+  if ! dpkg --compare-versions "$have" ge "$min"; then
+    echo "lodev-install-php: php$v-cli $have is older than the patched $min" >&2
+    exit 1
+  fi
   phpdismod -v "$v" -s ALL xdebug
   sed -i 's|^listen = .*|listen = 127.0.0.1:9000|' "/etc/php/$v/fpm/pool.d/www.conf"
   # ondemand: no idle workers; up to 20 for the parallel requests of an admin or a GraphQL page.
