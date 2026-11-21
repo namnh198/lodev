@@ -1,0 +1,13 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: open [project|phpmyadmin|mailpit|rabbitmq|mongo-express|traefik] [--print]
+# Description: Open the project here, another one or a shared service in the browser; --print only prints the URL
+print=
+for a; do
+  shift
+  if [ "$a" = --print ]; then print=1; else set -- "$@" "$a"; fi
+done
+[ -n "$print" ] && exec "$LODEV_BIN" url "$@"
+url=$("$LODEV_BIN" url "$@") || exit
+case $(uname -s) in Darwin) opener=open ;; *) opener=xdg-open ;; esac
+"$opener" "$url" || printf '%s\n(could not open a browser: %s failed)\n' "$url" "$opener"
+exit 0

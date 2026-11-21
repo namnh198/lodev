@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -42,22 +41,10 @@ func TestOpenTarget(t *testing.T) {
 	}
 }
 
-func TestOpenCommand(t *testing.T) {
+func TestURLCommand(t *testing.T) {
 	newShop(t)
-	old := openURL
-	t.Cleanup(func() { openURL = old })
-	var opened []string
-	openURL = func(u string) error { opened = append(opened, u); return nil }
-	out, _, err := runConfig(t, newOpenCmd, "--print")
-	if err != nil || out != "https://shop.test\n" || len(opened) != 0 {
-		t.Errorf("--print: %q %v %v", out, opened, err)
-	}
-	if _, _, err := runConfig(t, newOpenCmd); err != nil || len(opened) != 1 || opened[0] != "https://shop.test" {
-		t.Errorf("open: %v %v", opened, err)
-	}
-	openURL = func(string) error { return errors.New("no browser") }
-	out, _, err = runConfig(t, newOpenCmd)
-	if err != nil || !strings.Contains(out, "https://shop.test") || !strings.Contains(out, "no browser") {
-		t.Errorf("opener failure: %q %v", out, err)
+	out, _, err := runConfig(t, newURLCmd)
+	if err != nil || out != "https://shop.test\n" {
+		t.Errorf("url: %q %v", out, err)
 	}
 }

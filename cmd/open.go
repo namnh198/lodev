@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -12,7 +10,7 @@ import (
 	"lodev/internal/registry"
 )
 
-// serviceHosts maps lodev open's service targets to their host name on the TLD.
+// serviceHosts maps lodev url's service targets to their host name on the TLD.
 var serviceHosts = map[string]string{"phpmyadmin": "phpmyadmin", "mailpit": "mailpit", "rabbitmq": "rabbitmq", "mongo-express": "mongo"}
 
 // openTarget is the URL for target: a registered project, a shared service's page, traefik's
@@ -48,21 +46,10 @@ func openTarget(target string, reg registry.Registry, g *config.Global, here *co
 	return "https://" + p.Domains[0], nil
 }
 
-// openURL opens url in the default browser; swapped in tests.
-var openURL = func(url string) error {
-	switch runtime.GOOS {
-	case "darwin":
-		return exec.Command("open", url).Run()
-	case "windows":
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Run()
-	}
-	return exec.Command("xdg-open", url).Run()
-}
-
-func newOpenCmd() *cobra.Command {
-	c := &cobra.Command{
-		Use:   "open [project|phpmyadmin|mailpit|rabbitmq|mongo-express|traefik]",
-		Short: "Open a project's or a shared service's page in the browser",
+func newURLCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "url [project|phpmyadmin|mailpit|rabbitmq|mongo-express|traefik]",
+		Short: "Print a project's or a shared service's URL",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			reg, err := registry.Load()
@@ -82,18 +69,10 @@ func newOpenCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if print, _ := c.Flags().GetBool("print"); print {
-				fmt.Fprintln(c.OutOrStdout(), url)
-				return nil
-			}
-			if err := openURL(url); err != nil {
-				fmt.Fprintf(c.OutOrStdout(), "%s\n(could not open a browser: %v)\n", url, err)
-			}
+			fmt.Fprintln(c.OutOrStdout(), url)
 			return nil
 		},
 	}
-	c.Flags().Bool("print", false, "print the URL instead of opening it")
-	return c
 }
 
-func init() { rootCmd.AddCommand(newOpenCmd()) }
+func init() { rootCmd.AddCommand(newURLCmd()) }
