@@ -1,4 +1,4 @@
-// Package commands parses and loads custom command files (bash scripts that become `lodev <name>`).
+// Package commands parses and loads custom command files (script files that become `lodev <name>`).
 package commands
 
 import (
