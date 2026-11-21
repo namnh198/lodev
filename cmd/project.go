@@ -891,6 +891,7 @@ func init() {
 	createCmd.Flags().StringVar(&php, "php", "", "PHP version (default 8.4)")
 	createCmd.Flags().StringVar(&webserver, "webserver", "", "nginx | apache | none (default nginx)")
 	createCmd.Flags().StringVar(&docroot, "docroot", "", `document root relative to the project; "." for the project root (default: by type)`)
+	_ = createCmd.MarkFlagDirname("docroot")
 	createCmd.Flags().BoolVar(&noAsk, "no-ask", false, "do not prompt; use flags and detected values")
 	createCmd.Flags().BoolVar(&createYes, "yes", false, "approve the commands the project's repo runs")
 

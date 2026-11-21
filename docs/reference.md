@@ -34,6 +34,10 @@ It installs the completion for your `$SHELL` only (bash, zsh or fish). With a cu
 the script prints the lines to add for your `PATH` and for that completion, since shells only
 read completions from the standard locations.
 
+Path flags complete paths: `db-import -f` offers `.sql`, `.gz` and `.archive` files and folders,
+`db-export -f` any file, and `create --docroot`, `config --docroot`, `config-global --data-dir` and
+`config-global --<service>-mount-path` offer folders only.
+
 On macOS it also clears `com.apple.quarantine`, so Gatekeeper does not block lodev. `curl`,
 Homebrew and `lodev self-upgrade` never set it; only a browser download does. If you
 unpacked an archive downloaded with a browser yourself, run

@@ -482,6 +482,7 @@ func newConfigCmd() *cobra.Command {
 	f.String("php-version", "", "PHP version ("+strings.Join(config.SupportedPHP, ", ")+")")
 	f.String("webserver", "", `nginx | apache | none ("" = nginx)`)
 	f.String("docroot", "", `document root relative to the project; "." or "" for the project root`)
+	_ = c.MarkFlagDirname("docroot")
 	f.String("container-port", "", `Next.js dev server port, type nextjs only ("" = 3000 for nextjs, 80 otherwise)`)
 	f.String("nodejs-version", "", `Node.js version: lts | latest | current | 20 | 20.11 ("" removes Node.js)`)
 	f.String("user", "", `shell user in the web container ("" = your host username)`)
@@ -755,8 +756,10 @@ func newConfigGlobalCmd() *cobra.Command {
 	f.String("use-docker-buildx-system", "", `run the system docker buildx instead of lodev's pinned one: true | false ("" = false)`)
 	f.String("performance-mode", "", `bind | none: project folders in Docker volumes ("" = bind on macOS, none elsewhere)`)
 	f.String("data-dir", "", `folder for project homes and mounted service data ("" = ~/.lodev/data)`)
+	_ = c.MarkFlagDirname("data-dir")
 	for _, s := range config.DataServices {
 		f.String(s+"-mount-path", "", fmt.Sprintf(`keep %s data in this folder: absolute, ~/..., or relative to data_dir ("" = its Docker volume)`, s))
+		_ = c.MarkFlagDirname(s + "-mount-path")
 	}
 	f.StringSlice("enable-services", nil, "turn shared services on ("+strings.Join(config.SharedServices, ", ")+")")
 	f.StringSlice("disable-services", nil, "turn shared services off (data is kept)")

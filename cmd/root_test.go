@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +45,34 @@ func TestCommandAliases(t *testing.T) {
 	for sub, want := range map[string]string{"start": "start", "up": "start", "stop": "stop", "down": "stop"} {
 		if c, _, _ := rootCmd.Find([]string{"services", sub}); c.CommandPath() != "lodev service "+want {
 			t.Errorf("services %s → %s", sub, c.CommandPath())
+		}
+	}
+}
+
+func TestPathFlagCompletion(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	tests := []struct {
+		args []string
+		want string // `lodev __complete` stdout: the candidates, then the directive line
+	}{
+		{[]string{"db-import", "-f", ""}, "sql\ngz\narchive\n:8"},
+		{[]string{"db-export", "-f", ""}, ":0"},
+		{[]string{"create", "--docroot", ""}, ":16"},
+		{[]string{"config", "--docroot", ""}, ":16"},
+		{[]string{"config-global", "--data-dir", ""}, ":16"},
+		{[]string{"config-global", "--mysql-mount-path", ""}, ":16"},
+		{[]string{"config-global", "--mongodb-mount-path", ""}, ":16"},
+	}
+	for _, tt := range tests {
+		var out bytes.Buffer
+		rootCmd.SetOut(&out)
+		err := runRoot(t, append([]string{"__complete"}, tt.args...)...)
+		rootCmd.SetOut(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(out.String()); got != tt.want {
+			t.Errorf("%v: got %q, want %q", tt.args, got, tt.want)
 		}
 	}
 }
