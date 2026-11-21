@@ -111,6 +111,39 @@ func TestCustomHostCommand(t *testing.T) {
 	}
 }
 
+func TestHostCommandDropsInheritedLodevVars(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	stale := []string{"LODEV_BIN", "LODEV_PWD", "LODEV_PROJECT", "LODEV_ROOT", "LODEV_TYPE", "LODEV_URL", "LODEV_WEB_CONTAINER",
+		"LODEV_CONTAINER_USER", "LODEV_WORKDIR", "LODEV_PROJECT_STATUS", "LODEV_DB_TYPE", "LODEV_DB_HOST", "LODEV_DB_PORT",
+		"LODEV_DB_USER", "LODEV_DB_PASSWORD", "LODEV_DB_NAME"}
+	for _, k := range stale {
+		t.Setenv(k, "stale")
+	}
+	t.Setenv("LODEV_DEBUG", "1")
+	globalCommand(t, "host", "hi", "echo hi\n")
+	got := stubHostRun(t)
+	t.Chdir(t.TempDir())
+	wd, _ := os.Getwd()
+	registerFor(t, wd)
+	if err := runRoot(t, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	env := (*got).Env
+	for _, e := range env {
+		if k, _, _ := strings.Cut(e, "="); slices.Contains(stale, k) && k != "LODEV_BIN" && k != "LODEV_PWD" {
+			t.Errorf("stale %s inherited", e)
+		}
+	}
+	for _, k := range []string{"LODEV_HOME=", "LODEV_DEBUG=1", "LODEV_PWD=" + wd} {
+		if !slices.ContainsFunc(env, func(e string) bool { return strings.HasPrefix(e, k) }) {
+			t.Errorf("env lacks %s", k)
+		}
+	}
+	if n := slices.IndexFunc(env, func(e string) bool { return strings.HasPrefix(e, "LODEV_BIN=") }); n < 0 || env[n] == "LODEV_BIN=stale" {
+		t.Errorf("LODEV_BIN not fresh")
+	}
+}
+
 func TestHostEnv(t *testing.T) {
 	g, _ := config.ParseGlobal(nil)
 	g.Ports.MySQL = "3306"
@@ -121,6 +154,11 @@ func TestHostEnv(t *testing.T) {
 		"LODEV_DB_NAME=shop", "LODEV_WEB_CONTAINER=lodev-shop-web", "LODEV_URL=https://shop.test"} {
 		if !slices.Contains(env, e) {
 			t.Errorf("env lacks %s: %q", e, env)
+		}
+	}
+	for _, e := range env {
+		if k, _, _ := strings.Cut(e, "="); !slices.Contains(hostEnvKeys, k) {
+			t.Errorf("hostEnvKeys lacks %s", k)
 		}
 	}
 	p.Services, p.Webserver = nil, "none"
@@ -272,9 +310,13 @@ func TestShortcutRunsShippedScript(t *testing.T) {
 	if len(*got) < len(want) || !slices.Equal((*got)[len(*got)-len(want):], want) {
 		t.Errorf("docker %q", *got)
 	}
+}
 
-	root = customProject(t, "laravel", true)
-	names, _ = registerFor(t, root)
+// A separate test: the magento one leaves `magento` on rootCmd until it ends, which would make
+// builtinNames skip it here whatever the type filter does.
+func TestShortcutTypeFilterLaravel(t *testing.T) {
+	root := customProject(t, "laravel", true)
+	names, _ := registerFor(t, root)
 	if slices.Contains(names, "magento") || !slices.Contains(names, "artisan") {
 		t.Errorf("laravel project registered %q", names)
 	}

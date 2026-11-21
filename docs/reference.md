@@ -679,7 +679,9 @@ environment plus:
 | `LODEV_PROJECT_STATUS` | `running` or `stopped` |
 | `LODEV_DB_TYPE`, `LODEV_DB_HOST`, `LODEV_DB_PORT`, `LODEV_DB_USER`, `LODEV_DB_PASSWORD`, `LODEV_DB_NAME` | with MySQL or MariaDB: `mysql`/`mariadb`, `127.0.0.1`, the global `ports.mysql`/`ports.mariadb` (empty when not published), `root`, `root`, the project's database |
 
-Only `LODEV_BIN` and `LODEV_PWD` are set outside a project. Host commands need `bash` on PATH,
+Only `LODEV_BIN` and `LODEV_PWD` are set outside a project. Any of these variables inherited from
+a parent lodev command is removed first, so a nested command sees only its own values (other
+`LODEV_*` such as `LODEV_HOME` and `LODEV_DEBUG` pass through). Host commands need `bash` on PATH,
 but no Docker and no running project.
 
 ## Domains and TLD

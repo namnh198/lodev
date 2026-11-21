@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -156,7 +157,10 @@ func runHostCommand(c commands.Command, p *config.Project, wd string, args []str
 		g, _ = config.ParseGlobal(nil)
 	}
 	bin, _ := executable()
-	x.Env = append(os.Environ(), hostEnv(p, g, wd, bin, running)...)
+	x.Env = append(slices.DeleteFunc(os.Environ(), func(e string) bool {
+		k, _, _ := strings.Cut(e, "=")
+		return slices.Contains(hostEnvKeys, k)
+	}), hostEnv(p, g, wd, bin, running)...)
 	err = hostRun(x)
 	var exitErr *exec.ExitError
 	switch {
@@ -167,6 +171,12 @@ func runHostCommand(c commands.Command, p *config.Project, wd string, args []str
 	}
 	return err
 }
+
+// hostEnvKeys is every variable hostEnv can set; inherited copies are dropped so a nested
+// command never sees another project's values.
+var hostEnvKeys = []string{"LODEV_BIN", "LODEV_PWD", "LODEV_PROJECT", "LODEV_ROOT", "LODEV_TYPE", "LODEV_URL",
+	"LODEV_WEB_CONTAINER", "LODEV_CONTAINER_USER", "LODEV_WORKDIR", "LODEV_PROJECT_STATUS",
+	"LODEV_DB_TYPE", "LODEV_DB_HOST", "LODEV_DB_PORT", "LODEV_DB_USER", "LODEV_DB_PASSWORD", "LODEV_DB_NAME"}
 
 // hostEnv is the LODEV_* environment a host command gets on top of the user's.
 func hostEnv(p *config.Project, g *config.Global, pwd, bin string, running bool) []string {
