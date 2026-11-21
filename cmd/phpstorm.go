@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lodev/internal/atomicfile"
 	"lodev/internal/config"
 	"lodev/internal/ui"
 )
@@ -250,7 +251,7 @@ func writePhpstorm(p *config.Project, yes bool) error {
 		}
 	}
 	for path, out := range outs {
-		if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+		if err := atomicfile.Write(path, []byte(out), 0o644); err != nil {
 			return err
 		}
 	}
