@@ -12,8 +12,8 @@ import (
 	"testing"
 )
 
-// runShipped runs the embedded host script name with bash, env added, and fakes (name → shell
-// body) as executables first on PATH. Every fake also appends "<name> <args>" to $CALLS.
+// runShipped runs the embedded script name (or "autocomplete/<name>" for its autocomplete script)
+// with bash, env added, and fakes (name → shell body) as executables first on PATH. Every fake also appends "<name> <args>" to $CALLS.
 func runShipped(t *testing.T, name string, env map[string]string, fakes map[string]string, args ...string) (out string, calls []string, code int) {
 	t.Helper()
 	dir, callsFile := t.TempDir(), filepath.Join(t.TempDir(), "calls")
@@ -24,13 +24,19 @@ func runShipped(t *testing.T, name string, env map[string]string, fakes map[stri
 		}
 	}
 	var script string
+	cmdName, auto := strings.CutPrefix(name, "autocomplete/")
 	for _, c := range Shipped() {
-		if c.Kind == Host && c.Name == name {
+		if c.Name != cmdName {
+			continue
+		}
+		if !auto {
 			script = c.Script
+		} else if c.Complete != nil {
+			script = c.Complete.Script
 		}
 	}
 	if script == "" {
-		t.Fatalf("no shipped host command %q", name)
+		t.Fatalf("no shipped command %q", name)
 	}
 	x := exec.Command("bash", append([]string{"-c", script, name}, args...)...)
 	x.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"), "CALLS="+callsFile)
@@ -231,5 +237,26 @@ func TestVSCodeScript(t *testing.T) {
 	}
 	if out, _, code := runShipped(t, "vscode", env(t.TempDir(), "LODEV_PROJECT", ""), fakes); code != 1 || !strings.Contains(out, "not in a lodev project") {
 		t.Errorf("no project: %q %d", out, code)
+	}
+}
+
+func TestShippedAutocompleteScripts(t *testing.T) {
+	fake := map[string]string{"composer": "true", "php": "true", "wp": "true"}
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"composer", []string{"require", ""}, "composer _complete --no-interaction -sbash -c2 -icomposer -irequire"},
+		{"composer", []string{"re"}, "composer _complete --no-interaction -sbash -c1 -icomposer -ire"},
+		{"artisan", []string{"migrate", "--"}, "php artisan _complete --no-interaction -sbash -c2 -iartisan -imigrate -i--"},
+		{"magento", []string{"cache:"}, "php bin/magento _complete --no-interaction -sbash -c1 -ibin/magento -icache:"},
+		{"wp", []string{"pl"}, "wp cli completions --line=wp pl --point=5"},
+		{"wp", []string{"plugin", ""}, "wp cli completions --line=wp plugin  --point=10"},
+	} {
+		out, calls, code := runShipped(t, "autocomplete/"+c.name, nil, fake, c.args...)
+		if code != 0 || out != "" || !slices.Equal(calls, []string{c.want}) {
+			t.Errorf("%s %q: %q %q %d, want %q", c.name, c.args, out, calls, code, c.want)
+		}
 	}
 }

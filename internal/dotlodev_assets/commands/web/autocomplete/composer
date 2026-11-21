@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# lodev-generated: delete this line to manage this file yourself
+# Description: Complete composer commands, options and packages
+args=(-icomposer)
+# An empty word is left out: Symfony reads the word at index $# as empty when it is missing.
+for w in "$@"; do [ -n "$w" ] && args+=("-i$w"); done
+exec composer _complete --no-interaction -sbash -c"$#" "${args[@]}" 2>/dev/null

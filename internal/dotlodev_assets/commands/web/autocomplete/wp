@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# lodev-generated: delete this line to manage this file yourself
+# Description: Complete wp commands and options
+line="wp"
+for w in "$@"; do line+=" $w"; done
+exec wp cli completions --line="$line" --point="${#line}" 2>/dev/null

@@ -735,6 +735,10 @@ autocomplete scripts load only for a registered project, and `lodev create` list
 `(runs on this machine)` for host). Warnings about custom command files are not printed while the
 shell completes.
 
+**Shipped autocomplete scripts.** `composer`, `artisan` and `magento` complete their commands, options
+and (composer) packages through the tool's own Symfony `_complete`; `wp` through `wp cli completions`.
+`n98` has none: its `_complete` leaves out n98's own commands.
+
 ## Domains and TLD
 
 Project domains (`<name>.test`) and the shared services' (`mailpit.test`, `phpmyadmin.test`,
