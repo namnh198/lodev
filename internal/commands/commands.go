@@ -26,6 +26,19 @@ type Command struct {
 	Types      []string // nil: every project type
 	Marker     bool     // see HasMarker
 	Interp     bool     // line 1 is a non-bash shebang: run the file with that interpreter
+	Complete   *Command // autocomplete script for this command, from the same scope; nil if none
+}
+
+// FilterSuggestions keeps the lines of out whose value (before a tab) starts with toComplete.
+func FilterSuggestions(out, toComplete string) []string {
+	var keep []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if value, _, _ := strings.Cut(line, "\t"); value != "" && strings.HasPrefix(value, toComplete) {
+			keep = append(keep, line)
+		}
+	}
+	return keep
 }
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
@@ -118,6 +131,7 @@ func LoadDir(dir, kind string) (cmds []Command, warnings []string) {
 		if err == nil {
 			var c Command
 			if c, err = Parse(name, kind, path, data); err == nil {
+				c.Complete = loadComplete(filepath.Join(dir, "autocomplete", name), name, kind)
 				cmds = append(cmds, c)
 				continue
 			}
@@ -126,6 +140,19 @@ func LoadDir(dir, kind string) (cmds []Command, warnings []string) {
 	}
 	sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name < cmds[j].Name })
 	return cmds, warnings
+}
+
+// loadComplete parses the autocomplete script at path; a missing or bad one is nil.
+func loadComplete(path, name, kind string) *Command {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	c, err := Parse(name, kind, path, data)
+	if err != nil {
+		return nil
+	}
+	return &c
 }
 
 // ShortPath shows paths under $HOME as ~/….
@@ -177,6 +204,9 @@ func Resolve(shipped []Command, home string, projectRoot, projectType string, re
 	// A marker file in ~/.lodev/commands is lodev's synced copy of a shipped one, not the user's.
 	global, warnings := loadScope(filepath.Join(home, "commands"), func(c Command) bool { return !c.Marker && applies(c) })
 	for n, c := range global {
+		if c.Complete != nil && c.Complete.Marker {
+			c.Complete = nil // lodev's synced copy belongs to the shipped command, not to this one
+		}
 		byName[n] = c
 	}
 	if projectRoot != "" {

@@ -312,6 +312,35 @@ func TestTrustItemsSkipsHomeAdditionalExamples(t *testing.T) {
 	}
 }
 
+// An autocomplete script runs on TAB, so it is listed; one with no command never runs.
+func TestTrustItemsAutocomplete(t *testing.T) {
+	p := hookProject(t, nil)
+	writeRepoFile(t, p, ".lodev/commands/web/a", "echo a\n")
+	writeRepoFile(t, p, ".lodev/commands/web/autocomplete/a", "echo x\n")
+	writeRepoFile(t, p, ".lodev/commands/host/b", "echo b\n")
+	writeRepoFile(t, p, ".lodev/commands/host/autocomplete/b", "echo y\n")
+	writeRepoFile(t, p, ".lodev/commands/host/autocomplete/orphan", "echo z\n")
+	items, err := trustItems(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, it := range items {
+		got = append(got, it.Display)
+	}
+	for _, want := range []string{
+		"autocomplete for lodev a (web container): .lodev/commands/web/autocomplete/a",
+		"autocomplete for lodev b (runs on this machine): .lodev/commands/host/autocomplete/b",
+	} {
+		if !slices.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	if len(got) != 4 {
+		t.Errorf("displays = %q", got)
+	}
+}
+
 func TestTrustItemsCommands(t *testing.T) {
 	p := hookProject(t, nil)
 	writeRepoFile(t, p, ".lodev/commands/web/a", "echo a\n")

@@ -54,7 +54,8 @@ func StripDebugArg(args []string) ([]string, bool) {
 func Execute() error {
 	// Before Execute: cobra must know the commands to parse the command line.
 	wd, _ := os.Getwd()
-	registerCustom(rootCmd, wd)
+	completing := len(os.Args) > 1 && (os.Args[1] == cobra.ShellCompRequestCmd || os.Args[1] == cobra.ShellCompNoDescRequestCmd)
+	registerCustom(rootCmd, wd, completing)
 	err := rootCmd.Execute()
 	finishUpdateCheck(time.Second)
 	return err

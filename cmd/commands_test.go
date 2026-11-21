@@ -37,7 +37,7 @@ func globalCommand(t *testing.T, kind, name, body string) {
 func registerFor(t *testing.T, wd string) (names []string, stderr string) {
 	t.Helper()
 	_, e, restore := ui.Capture(false)
-	added := registerCustom(rootCmd, wd)
+	added := registerCustom(rootCmd, wd, false)
 	restore()
 	t.Cleanup(func() { rootCmd.RemoveCommand(added...) })
 	for _, c := range added {

@@ -142,6 +142,10 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 				display += ", replaces lodev's " + c.Name
 			}
 			add(rel, display)
+			if c.Complete != nil {
+				rel := ".lodev/commands/" + kind + "/autocomplete/" + c.Name
+				add(rel, fmt.Sprintf("autocomplete for lodev %s (%s): %s", c.Name, where, rel))
+			}
 		}
 	}
 	if err := addTree(".lodev/homeadditional", "home file: "); err != nil {

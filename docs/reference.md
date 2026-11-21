@@ -562,7 +562,8 @@ followed; not `.example` ones), the project's `environment:` (from `config.yaml`
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),
 your own apache config: the files in `.lodev/apache/` (not `.example` ones) and
 `.lodev/apache-webserver.conf` once it no longer carries lodev's marker, and the
-[custom commands](#custom-commands) in `.lodev/commands/web/` and `.lodev/commands/host/`. lodev lists them and asks
+[custom commands](#custom-commands) in `.lodev/commands/web/` and `.lodev/commands/host/`, with their
+[autocomplete scripts](#autocomplete-scripts) (which run when you press TAB). lodev lists them and asks
 `Run these commands? [Y/n]` (enter approves) once, on `lodev create` (a folder with a `.lodev/config.yaml`, or one
 whose repo already has `.lodev` files; nothing to run asks nothing). A declined question registers
 nothing. Where lodev cannot ask (no terminal) it fails with the list; pass `--yes` to `create` to
@@ -706,6 +707,33 @@ Only `LODEV_BIN` and `LODEV_PWD` are set outside a project. Any of these variabl
 a parent lodev command is removed first, so a nested command sees only its own values (other
 `LODEV_*` such as `LODEV_HOME` and `LODEV_DEBUG` pass through). Host commands without a non-bash
 shebang need `bash` on PATH, but no Docker and no running project.
+
+### Autocomplete scripts
+
+A command can complete its arguments on TAB through an autocomplete script: a file named like the
+command in an `autocomplete/` folder next to it, e.g. `.lodev/commands/web/autocomplete/report`
+for `.lodev/commands/web/report`.
+
+- Its arguments are the words typed after `lodev <name>`; the last one is the word being completed,
+  and may be `""`.
+- It prints one suggestion per line, `value` or `value<TAB>description`. lodev keeps the lines whose
+  value starts with the word being completed.
+- It runs like its command: the same shebang rule, web scripts in the web container (as the
+  project user, in `working_dir`, without a TTY), host scripts on your machine with the variables
+  above. Its stderr is discarded.
+- It may run 5 seconds. No suggestion, a failure, a timeout, or a web script outside a project or
+  with the project stopped lets the shell complete file names instead.
+
+The script comes from the same scope as the command that won: a shipped command uses lodev's own
+autocomplete script, a `~/.lodev/commands/` command the one in `~/.lodev/commands/<kind>/autocomplete/`,
+and a project command the project's. There is no fallback across scopes: a file that replaces a
+shipped command has no completion until you add its autocomplete script too. lodev's own scripts are
+synced to `~/.lodev/commands/<kind>/autocomplete/` like the commands, with the same marker rule; a
+synced copy that still has the marker is never used for your own command of that name. A project's
+autocomplete scripts load only for a registered project, and `lodev create` lists each one as
+`autocomplete for lodev <name> (web container): .lodev/commands/web/autocomplete/<name>` (or
+`(runs on this machine)` for host). Warnings about custom command files are not printed while the
+shell completes.
 
 ## Domains and TLD
 
