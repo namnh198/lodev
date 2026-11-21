@@ -61,6 +61,10 @@ func TestXdebugScript(t *testing.T) {
 	if !strings.Contains(on, "supervisorctl -c /etc/supervisor/supervisord.conf ") {
 		t.Errorf("on = %q", on)
 	}
+	// PHP 8.6 has no Xdebug build yet: on stops before copying xdebug.ini, which would break php.
+	if !strings.HasPrefix(on, `[ -e /etc/php/$LODEV_PHP/mods-available/xdebug.ini ] || { echo "no Xdebug for PHP $LODEV_PHP yet" >&2; exit 1; }; `) {
+		t.Errorf("on = %q", on)
+	}
 }
 
 func TestSplitService(t *testing.T) {

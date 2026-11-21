@@ -71,7 +71,7 @@ make && make install PREFIX=~/.local # no sudo
 - **One shared stack.** MySQL, Redis, OpenSearch and Mailpit run once for every project. Each project
   runs a single small PHP container (php-fpm with nginx or apache), so ten projects cost about ten
   php-fpm processes, not ten databases.
-- **Ready for real apps.** It supports PHP 7.4–8.5, with Composer, Node.js, pnpm, Yarn, wp-cli and n98-magerun2 in the
+- **Ready for real apps.** It supports PHP 7.4–8.6, with Composer, Node.js, pnpm, Yarn, wp-cli and n98-magerun2 in the
   image. It detects the framework and sets up the database, HTTPS domains and mail capture for you.
 - **Your config travels with the repo.** `.lodev/config.yaml` holds the project's settings, hooks,
   cron and extra services. Personal toggles such as Xdebug stay in the uncommitted `config.local.yaml`.

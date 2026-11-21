@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	SupportedPHP   = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
-	BundledPHP     = []string{"8.2", "8.3", "8.4", "8.5"} // in the base image; others get a legacy image
+	SupportedPHP   = []string{"7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5", "8.6"}
+	BundledPHP     = []string{"8.2", "8.3", "8.4", "8.5", "8.6"} // in the base image; others get a legacy image
 	Types          = []string{"laravel", "wordpress", "magento", "nextjs", "php"}
 	Webservers     = []string{"nginx", "apache", "none"}
 	SharedServices = []string{"mysql", "redis", "opensearch", "mailpit", "phpmyadmin", "rabbitmq", "mariadb", "mongodb", "mongo-express"}
@@ -697,7 +697,7 @@ func ProjectImage(name string) string { return "lodev/" + name + "-web" }
 // ImageTag tags lodev's web images: the lodev version, set by cmd.
 var ImageTag = "dev"
 
-// WebserverImage is the base web image, with PHP 8.2-8.5.
+// WebserverImage is the base web image, with PHP 8.2-8.6.
 func WebserverImage() string { return "lodev/webserver:" + ImageTag }
 
 // RegistryRepo is where stable releases publish the base web image.

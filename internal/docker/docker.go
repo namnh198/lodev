@@ -243,7 +243,7 @@ func EnsurePHPImage(ver, node string, rebuild bool) error {
 		// A stable release's image is on the registry: pulling beats a minutes-long build.
 		pulled := !rebuild && node == config.DefaultNodeVersion && update.Stable(config.ImageTag) && pullBase(base, hash)
 		if !pulled {
-			ui.Info("Building %s (PHP 8.2-8.5, about a minute the first time)...", base)
+			ui.Info("Building %s (PHP 8.2-8.6, about a minute the first time)...", base)
 			if err := build("webserver", func(dir string) []string {
 				return PHPBuildArgs(config.BundledPHP, node, hash, rebuild, dir)
 			}); err != nil {

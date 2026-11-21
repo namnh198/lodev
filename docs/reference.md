@@ -183,7 +183,7 @@ Inside a project container: `DB_HOST=mysql` (`mariadb` for a project that uses M
 ## PHP image
 
 All projects share one image, `lodev/webserver:<lodev version>` (e.g. `lodev/webserver:v0.1.0`),
-with PHP 8.2–8.5, Composer, Node.js (`node_version`, default 24) with pnpm, Yarn 1.x and
+with PHP 8.2–8.6, Composer, Node.js (`node_version`, default 24) with pnpm, Yarn 1.x and
 grunt-cli, wp-cli, n98-magerun2, nano, vim-tiny, sqlite3 and patch. For native extensions and the
 services: gcc, g++, make, autoconf, pkg-config, `phpize` and `pecl` (`php<ver>-dev` is installed),
 and the `mysql` and `redis-cli` clients. A stable lodev pulls it from `ghcr.io/namnh198/lodev-webserver:<version>` on the
@@ -193,8 +193,9 @@ failed pull build it locally instead (about a minute). PHP 7.4, 8.0 and
 time a project uses them.
 
 Every PHP version is built with the PHP2Shell fixes (CVE-2026-109618/109619): 8.2.35, 8.3.36,
-8.4.27, 8.5.12 or newer, and deb.sury.org's backports for 7.4, 8.0 and 8.1. The build stops if a
-version comes out older.
+8.4.27, 8.5.12, 8.6.0 or newer, and deb.sury.org's backports for 7.4, 8.0 and 8.1. The build
+stops if a version comes out older. PHP 8.6 has no Xdebug and no phpredis yet (deb.sury.org does
+not package them): `lodev xdebug on` fails on 8.6 with `no Xdebug for PHP 8.6 yet`.
 
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, the first `lodev start` builds the images for the new version.
@@ -330,7 +331,7 @@ saves nothing when the result is invalid. `lodev config` alone prints the curren
 ```yaml
 name: myshop                 # a-z 0-9 -; database name uses _ instead of -
 type: magento                # laravel | wordpress | magento | nextjs | php
-php: "8.4"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5
+php: "8.4"                   # 7.4 8.0 8.1 8.2 8.3 8.4 8.5 8.6
 webserver: nginx             # nginx | apache | none (CLI-only, no domain)
 docroot: pub                 # a folder inside the project: A-Z a-z 0-9 . _ - /
 container_port: 3000         # optional, type nextjs only: the Next dev server's port (default 3000; nginx stays on 80)

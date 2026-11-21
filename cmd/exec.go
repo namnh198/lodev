@@ -137,7 +137,7 @@ const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl -c /etc/
 
 // xdebugScript returns the root shell script for a `lodev xdebug` action, or "" if unknown.
 func xdebugScript(action string) string {
-	on := `for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`
+	on := `[ -e /etc/php/$LODEV_PHP/mods-available/xdebug.ini ] || { echo "no Xdebug for PHP $LODEV_PHP yet" >&2; exit 1; }; for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`
 	off := `rm -f /etc/php/$LODEV_PHP/*/conf.d/99-lodev-xdebug.ini` + reloadFPM + `off"`
 	return map[string]string{
 		"on":     on,

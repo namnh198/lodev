@@ -11,9 +11,13 @@ fi
 # php-pear (pecl) with the PHP packages, once the sury source is set up (apt picks the newest of Debian's and sury's).
 pkgs=(php-pear)
 for v in "$@"; do
-  for ext in fpm cli bcmath curl gd intl mbstring mysql redis soap xml zip imagick xdebug dev; do
+  for ext in fpm cli bcmath curl gd intl mbstring mysql soap xml zip imagick dev; do
     pkgs+=("php$v-$ext")
   done
+  # shortcut: sury has no php8.6-xdebug or php8.6-redis yet (Xdebug 3.5 stops at 8.5); drop the check once it does.
+  if dpkg --compare-versions "$v" lt 8.6; then
+    pkgs+=("php$v-redis" "php$v-xdebug")
+  fi
   # OPcache is built into PHP from 8.5; sury ships no php8.5-opcache.
   if dpkg --compare-versions "$v" lt 8.5; then
     pkgs+=("php$v-opcache")
@@ -34,6 +38,7 @@ for v in "$@"; do
     8.3) min=8.3.36 ;;
     8.4) min=8.4.27 ;;
     8.5) min=8.5.12 ;;
+    8.6) min=8.6.0 ;;
     *) echo "lodev-install-php: no patched minimum known for PHP $v" >&2; exit 1 ;;
   esac
   have=$(dpkg-query -W -f '${Version}' "php$v-cli")
@@ -41,7 +46,9 @@ for v in "$@"; do
     echo "lodev-install-php: php$v-cli $have is older than the patched $min" >&2
     exit 1
   fi
-  phpdismod -v "$v" -s ALL xdebug
+  if [ -e "/etc/php/$v/mods-available/xdebug.ini" ]; then
+    phpdismod -v "$v" -s ALL xdebug
+  fi
   sed -i 's|^listen = .*|listen = 127.0.0.1:9000|' "/etc/php/$v/fpm/pool.d/www.conf"
   # ondemand: no idle workers; up to 20 for the parallel requests of an admin or a GraphQL page.
   sed -i -e 's|^pm = .*|pm = ondemand|' -e 's|^pm.max_children = .*|pm.max_children = 20|' \

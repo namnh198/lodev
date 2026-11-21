@@ -29,7 +29,7 @@ func TestAskProjectDefaults(t *testing.T) {
 	mustContain(t, out.String(),
 		"Project name (shop): ",
 		"Project type [laravel, wordpress, magento, nextjs, php] (laravel): ",
-		"PHP version [7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5] (8.4): ",
+		"PHP version [7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6] (8.4): ",
 		`Document root, relative to the project; "." for the project root (public): `,
 		"Webserver [nginx, apache, none] (nginx): ")
 }
