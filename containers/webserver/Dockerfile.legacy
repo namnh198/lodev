@@ -1,3 +1,5 @@
+# check=skip=InvalidDefaultArgInFrom
+# BASE has no default on purpose: lodev always passes the base image, and a missing one fails the build.
 ARG BASE
 FROM ${BASE}
 ARG PHP_VERSION
