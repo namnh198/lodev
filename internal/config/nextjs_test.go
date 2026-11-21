@@ -64,10 +64,10 @@ func TestNextjsDaemons(t *testing.T) {
 	for _, c := range []struct {
 		lock, want string
 	}{
-		{"", `sh -c 'pnpm install && PORT=3000 exec pnpm run dev'`},
-		{"pnpm-lock.yaml", `sh -c 'pnpm install --frozen-lockfile && PORT=3000 exec pnpm run dev'`},
-		{"yarn.lock", `sh -c 'yarn install && PORT=3000 exec yarn run dev'`},
-		{"package-lock.json", `sh -c 'npm ci && PORT=3000 exec npm run dev'`},
+		{"", nextjsCmd("pnpm install", "pnpm", 3000, "start")},
+		{"pnpm-lock.yaml", nextjsCmd("pnpm install --frozen-lockfile", "pnpm", 3000, "start")},
+		{"yarn.lock", nextjsCmd("yarn install", "yarn", 3000, "start")},
+		{"package-lock.json", nextjsCmd("npm ci", "npm", 3000, "start")},
 	} {
 		root := t.TempDir()
 		if c.lock != "" {
@@ -85,8 +85,40 @@ func TestNextjsDaemons(t *testing.T) {
 		t.Errorf("php: %+v", got)
 	}
 	p = &Project{Type: "nextjs", Root: t.TempDir(), ContainerPort: 4000}
-	if got := p.Daemons(); len(got) != 1 || got[0].Command != `sh -c 'pnpm install && PORT=4000 exec pnpm run dev'` {
+	if got := p.Daemons(); len(got) != 1 || got[0].Command != nextjsCmd("pnpm install", "pnpm", 4000, "start") {
 		t.Errorf("container_port 4000: %+v", got)
+	}
+}
+
+// nextjsCmd spells out the daemon command: devDependencies always installed (next build needs
+// typescript), then build + start/preview under NODE_ENV=production, else the dev server.
+func nextjsCmd(install, pm string, port int, prod string) string {
+	return fmt.Sprintf(`sh -c 'NODE_ENV=development %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
+		install, pm, port, pm, prod, port, pm)
+}
+
+// NODE_ENV=production runs package.json's start script, or preview when it has no start.
+func TestNextjsProdScript(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"scripts":{"start":"next start","preview":"x"}}`: "start",
+		`{"scripts":{"preview":"vite preview"}}`:           "preview",
+		`{"scripts":{}}`:                                   "start",
+		`{`:                                                "start",
+	} {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		p := &Project{Type: "nextjs", Root: root}
+		if got := p.NextjsProdScript(); got != want {
+			t.Errorf("%s: %s, want %s", body, got, want)
+		}
+		if got := p.Daemons()[0].Command; got != nextjsCmd("pnpm install", "pnpm", 3000, want) {
+			t.Errorf("%s: %s", body, got)
+		}
+	}
+	if got := (&Project{Type: "nextjs", Root: t.TempDir()}).NextjsProdScript(); got != "start" {
+		t.Errorf("no package.json: %s", got)
 	}
 }
 

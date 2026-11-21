@@ -462,12 +462,19 @@ host's folders.
 On start lodev adds a daemon named `nextjs` (see [Daemons](#daemons); output in `lodev logs`) that
 installs, then runs your `dev` script on `container_port` (default 3000):
 
-| Lockfile | Command |
-|---|---|
-| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile && PORT=3000 exec pnpm run dev` |
-| `yarn.lock` | `yarn install && PORT=3000 exec yarn run dev` |
-| `package-lock.json` | `npm ci && PORT=3000 exec npm run dev` |
-| none | `pnpm install && PORT=3000 exec pnpm run dev` |
+| Lockfile | Install | Then |
+|---|---|---|
+| `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` | `PORT=3000 exec pnpm run dev` |
+| `yarn.lock` | `yarn install` | `PORT=3000 exec yarn run dev` |
+| `package-lock.json` | `npm ci` | `PORT=3000 exec npm run dev` |
+| none | `pnpm install` | `PORT=3000 exec pnpm run dev` |
+
+With `NODE_ENV=production` in the container (`environment:` or `.lodev/.env`, then `lodev restart`)
+it runs `<pm> run build && PORT=3000 exec <pm> run start` instead: `start`, or `preview` when
+`package.json` has no `start` script. The install always runs with `NODE_ENV=development`, so
+devDependencies `next build` needs (TypeScript, `@types/*`) are there. A build can outlast the
+default `container_timeout` (120s); raise it in `~/.lodev/config.yaml` when `lodev start` reports
+the container is not healthy in time.
 
 `PORT` is `container_port` (e.g. `lodev config --container-port=4000`, then `lodev restart`); nginx
 keeps listening on 80 and proxies to that port. It must not be 80, no `web_extra_exposed_ports`
@@ -484,7 +491,9 @@ https domains (`https://magento2.test/graphql`); `environment:` or `.lodev/.env`
 
 `lodev create` gives a nextjs project no shared services and asks no PHP version or docroot. The
 [commands the repo runs](#commands-from-the-projects-repo) list it as `nextjs: <install> && <pm> run
-dev (package.json dev: "<script>")`. `lodev start` warns when `performance_mode` is `none`, the host
+dev, or with NODE_ENV=production <pm> run build && <pm> run start (package.json dev: "<script>",
+build: "<script>", start: "<script>")` (`none` for a missing script; `preview` in place of `start`
+when only that exists). `lodev start` warns when `performance_mode` is `none`, the host
 is not Linux and it has `node_modules` or `.next` (the container installs Linux packages into them), and when the
 root `next.config.*` does not mention the first domain: Next.js blocks its dev assets on other
 hosts, so add `allowedDevOrigins: ["<name>.test"]` to it. lodev never edits `next.config.*` or
@@ -534,7 +543,7 @@ itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import`
 ## Commands from the project's repo
 
 A cloned repo can make lodev run commands: hooks (config steps, the scripts they name and the
-`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, a nextjs project's `dev` script (or its `.lodev/daemons/nextjs.sh` once you take it over), extra `.lodev/*.compose.yml`
+`.lodev/hooks/<event>.d/` files), cron lines, `web_extra_daemons`, a nextjs project's `dev`, `build` and `start`/`preview` scripts (or its `.lodev/daemons/nextjs.sh` once you take it over), extra `.lodev/*.compose.yml`
 files, `.lodev/web-images/` parts, `.lodev/homeadditional/` files (a symlinked folder is
 followed; not `.example` ones), the project's `environment:` (from `config.yaml` and its overrides),
 the names of the variables in `.lodev/.env` (a repo can commit it; values are not shown, it holds secrets),

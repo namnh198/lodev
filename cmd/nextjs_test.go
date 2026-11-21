@@ -29,7 +29,7 @@ func TestWriteDaemonsNextjs(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(filepath.Join(p.Root, ".lodev", "daemons", "nextjs.sh"))
-	if err != nil || !strings.HasSuffix(string(b), "exec sh -c 'pnpm install && PORT=3000 exec pnpm run dev'\n") {
+	if err != nil || !strings.HasSuffix(string(b), "exec "+p.Daemons()[0].Command+"\n") || !strings.Contains(string(b), "run build") {
 		t.Fatalf("nextjs.sh: %q %v", b, err)
 	}
 }
@@ -143,18 +143,23 @@ func TestTrustItemsNextjs(t *testing.T) {
 		return items[i].Display
 	}
 	p := nextjsConfProject(t)
-	writeFile(t, filepath.Join(p.Root, "package.json"), `{"scripts":{"dev":"next dev --turbopack"}}`)
-	if got, want := display(p), `nextjs: pnpm install && pnpm run dev (package.json dev: "next dev --turbopack")`; got != want {
+	writeFile(t, filepath.Join(p.Root, "package.json"), `{"scripts":{"dev":"next dev --turbopack","build":"next build","start":"next start"}}`)
+	if got, want := display(p), `nextjs: pnpm install && pnpm run dev, or with NODE_ENV=production pnpm run build && pnpm run start (package.json dev: "next dev --turbopack", build: "next build", start: "next start")`; got != want {
 		t.Errorf("display\n got %s\nwant %s", got, want)
 	}
-	for name, body := range map[string]string{"no dev script": `{"scripts":{}}`, "invalid JSON": `{`} {
+	writeFile(t, filepath.Join(p.Root, "package.json"), `{"scripts":{"preview":"vite preview"}}`)
+	if got, want := display(p), `nextjs: pnpm install && pnpm run dev, or with NODE_ENV=production pnpm run build && pnpm run preview (package.json dev: none, build: none, preview: "vite preview")`; got != want {
+		t.Errorf("preview\n got %s\nwant %s", got, want)
+	}
+	const none = "(package.json dev: none, build: none, start: none)"
+	for name, body := range map[string]string{"no scripts": `{"scripts":{}}`, "invalid JSON": `{`} {
 		writeFile(t, filepath.Join(p.Root, "package.json"), body)
-		if got := display(p); !strings.HasSuffix(got, "(package.json has no dev script)") {
+		if got := display(p); !strings.HasSuffix(got, none) {
 			t.Errorf("%s: %s", name, got)
 		}
 	}
 	os.Remove(filepath.Join(p.Root, "package.json"))
-	if got := display(p); !strings.HasSuffix(got, "(package.json has no dev script)") {
+	if got := display(p); !strings.HasSuffix(got, none) {
 		t.Errorf("no package.json: %s", got)
 	}
 }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,18 +8,6 @@ import (
 	"lodev/internal/config"
 	"lodev/internal/ui"
 )
-
-// nextjsDevScript is package.json's scripts.dev, or "" when there is none (or it does not parse).
-func nextjsDevScript(root string) string {
-	var pkg struct {
-		Scripts map[string]string `json:"scripts"`
-	}
-	b, err := os.ReadFile(filepath.Join(root, "package.json"))
-	if err != nil || json.Unmarshal(b, &pkg) != nil {
-		return ""
-	}
-	return pkg.Scripts["dev"]
-}
 
 // warnNextjs says what a nextjs project's setup will do to the host or what it still needs.
 func warnNextjs(p *config.Project, g *config.Global) {

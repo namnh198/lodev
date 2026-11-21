@@ -86,12 +86,17 @@ func trustItems(p *config.Project) ([]trustItem, error) {
 	if p.Type == "nextjs" && userNextjsScript(p) {
 		add(config.NextjsDaemon, "nextjs: .lodev/daemons/nextjs.sh")
 	} else if p.Type == "nextjs" {
-		script := "package.json has no dev script"
-		if s := nextjsDevScript(p.Root); s != "" {
-			script = fmt.Sprintf("package.json dev: %q", s)
+		pm, prod, scripts := p.NodePackageManager(), p.NextjsProdScript(), p.NodeScripts()
+		var shown []string
+		for _, name := range []string{"dev", "build", prod} {
+			v := "none"
+			if s, ok := scripts[name]; ok {
+				v = fmt.Sprintf("%q", s)
+			}
+			shown = append(shown, name+": "+v)
 		}
-		pm := p.NodePackageManager()
-		add(config.NextjsDaemon, fmt.Sprintf("nextjs: %s && %s run dev (%s)", p.NodeInstallCommand(), pm, script))
+		add(config.NextjsDaemon, fmt.Sprintf("nextjs: %s && %s run dev, or with NODE_ENV=production %s run build && %s run %s (package.json %s)",
+			p.NodeInstallCommand(), pm, pm, pm, prod, strings.Join(shown, ", ")))
 	}
 
 	composes, err := extraComposeFiles(filepath.Join(p.Root, ".lodev"))

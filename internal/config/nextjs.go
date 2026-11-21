@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -40,8 +42,12 @@ func (p *Project) Daemons() []Daemon {
 		return p.WebExtraDaemons
 	}
 	pm, install := p.nodeInstall()
+	port := p.EffectiveContainerPort()
 	// sh -c: the daemon script execs its command, so `a && b` needs a shell to reach b.
-	cmd := fmt.Sprintf("sh -c '%s && PORT=%d exec %s run dev'", install, p.EffectiveContainerPort(), pm)
+	// NODE_ENV is read in the container (config.yaml or .lodev/.env); the install keeps
+	// devDependencies even under production, since next build needs them (typescript).
+	cmd := fmt.Sprintf(`sh -c 'NODE_ENV=development %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
+		install, pm, port, pm, p.NextjsProdScript(), port, pm)
 	return append(append([]Daemon{}, p.WebExtraDaemons...), Daemon{Name: NextjsDaemon, Command: cmd})
 }
 
@@ -54,4 +60,25 @@ func (p *Project) EffectiveContainerPort() int {
 		return NextjsPort
 	}
 	return 80
+}
+
+// NodeScripts is package.json's scripts, or nil when it is missing or does not parse.
+func (p *Project) NodeScripts() map[string]string {
+	var pkg struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	b, err := os.ReadFile(filepath.Join(p.Root, "package.json"))
+	if err != nil || json.Unmarshal(b, &pkg) != nil {
+		return nil
+	}
+	return pkg.Scripts
+}
+
+// NextjsProdScript is what NODE_ENV=production runs after build: start, or preview when only that exists.
+func (p *Project) NextjsProdScript() string {
+	s := p.NodeScripts()
+	if _, ok := s["start"]; !ok && s["preview"] != "" {
+		return "preview"
+	}
+	return "start"
 }

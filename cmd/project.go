@@ -364,13 +364,10 @@ func userNextjsScript(p *config.Project) bool {
 		return false
 	}
 	b, _ := os.ReadFile(path)
-	// An older lodev wrote the same script without the marker: that one is still lodev's.
-	for _, d := range p.Daemons() {
-		if d.Name == config.NextjsDaemon && "\n"+string(b) == strings.TrimPrefix(string(templates.DaemonScript(p, d)), templates.GeneratedMarker) {
-			return false
-		}
-	}
-	return true
+	// An older lodev wrote nextjs.sh without the marker (dev server on 3000 only): that one is still lodev's.
+	legacy := config.Daemon{Name: config.NextjsDaemon, Command: fmt.Sprintf("sh -c '%s && PORT=%d exec %s run dev'",
+		p.NodeInstallCommand(), config.NextjsPort, p.NodePackageManager())}
+	return "\n"+string(b) != strings.TrimPrefix(string(templates.DaemonScript(p, legacy)), templates.GeneratedMarker)
 }
 
 // nextjsScriptFile is the nextjs daemon's script; deleting its marker line takes it over.
