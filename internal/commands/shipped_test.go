@@ -7,9 +7,44 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"lodev/internal/templates"
 )
+
+func TestSyncLeavesUnreadableAndSymlinkedFiles(t *testing.T) {
+	home := t.TempDir()
+	Sync(home)
+	dir := filepath.Join(home, "commands", Web)
+	locked, link, same := filepath.Join(dir, "php"), filepath.Join(dir, "composer"), filepath.Join(dir, "npm")
+	os.WriteFile(locked, []byte("echo mine\n"), 0o644)
+	os.Chmod(locked, 0o000)
+	t.Cleanup(func() { os.Chmod(locked, 0o644) })
+	if _, err := os.ReadFile(locked); err == nil {
+		t.Skip("file permissions are not enforced (root)")
+	}
+	target := filepath.Join(home, "mine.sh")
+	os.WriteFile(target, []byte(templates.GeneratedMarker+"\nold\n"), 0o644)
+	os.Remove(link)
+	os.Symlink(target, link)
+	old := time.Now().Add(-time.Hour).Truncate(time.Second)
+	os.Chtimes(same, old, old)
+
+	Sync(home)
+	os.Chmod(locked, 0o644)
+	if b, _ := os.ReadFile(locked); string(b) != "echo mine\n" {
+		t.Errorf("unreadable user file replaced: %q", b)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("symlink replaced: %v, %v", fi, err)
+	}
+	if b, _ := os.ReadFile(target); string(b) != templates.GeneratedMarker+"\nold\n" {
+		t.Errorf("symlink target rewritten: %q", b)
+	}
+	if fi, _ := os.Stat(same); !fi.ModTime().Equal(old) {
+		t.Errorf("identical marker file rewritten: mtime %v", fi.ModTime())
+	}
+}
 
 func TestShippedWeb(t *testing.T) {
 	want := []string{"php", "composer", "npm", "node", "pnpm", "yarn", "grunt", "artisan", "wp", "magento", "n98"}

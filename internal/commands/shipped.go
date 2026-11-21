@@ -2,7 +2,9 @@ package commands
 
 import (
 	"embed"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,10 +38,21 @@ func Shipped() []Command {
 func Sync(home string) (warnings []string) {
 	for _, c := range Shipped() {
 		p := filepath.Join(home, "commands", c.Kind, c.Name)
-		if old, err := os.ReadFile(p); err == nil {
+		if fi, err := os.Lstat(p); err == nil {
+			if fi.Mode()&os.ModeSymlink != 0 {
+				continue // never replace a user's symlink
+			}
+			old, err := os.ReadFile(p)
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("could not read %s, left as is: %v", p, err))
+				continue
+			}
 			if first, _, _ := strings.Cut(string(old), "\n"); first != templates.GeneratedMarker || string(old) == c.Script {
 				continue
 			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			warnings = append(warnings, fmt.Sprintf("could not check %s, left as is: %v", p, err))
+			continue
 		}
 		if err := atomicfile.Write(p, []byte(c.Script), 0o644); err != nil {
 			warnings = append(warnings, fmt.Sprintf("could not write %s: %v", p, err))
