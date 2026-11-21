@@ -255,6 +255,14 @@ func TestConfirmRepoCommands(t *testing.T) {
 	if err := confirmRepoCommands(p, false); err == nil || err.Error() != "not approved: nothing was registered" {
 		t.Fatalf("no err = %v", err)
 	}
+	// Ctrl-D (EOF without a newline) declines instead of counting as enter.
+	asTTY(t, true, "")
+	r, w, _ := os.Pipe()
+	w.Close()
+	os.Stdin = r
+	if err := confirmRepoCommands(p, false); err == nil || err.Error() != "not approved: nothing was registered" {
+		t.Fatalf("EOF err = %v", err)
+	}
 }
 
 // A repo's text cannot move the cursor or erase lines of the list it is approved from.

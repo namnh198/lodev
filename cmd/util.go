@@ -61,9 +61,15 @@ func writePrivate(path string, data []byte) error {
 }
 
 func readLine(prompt string) string {
+	line, _ := readLineErr(prompt)
+	return line
+}
+
+// readLineErr is readLine that also reports EOF or a read error.
+func readLineErr(prompt string) (string, error) {
 	fmt.Print(prompt + " ")
-	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	return strings.TrimSpace(line)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	return strings.TrimSpace(line), err
 }
 
 // confirm asks y/N; yes skips the question.
@@ -74,10 +80,10 @@ func confirm(prompt string, yes bool) bool {
 	return strings.EqualFold(readLine(prompt+" [y/N]"), "y")
 }
 
-// confirmDefaultYes asks [Y/n]: enter, y and Y approve; any other answer declines.
+// confirmDefaultYes asks [Y/n]: enter, y and Y approve; any other answer, EOF or a read error declines.
 func confirmDefaultYes(prompt string) bool {
-	a := readLine(prompt + " [Y/n]")
-	return a == "" || strings.EqualFold(a, "y")
+	a, err := readLineErr(prompt + " [Y/n]")
+	return err == nil && (a == "" || strings.EqualFold(a, "y"))
 }
 
 // confirmTyped requires the user to type word exactly.
