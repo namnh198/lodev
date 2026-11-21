@@ -579,7 +579,7 @@ without it having been listed. Review `.lodev/commands/` after a pull or an upgr
 
 ## Custom commands
 
-`lodev <name> [args...]` runs a bash script file found in one of these folders:
+`lodev <name> [args...]` runs a script file found in one of these folders:
 
 | Scope | Runs in | Folder |
 |---|---|---|
@@ -608,13 +608,19 @@ echo "hello $*"
   in projects of those types; outside one, it is not filtered. Without it, the command is for
   every project.
 
-Scripts always run with `bash` (a shebang line is ignored); `$0` is the command name and `"$@"`
-the args, passed unchanged (lodev parses no flags after the name).
+A file with no shebang, or a bash one (`#!/bin/bash`, `#!/usr/bin/env bash`), runs with
+`bash -c`; `$0` is the command name. A file whose first line is another shebang
+(`#!/usr/bin/env php`, `#!/usr/bin/python3`) runs with that interpreter, which must exist where the
+command runs (the web container, or your machine): lodev writes the file to a temporary executable
+and runs it, so `$0` is that temp file's path, and the file is removed afterwards. Either way
+`"$@"` is the args, passed unchanged (lodev parses no flags after the name) and the exit code is
+the script's. The header lines are read after a shebang line too.
 
 **Precedence:** project beats global, whatever the folder. Within one scope, the same name in
 `web/` and `host/` warns and the web one wins. A file whose name is a lodev command or alias
 (`start`, `up`, `help`…) is skipped with a warning; it never replaces lodev's own. A file in
-`~/.lodev/commands/` whose first line is lodev's marker line is lodev's own copy, not yours.
+`~/.lodev/commands/` whose marker line is on line 1, or on line 2 when line 1 is a shebang, is
+lodev's own copy, not yours.
 Type filtering comes first, so a project `magento` limited to `magento` does not hide a global one
 in a laravel project.
 
@@ -630,7 +636,7 @@ does not report it.
 **Shipped commands.** lodev ships `php`, `composer`, `npm`, `node`, `pnpm`, `yarn`, `grunt`,
 `artisan`, `wp`, `magento` and `n98` as web command files, written to `~/.lodev/commands/web/`
 by any command except `help`, `version`, `completion` and `self-upgrade` (when missing, or
-when the file still has the marker line and differs). The host commands below are synced the
+when the file still has the marker line, on line 1 or on line 2 after a shebang, and differs). The host commands below are synced the
 same way into `~/.lodev/commands/host/`. Delete the marker line to edit one, web or host: lodev
 then leaves the file alone and runs it instead of its own copy. A file lodev cannot read, or a
 symlink, is left as it is too. A command of the same name in
@@ -681,8 +687,8 @@ environment plus:
 
 Only `LODEV_BIN` and `LODEV_PWD` are set outside a project. Any of these variables inherited from
 a parent lodev command is removed first, so a nested command sees only its own values (other
-`LODEV_*` such as `LODEV_HOME` and `LODEV_DEBUG` pass through). Host commands need `bash` on PATH,
-but no Docker and no running project.
+`LODEV_*` such as `LODEV_HOME` and `LODEV_DEBUG` pass through). Host commands without a non-bash shebang
+need `bash` on PATH, but no Docker and no running project.
 
 ## Domains and TLD
 

@@ -56,7 +56,7 @@ func TestShippedWeb(t *testing.T) {
 		}
 		got = append(got, c.Name)
 		parsed, err := Parse(c.Name, c.Kind, "", []byte(c.Script))
-		if err != nil || !c.Marker || c.Path != "" || !reflect.DeepEqual(parsed.Types, types[c.Name]) || !reflect.DeepEqual(c.Types, types[c.Name]) {
+		if err != nil || !c.Marker || c.Interp || c.Path != "" || !reflect.DeepEqual(parsed.Types, types[c.Name]) || !reflect.DeepEqual(c.Types, types[c.Name]) {
 			t.Errorf("%s: %+v, %v", c.Name, c, err)
 		}
 		if c.Name == "magento" && !strings.HasSuffix(c.Script, "exec php bin/magento \"$@\"\n") {
@@ -92,6 +92,22 @@ func TestSync(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(composer); string(b) != "echo mine\n" {
 		t.Errorf("user file touched: %q", b)
+	}
+}
+
+func TestSyncShebangMarker(t *testing.T) {
+	home := t.TempDir()
+	Sync(home)
+	php := filepath.Join(home, "commands", Web, "php")
+	os.WriteFile(php, []byte("#!/usr/bin/env bash\n"+templates.GeneratedMarker+"\nold\n"), 0o644)
+	Sync(home)
+	if b, _ := os.ReadFile(php); !strings.Contains(string(b), `exec php "$@"`) {
+		t.Errorf("shebang + marker file not rewritten: %q", b)
+	}
+	os.WriteFile(php, []byte("#!/usr/bin/env bash\n# mine\n"+templates.GeneratedMarker+"\nold\n"), 0o644)
+	Sync(home)
+	if b, _ := os.ReadFile(php); !strings.Contains(string(b), "old\n") {
+		t.Errorf("marker on line 3 counted as lodev's: %q", b)
 	}
 }
 

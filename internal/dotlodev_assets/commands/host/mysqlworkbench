@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: mysqlworkbench
 # Description: Open the project's MySQL/MariaDB database in MySQL Workbench; it asks for the password (needs ports.mysql or ports.mariadb)

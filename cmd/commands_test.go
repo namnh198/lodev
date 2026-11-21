@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -79,6 +80,68 @@ func TestCustomWebCommand(t *testing.T) {
 	want := []string{"bash", "-c", "echo \"$@\"\n", "hi", "a b", ""}
 	if len(got) < len(want) || !slices.Equal(got[len(got)-len(want):], want) {
 		t.Fatalf("docker %q", got)
+	}
+}
+
+func TestCustomWebShebang(t *testing.T) {
+	root := customProject(t, "php", true)
+	script := "#!/usr/bin/env php\n<?php echo 1;\n"
+	writeFile(t, filepath.Join(root, ".lodev/commands/web/hi"), script)
+	got := stubWebRun(t)
+	registerFor(t, root)
+	if err := runRoot(t, "hi", "a b", ""); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"sh", "-c", runFile, "hi", script, "a b", ""}
+	if len(*got) < len(want) || !slices.Equal((*got)[len(*got)-len(want):], want) {
+		t.Fatalf("docker %q", *got)
+	}
+}
+
+// TestRunFileScript runs the shell string web shebang commands get, with sh standing for the container.
+func TestRunFileScript(t *testing.T) {
+	script := "#!/bin/sh\necho \"$#|$1|$2|$0\"\nexit 3\n"
+	out, err := exec.Command("sh", "-c", runFile, "hi", script, "a b", "").CombinedOutput()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 3 {
+		t.Fatalf("err %v, want exit 3", err)
+	}
+	file, ok := strings.CutPrefix(strings.TrimSpace(string(out)), "2|a b||")
+	if !ok {
+		t.Fatalf("out %q", out)
+	}
+	if _, err := os.Stat(file); err == nil {
+		t.Error("temp file left behind")
+	}
+}
+
+func TestCustomHostShebang(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	out := filepath.Join(t.TempDir(), "out")
+	t.Setenv("OUT", out)
+	script := "#!/bin/sh\nprintf '%s|%s|%s' \"$#\" \"$1\" \"$2\" > \"$OUT\"\nexit ${CODE:-0}\n"
+	c := commands.Command{Name: "hi", Kind: commands.Host, Script: script, Interp: true}
+	var ran string
+	old := hostRun
+	t.Cleanup(func() { hostRun = old })
+	hostRun = func(x *exec.Cmd) error { ran = x.Path; return x.Run() }
+	t.Chdir(t.TempDir())
+	wd, _ := os.Getwd()
+
+	if err := hostCommand(c, nil, wd, []string{"a b", ""}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(out); string(b) != "2|a b|" {
+		t.Errorf("script saw %q", b)
+	}
+	if _, err := os.Stat(ran); err == nil || ran == "" {
+		t.Errorf("temp file %q left behind (%v)", ran, err)
+	}
+
+	t.Setenv("CODE", "3")
+	var exitErr *exec.ExitError
+	if err := hostCommand(c, nil, wd, nil); !errors.As(err, &exitErr) || exitErr.ExitCode() != 3 {
+		t.Errorf("err %v, want exit 3", err)
 	}
 }
 

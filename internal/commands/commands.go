@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -23,7 +24,8 @@ type Command struct {
 	Script     string // file contents, CRLF → LF
 	Use, Short string
 	Types      []string // nil: every project type
-	Marker     bool     // line 1 is templates.GeneratedMarker
+	Marker     bool     // see HasMarker
+	Interp     bool     // line 1 is a non-bash shebang: run the file with that interpreter
 }
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
@@ -34,14 +36,12 @@ func ValidName(name string) bool { return nameRe.MatchString(name) }
 func Parse(name, kind, path string, data []byte) (Command, error) {
 	script := strings.ReplaceAll(string(data), "\r\n", "\n")
 	c := Command{Name: name, Kind: kind, Path: path, Script: script}
+	c.Marker, c.Interp = HasMarker([]byte(script)), isInterp(script)
 	c.Use = name + " [args...]"
 	c.Short = "Custom command (" + ShortPath(path) + ")"
-	for i, line := range strings.Split(script, "\n") {
+	for _, line := range strings.Split(script, "\n") {
 		if !strings.HasPrefix(line, "#") {
 			break
-		}
-		if i == 0 && line == templates.GeneratedMarker {
-			c.Marker = true
 		}
 		key, val, ok := strings.Cut(strings.TrimSpace(strings.TrimPrefix(line, "#")), ":")
 		if !ok {
@@ -68,6 +68,30 @@ func Parse(name, kind, path string, data []byte) (Command, error) {
 		}
 	}
 	return c, nil
+}
+
+// HasMarker reports whether templates.GeneratedMarker is line 1, or line 2 after a `#!` line.
+func HasMarker(data []byte) bool {
+	first, rest, _ := strings.Cut(string(data), "\n")
+	if strings.HasPrefix(first, "#!") {
+		first, _, _ = strings.Cut(rest, "\n")
+	}
+	return first == templates.GeneratedMarker
+}
+
+// isInterp reports whether line 1 is a shebang for something other than bash (`#!/bin/bash`
+// or `#!/usr/bin/env bash`).
+func isInterp(script string) bool {
+	line, _, _ := strings.Cut(script, "\n")
+	f := strings.Fields(strings.TrimPrefix(line, "#!"))
+	if !strings.HasPrefix(line, "#!") || len(f) == 0 {
+		return false
+	}
+	prog := path.Base(f[0])
+	if prog == "env" && len(f) > 1 {
+		prog = path.Base(f[1])
+	}
+	return prog != "bash"
 }
 
 func (c Command) Applies(projectType string) bool {
@@ -104,7 +128,7 @@ func LoadDir(dir, kind string) (cmds []Command, warnings []string) {
 	return cmds, warnings
 }
 
-// shortPath shows paths under $HOME as ~/… (same rule as cmd/table.go; internal cannot import cmd).
+// ShortPath shows paths under $HOME as ~/….
 func ShortPath(p string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {

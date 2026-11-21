@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: tablepro
 # Description: Open the project's MySQL/MariaDB database in TablePro, macOS only (needs ports.mysql or ports.mariadb)

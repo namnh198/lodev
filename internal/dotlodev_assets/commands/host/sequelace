@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: sequelace
 # Description: Open the project's MySQL/MariaDB database in Sequel Ace, macOS only (needs ports.mysql or ports.mariadb)

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: open [project|phpmyadmin|mailpit|rabbitmq|mongo-express|traefik] [--print]
 # Description: Open the project here, another one or a shared service in the browser; --print only prints the URL

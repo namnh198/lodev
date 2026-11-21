@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: npm [args...]
 # Description: Run npm in the web container

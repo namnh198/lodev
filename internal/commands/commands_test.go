@@ -42,9 +42,32 @@ func TestParseDefaults(t *testing.T) {
 	if c.Use != "foo [args...]" {
 		t.Fatalf("Use = %q", c.Use)
 	}
-	c, _ = Parse("foo", Web, "", []byte("#!/bin/bash\n"+templates.GeneratedMarker+"\n"))
-	if c.Marker {
-		t.Fatal("marker on line 2 must not count")
+}
+
+func TestParseShebang(t *testing.T) {
+	m := templates.GeneratedMarker
+	for _, c := range []struct {
+		src        string
+		interp, mk bool
+	}{
+		{"#!/usr/bin/env php\necho 1;\n", true, false},
+		{"#!/usr/bin/python3\n", true, false},
+		{"#!/bin/sh\n", true, false},
+		{"#!/usr/bin/env bash\n", false, false},
+		{"#!/bin/bash\n", false, false},
+		{"#!/usr/bin/bash\n", false, false},
+		{"echo hi\n", false, false},
+		{"#!\n", false, false},
+		{"#!/usr/bin/env bash\n" + m + "\necho\n", false, true},
+		{"#!/usr/bin/env php\n" + m + "\n", true, true},
+		{m + "\necho\n", false, true},
+		{"#!/usr/bin/env bash\n# x\n" + m + "\n", false, false},
+		{"# x\n" + m + "\n", false, false},
+	} {
+		got, err := Parse("foo", Web, "", []byte(c.src))
+		if err != nil || got.Interp != c.interp || got.Marker != c.mk {
+			t.Errorf("%q: Interp %v Marker %v, want %v %v (%v)", c.src, got.Interp, got.Marker, c.interp, c.mk, err)
+		}
 	}
 }
 

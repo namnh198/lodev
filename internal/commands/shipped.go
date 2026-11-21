@@ -11,7 +11,6 @@ import (
 
 	"lodev/internal/atomicfile"
 	"lodev/internal/dotlodev_assets"
-	"lodev/internal/templates"
 )
 
 // Shipped is the command files embedded in lodev (Path "", Marker true), sorted by Kind then Name.
@@ -47,7 +46,7 @@ func Sync(home string) (warnings []string) {
 				warnings = append(warnings, fmt.Sprintf("could not read %s, left as is: %v", p, err))
 				continue
 			}
-			if first, _, _ := strings.Cut(string(old), "\n"); first != templates.GeneratedMarker || string(old) == c.Script {
+			if !HasMarker(old) || string(old) == c.Script {
 				continue
 			}
 		} else if !errors.Is(err, fs.ErrNotExist) {

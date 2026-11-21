@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # lodev-generated: delete this line to manage this file yourself
 # Usage: vscode
 # Description: Open VS Code attached to the project's web container (needs the code CLI on PATH and the Dev Containers extension; starts the project if stopped)

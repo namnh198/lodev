@@ -71,6 +71,9 @@ func registerCustom(root *cobra.Command, wd string) []*cobra.Command {
 	return added
 }
 
+// runFile runs $1 (a script) as an executable, so its shebang picks the interpreter; $0 is the temp file.
+const runFile = `f=$(mktemp) || exit 1; printf '%s' "$1" > "$f" && chmod 700 "$f" || exit 1; shift; "$f" "$@"; s=$?; rm -f "$f"; exit $s`
+
 func runWebCommand(c commands.Command, p *config.Project, projErr error, args []string) error {
 	if p == nil {
 		return projErr
@@ -78,11 +81,44 @@ func runWebCommand(c commands.Command, p *config.Project, projErr error, args []
 	if err := dockerPing(); err != nil {
 		return err
 	}
+	if c.Interp {
+		return runInProject(p, "web", "", append([]string{"sh", "-c", runFile, c.Name, c.Script}, args...))
+	}
 	return runInProject(p, "web", "", append([]string{"bash", "-c", c.Script, c.Name}, args...))
 }
 
 func runHostCommand(c commands.Command, p *config.Project, wd string, args []string) error {
+	err := hostCommand(c, p, wd, args)
+	var exitErr *exec.ExitError
+	switch {
+	case errors.As(err, &exitErr):
+		os.Exit(exitErr.ExitCode())
+	case errors.Is(err, exec.ErrNotFound):
+		return errors.New("host commands need bash on PATH")
+	}
+	return err
+}
+
+func hostCommand(c commands.Command, p *config.Project, wd string, args []string) error {
 	x := exec.Command("bash", append([]string{"-c", c.Script, c.Name}, args...)...)
+	if c.Interp {
+		f, err := os.CreateTemp("", "lodev-"+c.Name+"-*")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(f.Name())
+		_, werr := f.WriteString(c.Script)
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr == nil {
+			werr = os.Chmod(f.Name(), 0o700)
+		}
+		if werr != nil {
+			return werr
+		}
+		x = exec.Command(f.Name(), args...)
+	}
 	x.Dir = wd
 	running := false
 	if p != nil {
@@ -95,13 +131,5 @@ func runHostCommand(c commands.Command, p *config.Project, wd string, args []str
 	}
 	bin, _ := executable()
 	x.Env = append(commands.DropEnv(os.Environ()), commands.HostEnv(p, g, wd, bin, running)...)
-	err = hostRun(x)
-	var exitErr *exec.ExitError
-	switch {
-	case errors.As(err, &exitErr):
-		os.Exit(exitErr.ExitCode())
-	case errors.Is(err, exec.ErrNotFound):
-		return errors.New("host commands need bash on PATH")
-	}
-	return err
+	return hostRun(x)
 }
