@@ -195,7 +195,8 @@ time a project uses them.
 Every PHP version is built with the PHP2Shell fixes (CVE-2026-109618/109619): 8.2.35, 8.3.36,
 8.4.27, 8.5.12, 8.6.0 or newer, and deb.sury.org's backports for 7.4, 8.0 and 8.1. The build
 stops if a version comes out older. PHP 8.6 has no Xdebug and no phpredis yet (deb.sury.org does
-not package them): `lodev xdebug on` fails on 8.6 with `no Xdebug for PHP 8.6 yet`.
+not package them): on 8.6, `lodev xdebug on` says so and changes nothing, and `lodev start`
+ignores `enable_xdebug` with a warning.
 
 - Change a project's PHP version: `lodev config --php-version=8.4` (or edit `php:` in `.lodev/config.yaml`), then `lodev restart`.
 - After upgrading lodev, the first `lodev start` builds the images for the new version.

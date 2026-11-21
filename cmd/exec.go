@@ -135,6 +135,15 @@ func checkWebUser(p *config.Project, user string) error {
 
 const reloadFPM = ` && { [ "$LODEV_WEBSERVER" = none ] || supervisorctl -c /etc/supervisor/supervisord.conf restart php-fpm >/dev/null; } && echo "xdebug `
 
+// xdebugMissing says why PHP ver cannot run Xdebug, or is nil when it can.
+// shortcut: mirrors install-php.sh, which skips php8.6-xdebug until sury packages it; drop both then.
+func xdebugMissing(ver string) error {
+	if ver != "8.6" {
+		return nil
+	}
+	return fmt.Errorf("php %s has no Xdebug yet: switch to php 8.5 or older to debug (lodev config --php-version=8.5, then lodev restart)", ver)
+}
+
 // xdebugScript returns the root shell script for a `lodev xdebug` action, or "" if unknown.
 func xdebugScript(action string) string {
 	on := `[ -e /etc/php/$LODEV_PHP/mods-available/xdebug.ini ] || { echo "no Xdebug for PHP $LODEV_PHP yet" >&2; exit 1; }; for s in cli fpm; do cp /etc/lodev/xdebug.ini /etc/php/$LODEV_PHP/$s/conf.d/99-lodev-xdebug.ini; done` + reloadFPM + `on"`
@@ -249,6 +258,9 @@ func xdebugTarget(action string, p *config.Project) bool {
 // .lodev/config.local.yaml so the next start keeps it; a stopped project only gets the setting.
 func setXdebug(p *config.Project, on bool) error {
 	state := map[bool]string{true: "on", false: "off"}[on]
+	if err := xdebugMissing(p.PHP); on && err != nil {
+		return err
+	}
 	if containerRunning(p.WebContainer()) {
 		if err := execIn(p, "web", "root", []string{"sh", "-c", xdebugScript(state)}); err != nil {
 			return err
@@ -264,6 +276,10 @@ func setXdebug(p *config.Project, on bool) error {
 // kept (not recreated) container still has it, so a plain start does not restart php-fpm.
 func syncXdebug(p *config.Project) {
 	state, script := "on", xdebugScript("on")
+	if err := xdebugMissing(p.PHP); p.EnableXdebug && err != nil {
+		ui.Warn("enable_xdebug is ignored: %v", err)
+		return
+	}
 	if !p.EnableXdebug {
 		state, script = "off", "[ ! -e /etc/php/$LODEV_PHP/cli/conf.d/99-lodev-xdebug.ini ] || { "+xdebugScript("off")+"; }"
 	}

@@ -167,3 +167,39 @@ func TestSyncXdebug(t *testing.T) {
 		t.Errorf("scripts %q", *scripts)
 	}
 }
+
+// PHP 8.6 has no Xdebug build: on fails with a plain message before running or saving anything.
+func TestSetXdebugNoXdebugPHP(t *testing.T) {
+	const want = "php 8.6 has no Xdebug yet: switch to php 8.5 or older to debug (lodev config --php-version=8.5, then lodev restart)"
+	for _, running := range []bool{true, false} {
+		p := xdebugProject(t, false)
+		p.PHP = "8.6"
+		scripts := stubXdebugExec(t, running, nil)
+		if err := setXdebug(p, true); err == nil || err.Error() != want {
+			t.Errorf("running %v: err %v", running, err)
+		}
+		if len(*scripts) != 0 {
+			t.Errorf("running %v: scripts %q", running, *scripts)
+		}
+		if _, err := os.Stat(localConfigPath(p.Root)); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("running %v: config.local.yaml written: %v", running, err)
+		}
+		if err := setXdebug(p, false); err != nil {
+			t.Errorf("running %v: off: %v", running, err)
+		}
+	}
+}
+
+// A project with enable_xdebug on PHP 8.6 starts with a warning naming why, not a failed script.
+func TestSyncXdebugNoXdebugPHP(t *testing.T) {
+	scripts := stubXdebugExec(t, true, nil)
+	_, e, restore := ui.Capture(false)
+	t.Cleanup(restore)
+	syncXdebug(&config.Project{Name: "shop", PHP: "8.6", Root: t.TempDir(), EnableXdebug: true})
+	if len(*scripts) != 0 {
+		t.Errorf("scripts %q", *scripts)
+	}
+	if !strings.Contains(e.String(), "enable_xdebug is ignored: php 8.6 has no Xdebug yet") {
+		t.Errorf("stderr %q", e.String())
+	}
+}
