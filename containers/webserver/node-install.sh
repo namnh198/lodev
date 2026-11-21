@@ -4,8 +4,9 @@
 stamp=node_modules/.lodev-install
 digest() {
   { printf '%s\n' "$*"; node --version
-    for f in package.json pnpm-lock.yaml yarn.lock package-lock.json pnpm-workspace.yaml \
-      node_modules/.modules.yaml node_modules/.package-lock.json node_modules/.yarn-integrity node_modules/.yarn-state.yml; do
+    # .npmrc / .yarnrc.yml change the layout; yarn PnP records its install in .pnp.cjs and .yarn/.
+    for f in package.json pnpm-lock.yaml yarn.lock package-lock.json pnpm-workspace.yaml .npmrc .yarnrc.yml \
+      .pnp.cjs .yarn/install-state.gz node_modules/.modules.yaml node_modules/.package-lock.json node_modules/.yarn-integrity node_modules/.yarn-state.yml; do
       [ -f "$f" ] && md5sum "$f"
     done; } | md5sum | cut -d' ' -f1
 }

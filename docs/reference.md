@@ -469,9 +469,10 @@ installs, then runs your `dev` script on `container_port` (default 3000):
 | `package-lock.json` | `npm ci` | `PORT=3000 exec npm run dev` |
 | none | `pnpm install` | `PORT=3000 exec pnpm run dev` |
 
-The install is skipped when the lockfile, `package.json`, `pnpm-workspace.yaml`, the Node version,
-the install command and the package manager's record in `node_modules` (`.modules.yaml`,
-`.package-lock.json`, `.yarn-integrity`, `.yarn-state.yml`) are unchanged since the last successful
+The install is skipped when the lockfile, `package.json`, `pnpm-workspace.yaml`, `.npmrc`,
+`.yarnrc.yml`, the Node version, the install command and the package manager's record of its last
+install (`node_modules/.modules.yaml`, `.package-lock.json`, `.yarn-integrity`, `.yarn-state.yml`;
+yarn PnP's `.pnp.cjs` and `.yarn/install-state.gz`) are unchanged since the last successful
 install; the log then says `lodev: dependencies unchanged since the last install; skipping …`. That
 state lives in `node_modules/.lodev-install`, so a new or emptied `node_modules` installs again, and
 so does an install run on the host. To force one (e.g. after deleting part of `node_modules`),

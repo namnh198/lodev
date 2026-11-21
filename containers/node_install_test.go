@@ -97,6 +97,26 @@ func TestNodeInstallReinstallsOnChange(t *testing.T) {
 			writeTestFile(t, filepath.Join(dir, "pnpm-workspace.yaml"), "allowBuilds:\n  sharp: true\n", 0o644)
 			return nil
 		},
+		// Package manager settings and yarn PnP's install record live outside node_modules.
+		".npmrc": func(dir string) []string {
+			writeTestFile(t, filepath.Join(dir, ".npmrc"), "node-linker=hoisted\n", 0o644)
+			return nil
+		},
+		".yarnrc.yml": func(dir string) []string {
+			writeTestFile(t, filepath.Join(dir, ".yarnrc.yml"), "nodeLinker: node-modules\n", 0o644)
+			return nil
+		},
+		".pnp.cjs": func(dir string) []string {
+			writeTestFile(t, filepath.Join(dir, ".pnp.cjs"), "// darwin\n", 0o644)
+			return nil
+		},
+		".yarn/install-state.gz": func(dir string) []string {
+			if err := os.MkdirAll(filepath.Join(dir, ".yarn"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeTestFile(t, filepath.Join(dir, ".yarn", "install-state.gz"), "state\n", 0o644)
+			return nil
+		},
 		"node version": func(string) []string { return []string{"NODE_V=v22.0.0"} },
 		"host install": func(dir string) []string {
 			writeTestFile(t, filepath.Join(dir, "node_modules", ".modules.yaml"), "host\n", 0o644)
