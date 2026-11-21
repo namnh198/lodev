@@ -93,7 +93,7 @@ func TestNextjsDaemons(t *testing.T) {
 // nextjsCmd spells out the daemon command: devDependencies always installed (next build needs
 // typescript), then build + start/preview under NODE_ENV=production, else the dev server.
 func nextjsCmd(install, pm string, port int, prod string) string {
-	return fmt.Sprintf(`sh -c 'NODE_ENV=development %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
+	return fmt.Sprintf(`sh -c 'NODE_ENV=development lodev-node-install %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
 		install, pm, port, pm, prod, port, pm)
 }
 

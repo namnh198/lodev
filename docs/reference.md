@@ -469,6 +469,14 @@ installs, then runs your `dev` script on `container_port` (default 3000):
 | `package-lock.json` | `npm ci` | `PORT=3000 exec npm run dev` |
 | none | `pnpm install` | `PORT=3000 exec pnpm run dev` |
 
+The install is skipped when the lockfile, `package.json`, `pnpm-workspace.yaml`, the Node version,
+the install command and the package manager's record in `node_modules` (`.modules.yaml`,
+`.package-lock.json`, `.yarn-integrity`, `.yarn-state.yml`) are unchanged since the last successful
+install; the log then says `lodev: dependencies unchanged since the last install; skipping …`. That
+state lives in `node_modules/.lodev-install`, so a new or emptied `node_modules` installs again, and
+so does an install run on the host. To force one (e.g. after deleting part of `node_modules`),
+delete `node_modules/.lodev-install` and `lodev restart`.
+
 With `NODE_ENV=production` in the container (`environment:` or `.lodev/.env`, then `lodev restart`)
 it runs `<pm> run build && PORT=3000 exec <pm> run start` instead: `start`, or `preview` when
 `package.json` has no `start` script. The install always runs with `NODE_ENV=development`, so

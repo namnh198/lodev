@@ -45,8 +45,9 @@ func (p *Project) Daemons() []Daemon {
 	port := p.EffectiveContainerPort()
 	// sh -c: the daemon script execs its command, so `a && b` needs a shell to reach b.
 	// NODE_ENV is read in the container (config.yaml or .lodev/.env); the install keeps
-	// devDependencies even under production, since next build needs them (typescript).
-	cmd := fmt.Sprintf(`sh -c 'NODE_ENV=development %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
+	// devDependencies even under production, since next build needs them (typescript), and
+	// lodev-node-install (web image) skips it when its inputs are unchanged since the last success.
+	cmd := fmt.Sprintf(`sh -c 'NODE_ENV=development lodev-node-install %s && if [ "$NODE_ENV" = production ]; then %s run build && PORT=%d exec %s run %s; else PORT=%d exec %s run dev; fi'`,
 		install, pm, port, pm, p.NextjsProdScript(), port, pm)
 	return append(append([]Daemon{}, p.WebExtraDaemons...), Daemon{Name: NextjsDaemon, Command: cmd})
 }

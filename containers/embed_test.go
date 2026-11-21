@@ -20,7 +20,7 @@ func TestExtract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range []string{"entrypoint.sh", "install-php.sh", "healthcheck.sh"} {
+	for _, f := range []string{"entrypoint.sh", "install-php.sh", "healthcheck.sh", "node-install.sh"} {
 		fi, err := os.Stat(filepath.Join(d, f))
 		if err != nil || fi.Mode()&0o111 == 0 {
 			t.Fatalf("%s not executable: %v %v", f, fi, err)

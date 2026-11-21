@@ -72,11 +72,12 @@ COPY nginx-status.conf /etc/nginx/conf.d/lodev-status.conf
 COPY apache-status.conf /etc/apache2/conf-enabled/lodev-status.conf
 COPY apache-servername.conf /etc/apache2/conf-enabled/lodev-servername.conf
 COPY healthcheck.sh /usr/local/bin/lodev-healthcheck
+COPY node-install.sh /usr/local/bin/lodev-node-install
 COPY xdebug.ini /etc/lodev/xdebug.ini
 COPY supervisor/ /etc/lodev/supervisor/
 COPY skel/ /etc/skel/
 COPY entrypoint.sh /usr/local/bin/lodev-entrypoint
-RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck
+RUN chmod +x /usr/local/bin/lodev-entrypoint /usr/local/bin/lodev-healthcheck /usr/local/bin/lodev-node-install
 
 WORKDIR /app
 ENTRYPOINT ["/usr/local/bin/lodev-entrypoint"]
