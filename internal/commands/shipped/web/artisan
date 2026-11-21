@@ -1,0 +1,5 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: artisan [args...]
+# Description: Run artisan in the web container
+# Type: laravel
+exec php artisan "$@"

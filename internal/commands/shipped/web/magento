@@ -1,0 +1,5 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: magento [args...]
+# Description: Run bin/magento in the web container
+# Type: magento
+exec php bin/magento "$@"

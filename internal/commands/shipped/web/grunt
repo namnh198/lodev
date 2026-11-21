@@ -1,0 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: grunt [args...]
+# Description: Run grunt in the web container
+exec grunt "$@"

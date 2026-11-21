@@ -35,19 +35,6 @@ func TestCheckWebUser(t *testing.T) {
 	}
 }
 
-func TestShortcutCmd(t *testing.T) {
-	cases := map[string]string{
-		"php": "php", "composer": "composer", "npm": "npm", "node": "node",
-		"pnpm": "pnpm", "yarn": "yarn", "grunt": "grunt",
-		"artisan": "php artisan", "wp": "wp", "magento": "php bin/magento", "n98": "n98-magerun2",
-	}
-	for name, want := range cases {
-		if got := shortcutCmd(name); !slices.Equal(got, strings.Fields(want)) {
-			t.Errorf("%s: %v", name, got)
-		}
-	}
-}
-
 func TestXdebugScript(t *testing.T) {
 	on, off := xdebugScript("on"), xdebugScript("off")
 	if on == "" || off == "" || xdebugScript("bogus") != "" {
@@ -175,6 +162,7 @@ func TestSSHByName(t *testing.T) {
 func TestExecNeedsRunningProject(t *testing.T) {
 	root := newShop(t)
 	registry.Registry{"shop": {Path: root}}.Save()
+	registerFor(t, root)
 	oldRun, oldUp, oldReady := dockerRun, containerRunning, userReady
 	t.Cleanup(func() { dockerRun, containerRunning, userReady = oldRun, oldUp, oldReady })
 	containerRunning = func(string) bool { return false }

@@ -18,7 +18,7 @@ import (
 )
 
 // shippedCommands is the lowest layer: the command files embedded in lodev.
-var shippedCommands = func() []commands.Command { return nil }
+var shippedCommands = commands.Shipped
 
 // hostRun runs a host command with the terminal attached; swapped in tests.
 var hostRun = func(c *exec.Cmd) error {

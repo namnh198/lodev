@@ -1,0 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: node [args...]
+# Description: Run node in the web container
+exec node "$@"

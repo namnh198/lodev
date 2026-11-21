@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"lodev/internal/commands"
 	"lodev/internal/config"
 	"lodev/internal/templates"
 	"lodev/internal/ui"
@@ -42,6 +43,14 @@ func registerFor(t *testing.T, wd string) (names []string, stderr string) {
 		names = append(names, c.Name())
 	}
 	return names, e.String()
+}
+
+// withoutShipped leaves lodev's embedded commands out, so a test sees only the files it writes.
+func withoutShipped(t *testing.T) {
+	t.Helper()
+	old := shippedCommands
+	t.Cleanup(func() { shippedCommands = old })
+	shippedCommands = func() []commands.Command { return nil }
 }
 
 func stubHostRun(t *testing.T) **exec.Cmd {
@@ -129,6 +138,7 @@ func TestHostEnv(t *testing.T) {
 }
 
 func TestCustomPrecedence(t *testing.T) {
+	withoutShipped(t)
 	root := customProject(t, "php", true)
 	globalCommand(t, "host", "x", "# Description: global x\n")
 	writeFile(t, filepath.Join(root, ".lodev/commands/web/x"), "# Description: project x\n")
@@ -150,6 +160,7 @@ func TestCustomPrecedence(t *testing.T) {
 }
 
 func TestCustomTypeFilter(t *testing.T) {
+	withoutShipped(t)
 	root := customProject(t, "laravel", true)
 	globalCommand(t, "web", "m", "# Type: magento\n")
 	if names, _ := registerFor(t, root); len(names) != 0 {
@@ -163,6 +174,7 @@ func TestCustomTypeFilter(t *testing.T) {
 }
 
 func TestCustomUnregisteredProject(t *testing.T) {
+	withoutShipped(t)
 	root := customProject(t, "php", false)
 	writeFile(t, filepath.Join(root, ".lodev/commands/host/evil"), "rm -rf ~\n")
 	names, stderr := registerFor(t, root)
@@ -176,6 +188,7 @@ func TestCustomUnregisteredProject(t *testing.T) {
 }
 
 func TestCustomBuiltinNames(t *testing.T) {
+	withoutShipped(t)
 	root := customProject(t, "php", true)
 	builtins := []string{"start", "up", "ps", "st", "desc", "init", "help"}
 	for _, n := range builtins {
@@ -196,6 +209,7 @@ func TestCustomBuiltinNames(t *testing.T) {
 }
 
 func TestCustomBrokenConfig(t *testing.T) {
+	withoutShipped(t)
 	root := customProject(t, "php", true)
 	writeShop(t, root, "name: [\n")
 	globalCommand(t, "host", "g", "echo g\n")
@@ -218,5 +232,82 @@ func TestCustomWebOutsideProject(t *testing.T) {
 	registerFor(t, wd)
 	if err := runRoot(t, "hi"); err == nil || !strings.Contains(err.Error(), "not a lodev project") {
 		t.Errorf("error %v", err)
+	}
+}
+
+// stubWebRun makes the web container look running and records the docker args of each run.
+func stubWebRun(t *testing.T) *[]string {
+	t.Helper()
+	oldRun, oldReady, oldUp := dockerRun, userReady, containerRunning
+	t.Cleanup(func() { dockerRun, userReady, containerRunning = oldRun, oldReady, oldUp })
+	userReady = func(*config.Project, string) bool { return true }
+	containerRunning = func(string) bool { return true }
+	var got []string
+	dockerRun = func(a ...string) error { got = a; return nil }
+	return &got
+}
+
+func shippedScript(t *testing.T, name string) string {
+	t.Helper()
+	for _, c := range shippedCommands() {
+		if c.Kind == commands.Web && c.Name == name {
+			return c.Script
+		}
+	}
+	t.Fatalf("%s is not shipped", name)
+	return ""
+}
+
+func TestShortcutRunsShippedScript(t *testing.T) {
+	root := customProject(t, "magento", true)
+	got := stubWebRun(t)
+	names, _ := registerFor(t, root)
+	if slices.Contains(names, "artisan") || !slices.Contains(names, "magento") {
+		t.Errorf("magento project registered %q", names)
+	}
+	if err := runRoot(t, "magento", "cache:flush"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"bash", "-c", shippedScript(t, "magento"), "magento", "cache:flush"}
+	if len(*got) < len(want) || !slices.Equal((*got)[len(*got)-len(want):], want) {
+		t.Errorf("docker %q", *got)
+	}
+
+	root = customProject(t, "laravel", true)
+	names, _ = registerFor(t, root)
+	if slices.Contains(names, "magento") || !slices.Contains(names, "artisan") {
+		t.Errorf("laravel project registered %q", names)
+	}
+}
+
+func TestSyncOnRun(t *testing.T) {
+	t.Setenv("LODEV_HOME", t.TempDir())
+	rootCmd.SetOut(io.Discard)
+	t.Cleanup(func() { rootCmd.SetOut(nil) })
+	if err := runRoot(t, "version"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(config.Home(), "commands")); err == nil {
+		t.Error("version synced the shipped commands")
+	}
+	if err := runRoot(t, "list"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(config.Home(), "commands", "web", "composer")); err != nil {
+		t.Errorf("list did not sync: %v", err)
+	}
+}
+
+func TestShippedUserOverride(t *testing.T) {
+	root := customProject(t, "php", true)
+	globalCommand(t, "web", "composer", "echo mine\n")
+	got := stubWebRun(t)
+	registerFor(t, root)
+	if err := runRoot(t, "composer", "install"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"bash", "-c", "echo mine\n", "composer", "install"}
+	if len(*got) < len(want) || !slices.Equal((*got)[len(*got)-len(want):], want) {
+		t.Errorf("docker %q", *got)
 	}
 }

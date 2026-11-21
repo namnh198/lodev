@@ -15,18 +15,6 @@ import (
 	"lodev/internal/ui"
 )
 
-func shortcutCmd(name string) []string {
-	switch name {
-	case "artisan":
-		return []string{"php", "artisan"}
-	case "magento":
-		return []string{"php", "bin/magento"}
-	case "n98":
-		return []string{"n98-magerun2"}
-	}
-	return []string{name}
-}
-
 var errServiceName = errors.New("-s/--service needs a service name")
 
 var errProjectNotRunning = errors.New("project is not running. run 'lodev start'")
@@ -211,18 +199,6 @@ func init() {
 		},
 	}
 	rootCmd.AddCommand(sshCmd, execCmd, logsCmd)
-
-	for _, name := range []string{"php", "composer", "npm", "node", "pnpm", "yarn", "grunt", "artisan", "wp", "magento", "n98"} {
-		name := name
-		rootCmd.AddCommand(&cobra.Command{
-			Use:                name + " [args...]",
-			Short:              "Run " + name + " in the web container",
-			DisableFlagParsing: true,
-			RunE: func(_ *cobra.Command, args []string) error {
-				return runInService("web", "", append(shortcutCmd(name), args...))
-			},
-		})
-	}
 
 	xdebugCmd := &cobra.Command{
 		Use:       "xdebug on|off|toggle|status",

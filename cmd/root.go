@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lodev/internal/commands"
+	"lodev/internal/config"
 	"lodev/internal/ui"
 )
 
@@ -21,6 +23,9 @@ var rootCmd = &cobra.Command{
 		}
 		if !skipsSetup(cmd) {
 			firstRun()
+			for _, w := range commands.Sync(config.Home()) {
+				ui.Warn("%s", w)
+			}
 		}
 		if needsDocker[cmd.CommandPath()] {
 			if err := dockerPing(); err != nil {

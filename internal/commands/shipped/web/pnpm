@@ -1,0 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: pnpm [args...]
+# Description: Run pnpm in the web container
+exec pnpm "$@"

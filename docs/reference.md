@@ -620,6 +620,15 @@ folder that is not registered, `.lodev/commands/` is ignored, with the hint
 project's `config.yaml` does not load, only global commands exist and the real command reports
 the error.
 
+**Shipped commands.** lodev ships `php`, `composer`, `npm`, `node`, `pnpm`, `yarn`, `grunt`,
+`artisan`, `wp`, `magento` and `n98` as web command files, written to `~/.lodev/commands/web/`
+by any command except `help`, `version`, `completion` and `self-upgrade` (when missing, or
+when the file still has the marker line and differs). Delete the marker line to edit one: lodev
+then leaves the file alone and runs it instead of its own copy. A command of the same name in
+the project or elsewhere in `~/.lodev/commands/` also replaces the shipped one. `artisan` exists
+only in laravel projects, `wp` only in wordpress ones, and `magento` and `n98` only in magento
+ones.
+
 **Web commands** run like `lodev exec`: as the project user, in `working_dir`, with a TTY when
 you have one, and their exit code. They need a running project.
 
@@ -904,7 +913,7 @@ build) rather than reporting healthy while the site still answers 502. With `web
 | `lodev snapshot create\|list\|restore\|delete [name] [-p project]` | Save the project's databases (its MySQL/MariaDB one, plus MongoDB) to `~/.lodev/snapshots/<project>/<name>/` (readable by you only), list them, load one back (default: the newest; asks first, `--yes` skips; runs `post-snapshot-restore`), or delete one |
 | `lodev logs [-s service] [-j]` | Follow a service's logs (default web; `-s mysql` for a shared service); `-j` pretty-prints JSON lines with jq (web only) |
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
-| `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts (`n98` runs `n98-magerun2`) |
+| `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts, shipped [custom commands](#custom-commands) (`n98` runs `n98-magerun2`); `artisan` exists only in laravel projects, `wp` in wordpress ones, `magento` and `n98` in magento ones |
 | `lodev <name> [args...]` | A [custom command](#custom-commands) from `~/.lodev/commands/` or `.lodev/commands/` |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings |

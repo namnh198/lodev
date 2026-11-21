@@ -328,4 +328,11 @@ func TestTrustItemsCommands(t *testing.T) {
 	if d := items[1].Display; d != "command lodev a (web container): .lodev/commands/web/a, replaces lodev's a" {
 		t.Errorf("shipped name: %q", d)
 	}
+
+	shippedCommands = old
+	writeRepoFile(t, p, ".lodev/commands/host/composer", "echo c\n")
+	items, _ = trustItems(p)
+	if d := items[1].Display; d != "command lodev composer (runs on this machine): .lodev/commands/host/composer, replaces lodev's composer" {
+		t.Errorf("real shipped name: %q", d)
+	}
 }

@@ -1,0 +1,5 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: n98 [args...]
+# Description: Run n98-magerun2 in the web container
+# Type: magento
+exec n98-magerun2 "$@"

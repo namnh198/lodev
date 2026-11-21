@@ -1,0 +1,4 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: php [args...]
+# Description: Run php in the web container
+exec php "$@"

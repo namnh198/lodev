@@ -21,6 +21,8 @@ import (
 // TestMain keeps every other test away from the first-run setup and the real Docker daemon.
 func TestMain(m *testing.M) {
 	firstRun = func() {}
+	home, _ := os.MkdirTemp("", "lodev-cmd-tests") // the shipped-command sync writes under LODEV_HOME
+	os.Setenv("LODEV_HOME", home)
 	waitHealthyFn = func(string, time.Duration, string) error { return nil }
 	waitServicesFn = func([]string, time.Duration) error { return nil }
 	dockerPing = func() error { return nil }
