@@ -1,0 +1,34 @@
+# lodev-generated: delete this line to manage this file yourself
+# Usage: vscode
+# Description: Open VS Code attached to the project's web container (needs the code CLI on PATH and the Dev Containers extension; starts the project if stopped)
+# Ported from tyler36/ddev-vscode-devcontainer commands/host/code (Apache-2.0), web container only.
+[ -n "$LODEV_PROJECT" ] || { echo "not in a lodev project"; exit 1; }
+command -v code >/dev/null || { echo "VS Code CLI not found: install VS Code and run 'Shell Command: Install code command in PATH'"; exit 1; }
+[ "$LODEV_PROJECT_STATUS" = running ] || "$LODEV_BIN" start || exit 1
+
+# The web image has no USER, so without this VS Code attaches as root. Existing files are the user's.
+case $(uname -s) in
+  Darwin) user_dir="$HOME/Library/Application Support/Code/User" ;;
+  *) user_dir="$HOME/.config/Code/User" ;;
+esac
+cfg="$user_dir/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/$LODEV_WEB_CONTAINER.json"
+if [ ! -e "$cfg" ]; then
+  mkdir -p "$(dirname "$cfg")" &&
+    printf '{\n  "remoteUser": "%s",\n  "workspaceFolder": "%s"\n}\n' "$LODEV_CONTAINER_USER" "$LODEV_WORKDIR" >"$cfg"
+fi
+
+# Dev Containers copies the host's .gitconfig into the container only when there is none there.
+copied=
+if [ -e "$HOME/.gitconfig" ] && "$LODEV_BIN" exec sh -c 'command -v git >/dev/null'; then
+  "$LODEV_BIN" exec sh -c 'rm -f ~/.gitconfig' && copied=1
+fi
+
+hex=$(printf %s "$LODEV_WEB_CONTAINER" | od -An -tx1 | tr -d ' \n')
+code --folder-uri "vscode-remote://attached-container+$hex$LODEV_WORKDIR"
+
+if [ -n "$copied" ]; then
+  sleep 1
+  n=0
+  until "$LODEV_BIN" exec sh -c 'test -e ~/.gitconfig' || [ "$n" -ge 5 ]; do n=$((n + 1)); sleep 1; done
+  "$LODEV_BIN" exec sh -c "git config --global core.autocrlf input; git config --global safe.directory '*'"
+fi

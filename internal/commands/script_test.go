@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -156,5 +158,78 @@ func TestDBScripts(t *testing.T) {
 				t.Errorf("%s, %s: %q %q %d", s, c.name, out, calls, code)
 			}
 		}
+	}
+}
+
+func TestVSCodeScript(t *testing.T) {
+	const container = "lodev-shop-web"
+	const sub = "Library/Application Support/Code/User/globalStorage/ms-vscode-remote.remote-containers/nameConfigs"
+	wantURI := "--folder-uri vscode-remote://attached-container+" + hex.EncodeToString([]byte(container)) + "/app"
+	fakes := map[string]string{"code": "true", "lodev": "true", "sleep": "true"}
+	env := func(home string, kv ...string) map[string]string {
+		e := map[string]string{"LODEV_PROJECT": "shop", "LODEV_WEB_CONTAINER": container, "LODEV_CONTAINER_USER": "kuroko",
+			"LODEV_WORKDIR": "/app", "LODEV_PROJECT_STATUS": "running", "LODEV_BIN": "lodev", "HOME": home}
+		for i := 0; i < len(kv); i += 2 {
+			e[kv[i]] = kv[i+1]
+		}
+		return e
+	}
+	// run uses a fresh HOME that holds a host .gitconfig; sleep is a fake, so the waits cost nothing.
+	run := func(osName string, kv ...string) (home, out string, calls []string, code int) {
+		home = t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, ".gitconfig"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		f := map[string]string{"uname": "echo " + osName}
+		for n, b := range fakes {
+			f[n] = b
+		}
+		out, calls, code = runShipped(t, "vscode", env(home, kv...), f)
+		return home, out, slices.DeleteFunc(calls, func(c string) bool { return strings.HasPrefix(c, "uname ") || strings.HasPrefix(c, "sleep ") }), code
+	}
+
+	home, out, calls, code := run("Darwin")
+	want := []string{"lodev exec sh -c command -v git >/dev/null", "lodev exec sh -c rm -f ~/.gitconfig", "code " + wantURI,
+		"lodev exec sh -c test -e ~/.gitconfig", "lodev exec sh -c git config --global core.autocrlf input; git config --global safe.directory '*'"}
+	if code != 0 || out != "" || !slices.Equal(calls, want) {
+		t.Errorf("running, Darwin: %q %q %d", out, calls, code)
+	}
+	b, err := os.ReadFile(filepath.Join(home, sub, container+".json"))
+	var cfg map[string]string
+	if err != nil || json.Unmarshal(b, &cfg) != nil || cfg["remoteUser"] != "kuroko" || cfg["workspaceFolder"] != "/app" {
+		t.Errorf("nameConfigs: %q %v", b, err)
+	}
+
+	home, _, calls, code = run("Linux")
+	if _, err := os.Stat(filepath.Join(home, ".config/Code/User/globalStorage/ms-vscode-remote.remote-containers/nameConfigs", container+".json")); err != nil || code != 0 || !slices.Contains(calls, "code "+wantURI) {
+		t.Errorf("Linux: %v %q %d", err, calls, code)
+	}
+
+	if _, _, calls, _ = run("Darwin", "LODEV_PROJECT_STATUS", "stopped"); len(calls) == 0 || calls[0] != "lodev start" {
+		t.Errorf("stopped: %q", calls)
+	}
+
+	keep := t.TempDir() // an existing nameConfigs file is left unchanged
+	if err := os.MkdirAll(filepath.Join(keep, sub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := filepath.Join(keep, sub, container+".json")
+	if err := os.WriteFile(mine, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runShipped(t, "vscode", env(keep), map[string]string{"uname": "echo Darwin", "code": "true", "lodev": "true", "sleep": "true"})
+	if b, _ := os.ReadFile(mine); string(b) != "mine" {
+		t.Errorf("existing nameConfigs overwritten: %q", b)
+	}
+
+	bare := t.TempDir() // PATH holds only a uname fake, so there is no code
+	if err := os.WriteFile(filepath.Join(bare, "uname"), []byte("#!/bin/sh\necho Linux\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, code := runShipped(t, "vscode", env(t.TempDir(), "PATH", bare), nil); code != 1 || !strings.Contains(out, "VS Code CLI not found") {
+		t.Errorf("no code: %q %d", out, code)
+	}
+	if out, _, code := runShipped(t, "vscode", env(t.TempDir(), "LODEV_PROJECT", ""), fakes); code != 1 || !strings.Contains(out, "not in a lodev project") {
+		t.Errorf("no project: %q %d", out, code)
 	}
 }

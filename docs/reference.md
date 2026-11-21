@@ -645,6 +645,15 @@ which macOS honors only when the app is not already running: quit it first.
 | `mysqlworkbench` | MySQL Workbench | `--query user@host:port`; it asks for the password (`root`); `mysql-workbench` on Linux |
 | `tablepro` | TablePro | macOS only; `mysql://` or `mariadb://` URL; TablePro asks you to confirm the connection |
 
+`vscode` opens VS Code attached to the project's web container. It needs `code` on PATH and the
+Dev Containers extension, and runs `lodev start` first when the project is stopped. It removes the
+container user's `~/.gitconfig` so the extension copies yours, then sets `core.autocrlf input` and
+`safe.directory '*'` again. Because the web image has no `USER`, it writes VS Code's per-container
+config (`nameConfigs/lodev-<project>-web.json` under `~/Library/Application Support/Code/User` on
+macOS, `~/.config/Code/User` on Linux) with the project user and `working_dir`, only when the file
+is missing, so your edits are kept. Ported from
+[tyler36/ddev-vscode-devcontainer](https://github.com/tyler36/ddev-vscode-devcontainer) (Apache-2.0).
+
 **Web commands** run like `lodev exec`: as the project user, in `working_dir`, with a TTY when
 you have one, and their exit code. They need a running project.
 
@@ -931,6 +940,7 @@ build) rather than reporting healthy while the site still answers 502. With `web
 | `lodev ssh [name] [-s service]` / `lodev exec [-s service] <cmd>` | Shell / command in the web container, or in another service of the project |
 | `lodev php\|composer\|npm\|node\|pnpm\|yarn\|grunt\|artisan\|wp\|magento\|n98 ...` | Shortcuts, shipped [custom commands](#custom-commands) (`n98` runs `n98-magerun2`); `artisan` exists only in laravel projects, `wp` in wordpress ones, `magento` and `n98` in magento ones |
 | `lodev <name> [args...]` | A [custom command](#custom-commands) from `~/.lodev/commands/` or `.lodev/commands/` |
+| `lodev vscode` | Open VS Code attached to the web container (needs `code` on PATH and the Dev Containers extension; starts the project if stopped). A shipped host [custom command](#custom-commands) |
 | `lodev xdebug on\|off\|toggle\|status` | Turn Xdebug on/off, or flip it with `toggle` (port 9003); saved as `enable_xdebug` in `.lodev/config.local.yaml` (never the committed `config.yaml`), so `lodev start` / `restart` keep it (a stopped project just gets the setting) |
 | `lodev phpstorm [--yes]` | Write the PhpStorm interpreter, debug server and path mapping into `.idea/` ([PhpStorm](#phpstorm)), keeping your other settings |
 | `lodev describe [project]` | Project URLs, its services with status, in-network/host ports, images and credentials, plus phpMyAdmin/Mailpit (aliases `status`, `st`, `desc`) |
