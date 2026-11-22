@@ -3,6 +3,7 @@
 The CLI tool for creating and managing local PHP development environments with Docker.
 
 [![Install](https://img.shields.io/badge/install-555)](#getting-started)
+[![Docs](https://img.shields.io/badge/docs-lodev.namhoainguyen.com-555)](https://lodev.namhoainguyen.com/)
 [![Latest release](https://img.shields.io/github/v/release/namnh198/lodev)](https://github.com/namnh198/lodev/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/namnh198/lodev/total)](https://github.com/namnh198/lodev/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
