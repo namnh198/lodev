@@ -113,8 +113,8 @@ How `https://myshop.test` reaches your project:
 | `lodev doctor`                                            | Check Docker, ports, certificates and services, with a fix for each problem                    |
 | `lodev self-upgrade`                                      | Upgrade to the latest signed release                                                           |
 
-Every command takes `--help`. Until the docs site exists, the full reference lives in
-[docs/reference.md](docs/reference.md): configuration, hooks, services and every command.
+Every command takes `--help`. The full docs live at <https://namnh198.github.io/lodev/>
+(source: [docs/contents](docs/contents)): configuration, hooks, services and every command.
 
 ## License
 
