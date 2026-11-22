@@ -5,7 +5,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      version = "0.1.5"; # the latest release; bump it on every release (`lodev version` shows v<version>)
+      version = "0.1.12"; # the latest release; bump it on every release (`lodev version` shows v<version>)
       systems = [ "aarch64-darwin" "x86_64-darwin" "aarch64-linux" "x86_64-linux" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
