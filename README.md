@@ -1,4 +1,4 @@
-<img src="docs/logo/lodev-logo.svg" alt="lodev" height="64">
+<img src="docs/public/lodev-logo.svg" alt="lodev" height="64">
 
 The CLI tool for creating and managing local PHP development environments with Docker.
 

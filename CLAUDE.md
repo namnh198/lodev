@@ -11,7 +11,7 @@ hooks, services, every command); `README.md` is only the landing page. `make hel
 - Run Go commands outside the sandbox with `GOCACHE=$TMPDIR/gocache`: inside, Go cannot reach
   its module cache or verify TLS, and `httptest` cannot bind a port.
 - `gofmt -l cmd internal tools containers` prints nothing before a commit.
-- Docs changes: `cd docs && npm run build` passes (it fails on a broken internal link or anchor).
+- Docs changes: `cd docs && pnpm install && pnpm run build` passes (it fails on a broken internal link or anchor).
 - Golden files: `go test ./internal/templates/ ./internal/config/ -update`, then read the diff.
 
 ## Change discipline

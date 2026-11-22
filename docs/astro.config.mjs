@@ -12,8 +12,8 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'lodev',
-      logo: { src: './logo/lodev-logo.svg', replacesTitle: true },
-      favicon: '/favicon.svg',
+      logo: { src: './public/lodev-logo.svg', replacesTitle: true },
+      favicon: '/lodev-mark.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/namnh198/lodev' }],
       // shortcut: Starlight strips only src/content/docs/ from entry paths, so autogenerate needs the contents/ prefix; drop it if docs moves under src/content/docs.
       sidebar: [

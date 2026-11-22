@@ -8,9 +8,9 @@ markdown files under `docs/contents/`.
 
 ```bash
 cd docs
-npm ci
-npm run dev        # live preview
-npm run build      # builds dist/ and fails on a broken internal link or anchor
+pnpm install
+pnpm run dev       # live preview
+pnpm run build     # builds dist/ and fails on a broken internal link or anchor
 ```
 
 Link between pages with relative file links (`../configuration/project.md#local-overrides`):
@@ -27,7 +27,7 @@ Cloudflare dashboard, under Workers & Pages → Create → Import a repository:
 | Repository | `namnh198/lodev` |
 | Worker name | `lodev-docs` (must match `name` in `docs/wrangler.jsonc`) |
 | Root directory | `docs` |
-| Build command | `npm ci && npm run build` |
+| Build command | `pnpm install --frozen-lockfile && pnpm run build` |
 | Deploy command | `npx wrangler deploy` |
 
 The first deploy creates the custom domain and its DNS record, because the zone is on Cloudflare.
