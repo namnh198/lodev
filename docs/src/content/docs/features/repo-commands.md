@@ -1,5 +1,5 @@
 ---
-title: "Commands from the project's repo"
+title: "Repo commands"
 description: "Commands a repo asks lodev to run, and the trust list that guards them."
 ---
 

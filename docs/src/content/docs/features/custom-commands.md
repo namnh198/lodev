@@ -71,7 +71,7 @@ exec php bin/report.php "$@"
 
 ## Registered projects only
 
-- Project commands need a registered project: one made by `lodev create`, which lists them for review (see [Commands from the project's repo](repo-commands.md)).
+- Project commands need a registered project: one made by `lodev create`, which lists them for review (see [Repo commands](repo-commands.md)).
 - In a cloned folder that is not registered, `.lodev/commands/` is ignored. The hint is `.lodev/commands is not loaded: run lodev create to review the project's commands`.
 - When the project's `config.yaml` does not load:
   - Project commands are not loaded, and the type filter is off.
