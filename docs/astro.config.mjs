@@ -3,11 +3,10 @@ import starlight from '@astrojs/starlight';
 import rehypeMdLinks from './src/rehype-md-links.mjs';
 
 export default defineConfig({
-  site: 'https://namnh198.github.io',
-  base: '/lodev',
+  site: 'https://lodev.namhoainguyen.com',
   markdown: {
     rehypePlugins: [
-      [rehypeMdLinks, { base: '/lodev' }],
+      [rehypeMdLinks, { base: '' }],
     ],
   },
   integrations: [

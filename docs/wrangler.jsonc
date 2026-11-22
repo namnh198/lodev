@@ -1,0 +1,6 @@
+{
+  "name": "lodev-docs",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
+  "routes": [{ "pattern": "lodev.namhoainguyen.com", "custom_domain": true }]
+}

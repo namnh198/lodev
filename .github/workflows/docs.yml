@@ -1,12 +1,13 @@
 name: Docs
 
+# Checks the site builds and every internal link resolves. Cloudflare Workers Builds
+# deploys it from main (see docs/contents/contributing/docs-site.md).
 on:
   push:
     branches: [main]
     paths: ['docs/**', '!docs/superpowers/**', '.github/workflows/docs.yml']
   pull_request:
     paths: ['docs/**', '!docs/superpowers/**', '.github/workflows/docs.yml']
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,30 +19,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22.23.4 # astro refuses older 22.x
+          node-version-file: docs/.node-version
           cache: npm
           cache-dependency-path: docs/package-lock.json
       - run: npm ci
         working-directory: docs
       - run: npm run build # also fails on a broken internal link or anchor
         working-directory: docs
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: docs/dist
-
-  deploy:
-    needs: build
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5

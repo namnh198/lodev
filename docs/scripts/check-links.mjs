@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const dist = path.resolve('dist');
-const base = '/lodev';
+const base = '';
 const pages = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? (e.name === 'pagefind' ? [] : pages(path.join(dir, e.name))) : e.name.endsWith('.html') ? [path.join(dir, e.name)] : [],
@@ -27,7 +27,7 @@ for (const file of pages(dist)) {
     const [pathname, fragment] = raw.split('#');
     let target = file;
     if (pathname) {
-      if (!pathname.startsWith(base + '/')) { errors.push(`${page}: ${raw} (outside ${base}/)`); continue; }
+      if (!pathname.startsWith(base + '/')) { errors.push(`${page}: ${raw} (outside the site root)`); continue; }
       target = path.join(dist, pathname.slice(base.length).split('?')[0]);
       if (existsSync(target) && statSync(target).isDirectory()) target = path.join(target, 'index.html');
       if (!existsSync(target)) { errors.push(`${page}: ${raw} (no such page)`); continue; }
