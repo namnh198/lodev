@@ -7,3 +7,8 @@ tests/**
 .claude/worktrees/
 .claude/.cc-writes
 .claude/settings.local.json
+
+# docs site (Astro)
+docs/node_modules/
+docs/dist/
+docs/.astro/

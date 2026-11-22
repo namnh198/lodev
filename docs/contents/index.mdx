@@ -1,0 +1,34 @@
+---
+title: lodev
+description: The CLI tool for creating and managing local PHP development environments with Docker.
+template: splash
+hero:
+  tagline: The CLI tool for creating and managing local PHP development environments with Docker.
+  image:
+    file: ../logo/lodev-mark.svg
+  actions:
+    - text: Get started
+      link: /lodev/getting-started/install/
+      icon: right-arrow
+    - text: Reference
+      link: /lodev/configuration/project/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="One shared stack" icon="seti:db">
+    MySQL, Redis, OpenSearch and Mailpit run once for every project. Each project
+    runs a single small PHP container (php-fpm with nginx or apache), so ten projects cost about ten
+    php-fpm processes, not ten databases.
+  </Card>
+  <Card title="Ready for real apps" icon="rocket">
+    It supports PHP 7.4–8.6, with Composer, Node.js, pnpm, Yarn, wp-cli and n98-magerun2 in the
+    image. It detects the framework and sets up the database, HTTPS domains and mail capture for you.
+  </Card>
+  <Card title="Your config travels with the repo" icon="document">
+    `.lodev/config.yaml` holds the project's settings, hooks,
+    cron and extra services. Personal toggles such as Xdebug stay in the uncommitted `config.local.yaml`.
+  </Card>
+</CardGrid>
