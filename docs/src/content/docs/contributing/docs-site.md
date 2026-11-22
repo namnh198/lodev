@@ -4,7 +4,7 @@ description: "How this site is built and deployed to Cloudflare Workers."
 ---
 
 The site is [Starlight](https://starlight.astro.build) (Astro) in `docs/`; the pages are the
-markdown files under `docs/contents/`.
+markdown files under `docs/src/content/docs/`.
 
 ```bash
 cd docs

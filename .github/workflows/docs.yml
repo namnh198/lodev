@@ -1,7 +1,7 @@
 name: Docs
 
 # Checks the site builds and every internal link resolves. Cloudflare Workers Builds
-# deploys it from main (see docs/contents/contributing/docs-site.md).
+# deploys it from main (see docs/src/content/docs/contributing/docs-site.md).
 on:
   push:
     branches: [main]

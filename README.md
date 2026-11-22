@@ -115,7 +115,7 @@ How `https://myshop.test` reaches your project:
 | `lodev self-upgrade`                                      | Upgrade to the latest signed release                                                           |
 
 Every command takes `--help`. The full docs live at <https://lodev.namhoainguyen.com/>
-(source: [docs/contents](docs/contents)): configuration, hooks, services and every command.
+(source: [docs/src/content/docs](docs/src/content/docs)): configuration, hooks, services and every command.
 
 ## License
 

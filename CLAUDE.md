@@ -1,13 +1,13 @@
 # lodev
 
 Go CLI (cobra, yaml.v3) that runs local PHP sites in Docker: a shared stack (traefik, mysql,
-redis, mailpit...) plus one `lodev-<name>-web` container per project. `docs/contents/` (a Starlight
+redis, mailpit...) plus one `lodev-<name>-web` container per project. `docs/src/content/docs/` (a Starlight
 site, one page per topic) is the user manual and the spec of record for behaviour (config keys,
 hooks, services, every command); `README.md` is only the landing page. `make help` lists build targets.
 
 The docs site is https://lodev.namhoainguyen.com/: Cloudflare Workers Builds (Worker `lodev-docs`, root
 `docs`) builds and deploys it on every push to `main`, so merging a docs change publishes it. The GitHub
-workflow `docs.yml` only checks the build; setup is in `docs/contents/contributing/docs-site.md`.
+workflow `docs.yml` only checks the build; setup is in `docs/src/content/docs/contributing/docs-site.md`.
 
 ## Verify
 
@@ -23,7 +23,7 @@ workflow `docs.yml` only checks the build; setup is in `docs/contents/contributi
 - TDD: a test that fails for the right reason first, then the code. Tests stub the outside
   world through package vars (`dockerRun`, `containerRunning`, `userReady`, `execInWeb` via
   `stubHookExec`, `startStubs`) and isolate state with `t.Setenv("LODEV_HOME", t.TempDir())`.
-- A behaviour change updates its page under `docs/contents/` and `docs/contents/commands.md` in
+- A behaviour change updates its page under `docs/src/content/docs/` and `docs/src/content/docs/commands.md` in
   the same commit. `README.md` changes only when Getting Started, the pitch or the
   everyday-commands table stops being true.
 - Commits: conventional prefix (`feat:`, `fix:`, `refactor:`, `chore:`), lowercase, the
