@@ -29,13 +29,18 @@ type Command struct {
 	Complete   *Command // autocomplete script for this command, from the same scope; nil if none
 }
 
-// FilterSuggestions keeps the lines of out whose value (before a tab) starts with toComplete.
+// FilterSuggestions keeps the lines of out whose value (before a tab) starts with toComplete,
+// without trailing spaces on the value (wp prints "plugin ", which the shell would escape).
 func FilterSuggestions(out, toComplete string) []string {
 	var keep []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimRight(line, "\r")
-		if value, _, _ := strings.Cut(line, "\t"); value != "" && strings.HasPrefix(value, toComplete) {
-			keep = append(keep, line)
+		value, desc, tab := strings.Cut(line, "\t")
+		if value = strings.TrimRight(value, " "); value != "" && strings.HasPrefix(value, toComplete) {
+			if tab {
+				value += "\t" + desc
+			}
+			keep = append(keep, value)
 		}
 	}
 	return keep

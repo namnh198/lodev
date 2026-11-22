@@ -24,6 +24,12 @@ func TestFilterSuggestions(t *testing.T) {
 	if got := FilterSuggestions("", ""); got != nil {
 		t.Errorf("empty output: %q", got)
 	}
+	if got := FilterSuggestions("plugin \nactivate \n", ""); !slices.Equal(got, []string{"plugin", "activate"}) {
+		t.Errorf("trailing spaces: %q", got)
+	}
+	if got := FilterSuggestions("plugin \tManage plugins\n", "pl"); !slices.Equal(got, []string{"plugin\tManage plugins"}) {
+		t.Errorf("space before tab: %q", got)
+	}
 }
 
 func TestLoadDirAutocomplete(t *testing.T) {

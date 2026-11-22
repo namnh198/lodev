@@ -45,6 +45,18 @@ func TestCompleteHost(t *testing.T) {
 	}
 }
 
+func TestCompleteHostFailure(t *testing.T) {
+	root := customProject(t, "php", true)
+	withoutShipped(t)
+	stubHostRun(t)
+	writeFile(t, filepath.Join(root, ".lodev/commands/host/hi"), "echo hi\n")
+	writeFile(t, filepath.Join(root, ".lodev/commands/host/autocomplete/hi"), "#!/bin/sh\necho one\nexit 1\n")
+	registerFor(t, root)
+	if got := completeRoot(t, "hi", ""); got != ":0" {
+		t.Errorf("failing script: %q", got)
+	}
+}
+
 func TestCompleteTimeout(t *testing.T) {
 	root := customProject(t, "php", true)
 	withoutShipped(t)

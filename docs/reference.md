@@ -729,7 +729,10 @@ autocomplete script, a `~/.lodev/commands/` command the one in `~/.lodev/command
 and a project command the project's. There is no fallback across scopes: a file that replaces a
 shipped command has no completion until you add its autocomplete script too. lodev's own scripts are
 synced to `~/.lodev/commands/<kind>/autocomplete/` like the commands, with the same marker rule; a
-synced copy that still has the marker is never used for your own command of that name. A project's
+synced copy that still has the marker is never used for your own command of that name. Removing the
+marker from a synced `~/.lodev/commands/<kind>/autocomplete/<name>` has no effect while the command
+file itself still carries lodev's marker: the shipped command and its embedded script win. To
+customise a shipped command's completion, take over both files. A project's
 autocomplete scripts load only for a registered project, and `lodev create` lists each one as
 `autocomplete for lodev <name> (web container): .lodev/commands/web/autocomplete/<name>` (or
 `(runs on this machine)` for host). Warnings about custom command files are not printed while the

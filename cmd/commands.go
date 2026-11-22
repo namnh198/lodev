@@ -103,8 +103,10 @@ func completeCustom(c commands.Command, p *config.Project, wd string, args []str
 			out, _ = dockerOutput(docker.ExecArgs(p.ComposeProject(), composeFile(p), "web", user, p.WorkDir(), false, webArgv(ac, argv))...)
 		} else if x, cleanup, err := hostProcess(ctx, ac, p, wd, argv); err == nil {
 			defer cleanup()
-			b, _ := x.Output() // stdin and stderr stay nil: /dev/null
-			out = string(b)
+			// stdin and stderr stay nil: /dev/null; a failed or killed script's output is not trusted
+			if b, err := x.Output(); err == nil {
+				out = string(b)
+			}
 		}
 		done <- out
 	}()
