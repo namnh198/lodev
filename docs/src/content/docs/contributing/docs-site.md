@@ -30,7 +30,7 @@ Cloudflare Workers Builds builds the site on every push to `main` that changes `
 
 - It serves `docs/dist/` as a Worker's static assets.
 - The site is `lodev.namhoainguyen.com`, set in `docs/wrangler.jsonc`.
-- The GitHub workflow `docs.yml` only checks that the site builds. It deploys nothing.
+- The build fails on a broken internal link or anchor, so a broken docs change is not deployed.
 - The Node version comes from `docs/.node-version`.
 - The first deploy creates the custom domain and its DNS record, because the zone is on Cloudflare.
 

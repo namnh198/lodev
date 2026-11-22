@@ -6,8 +6,8 @@ site, one page per topic) is the user manual and the spec of record for behaviou
 hooks, services, every command); `README.md` is only the landing page. `make help` lists build targets.
 
 The docs site is https://lodev.namhoainguyen.com/: Cloudflare Workers Builds (Worker `lodev-docs`, root
-`docs`) builds and deploys it on every push to `main` that changes `docs/` (build watch path `docs/*`), so merging a docs change publishes it. The GitHub
-workflow `docs.yml` only checks the build; setup is in `docs/src/content/docs/contributing/docs-site.md`.
+`docs`) builds and deploys it on every push to `main` that changes `docs/` (build watch path `docs/*`), so merging a docs change publishes it. A broken link
+fails that build, so it is not deployed; setup is in `docs/src/content/docs/contributing/docs-site.md`.
 
 ## Verify
 
