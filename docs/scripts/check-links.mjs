@@ -15,9 +15,14 @@ const idsOf = (file) => {
 };
 
 const errors = [];
+const sidebarOf = (html) => (html.match(/<details[\s\S]*?<\/details>/g) ?? []).filter((d) => d.includes('sidebar-'));
 for (const file of pages(dist)) {
   const page = path.relative(dist, file);
-  for (const [, raw] of readFileSync(file, 'utf8').matchAll(/\shref="([^"]*)"/g)) {
+  const html = readFileSync(file, 'utf8');
+  if (page === path.join('commands', 'index.html')) {
+    for (const d of sidebarOf(html)) if (!/<a /.test(d)) errors.push(`${page}: an empty sidebar group (autogenerate matched no pages)`);
+  }
+  for (const [, raw] of html.matchAll(/\shref="([^"]*)"/g)) {
     if (/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(raw)) continue; // external
     const [pathname, fragment] = raw.split('#');
     let target = file;
