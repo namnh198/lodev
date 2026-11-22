@@ -23,7 +23,7 @@ workflow `docs.yml` only checks the build; setup is in `docs/src/content/docs/co
 - TDD: a test that fails for the right reason first, then the code. Tests stub the outside
   world through package vars (`dockerRun`, `containerRunning`, `userReady`, `execInWeb` via
   `stubHookExec`, `startStubs`) and isolate state with `t.Setenv("LODEV_HOME", t.TempDir())`.
-- A behaviour change updates its page under `docs/src/content/docs/` and `docs/src/content/docs/commands.md` in
+- A behaviour change updates its page under `docs/src/content/docs/` and `docs/src/content/docs/features/commands.md` in
   the same commit. `README.md` changes only when Getting Started, the pitch or the
   everyday-commands table stops being true.
 - Commits: conventional prefix (`feat:`, `fix:`, `refactor:`, `chore:`), lowercase, the

@@ -3,14 +3,22 @@ title: "Exposed ports"
 description: "Publish service and project ports on the host."
 ---
 
-`web_extra_exposed_ports` makes a server inside the web container (a Vite dev server, say)
-reachable as `https://<name>.<first domain>` (`https://vite.shop.test`), straight to the web
-container even with Varnish. The host joins the certificate, `/etc/hosts` and the domain checks
-like any domain; it needs a webserver and cannot equal one of `domains`. The web container gets
-`LODEV_EXPOSED_<NAME>_URL` (name upper-cased, `-` becomes `_`) with the URL. Changes apply on
-`lodev restart`.
+Makes a server inside the web container (e.g. a Vite dev server) reachable at its own HTTPS host name.
 
-Vite with a daemon and an exposed port:
+## What it does
+
+- `web_extra_exposed_ports` routes `https://<name>.<first domain>` to a web container port.
+  - Example: `https://vite.shop.test`.
+- It goes straight to the web container, even with Varnish.
+- The host joins the certificate, `/etc/hosts` and the domain checks, like any domain.
+- Rules:
+  - It needs a webserver.
+  - The host cannot equal one of `domains`.
+- The web container gets `LODEV_EXPOSED_<NAME>_URL` with the URL.
+  - `<NAME>` is the name upper-cased, with `-` turned into `_`.
+- Changes apply on `lodev restart`.
+
+## Example: Vite
 
 ```yaml
 web_extra_daemons:

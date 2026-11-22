@@ -19,7 +19,6 @@ export default defineConfig({
         { label: 'Configuration', items: [{ autogenerate: { directory: 'configuration' } }] },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
         { label: 'Services', items: [{ autogenerate: { directory: 'services' } }] },
-        { label: 'Commands', link: '/commands/' },
         { label: 'Contributing', items: [{ autogenerate: { directory: 'contributing' } }] },
       ],
       editLink: { baseUrl: 'https://github.com/namnh198/lodev/edit/main/docs/' },

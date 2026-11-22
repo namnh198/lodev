@@ -3,14 +3,35 @@ title: "Varnish"
 description: "Put Varnish in front of the web container."
 ---
 
-`lodev config --varnish=true` (optional `--varnish-version=9.1`) then `lodev restart` puts a
-`lodev-<name>-varnish` container in front of the web server: Traefik → varnish:80 → web:80,
-and the web container gets `VARNISH_HOST=lodev-<name>-varnish`. Not available with `webserver: none`.
-`--varnish=false` removes the container on the next start.
+Puts a Varnish cache between Traefik and the web server, per project.
 
-lodev writes a default VCL to `.lodev/varnish.vcl` (backend `lodev-<name>-web:80`, PURGE/BAN from the Docker
-networks, no caching of non-GET/HEAD or authorized requests). Delete its first line to manage it
-yourself. For Magento, use Magento's VCL and point its cache at Varnish:
+## Turn it on
+
+1. `lodev config --varnish=true` (optionally with `--varnish-version=9.1`).
+2. `lodev restart`.
+
+What it does:
+
+- Adds a `lodev-<name>-varnish` container.
+- The request path becomes Traefik → `varnish:80` → `web:80`.
+- The web container gets `VARNISH_HOST=lodev-<name>-varnish`.
+
+Notes:
+
+- Not available with `webserver: none`.
+- `--varnish=false` removes the container on the next start.
+
+## Default VCL
+
+- lodev writes a default VCL to `.lodev/varnish.vcl`.
+- Backend: `lodev-<name>-web:80`.
+- PURGE and BAN are allowed from the Docker networks.
+- Non-GET/HEAD requests and authorized requests are not cached.
+- To manage the file yourself, delete its first line.
+
+## Magento
+
+Use Magento's VCL, and point its cache at Varnish:
 
 ```bash
 bin/magento varnish:vcl:generate --backend-host=lodev-<name>-web --backend-port=80 \

@@ -3,8 +3,14 @@ title: "Docs site"
 description: "How this site is built and deployed to Cloudflare Workers."
 ---
 
-The site is [Starlight](https://starlight.astro.build) (Astro) in `docs/`; the pages are the
-markdown files under `docs/src/content/docs/`.
+How to build, preview and deploy the docs site.
+
+## Stack
+
+- The site is [Starlight](https://starlight.astro.build) (Astro), in `docs/`.
+- The pages are the markdown files under `docs/src/content/docs/`.
+
+## Build and preview
 
 ```bash
 cd docs
@@ -13,14 +19,24 @@ pnpm run dev       # live preview
 pnpm run build     # builds dist/ and fails on a broken internal link or anchor
 ```
 
-Link between pages with relative file links (`../configuration/project.md#local-overrides`):
-they work on GitHub and are rewritten to site URLs at build time.
+## Links
+
+- Link between pages with relative file links, e.g. `../configuration/project.md`.
+- They work on GitHub, and are rewritten to site URLs at build time.
 
 ## Deploy
 
-Cloudflare Workers Builds builds the site on every push to `main` that changes `docs/`, and serves `docs/dist/` as a
-Worker's static assets, on `lodev.namhoainguyen.com` (`docs/wrangler.jsonc`). One-time setup in the
-Cloudflare dashboard, under Workers & Pages → Create → Import a repository:
+Cloudflare Workers Builds builds the site on every push to `main` that changes `docs/`.
+
+- It serves `docs/dist/` as a Worker's static assets.
+- The site is `lodev.namhoainguyen.com`, set in `docs/wrangler.jsonc`.
+- The GitHub workflow `docs.yml` only checks that the site builds. It deploys nothing.
+- The Node version comes from `docs/.node-version`.
+- The first deploy creates the custom domain and its DNS record, because the zone is on Cloudflare.
+
+### One-time setup
+
+In the Cloudflare dashboard, go to Workers & Pages → Create → Import a repository, and use:
 
 | Setting | Value |
 |---|---|
@@ -30,7 +46,3 @@ Cloudflare dashboard, under Workers & Pages → Create → Import a repository:
 | Build command | `pnpm install --frozen-lockfile && pnpm run build` |
 | Deploy command | `npx wrangler deploy` |
 | Build watch paths | Include `docs/*` (relative to the repository root; other pushes are skipped) |
-
-The first deploy creates the custom domain and its DNS record, because the zone is on Cloudflare.
-The Node version comes from `docs/.node-version`. The GitHub workflow `docs.yml` only checks that the
-site builds; it deploys nothing.

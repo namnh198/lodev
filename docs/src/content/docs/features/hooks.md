@@ -3,7 +3,10 @@ title: "Hooks"
 description: "Run commands at lifecycle points of a project."
 ---
 
-Steps lodev runs in the web container (as your user, in `working_dir`) at four moments:
+Runs steps in the web container at four moments in a project's life.
+
+- Runs as your user, in `working_dir`.
+- Needs the web container running (see the last section).
 
 | Event | When |
 |---|---|
@@ -12,7 +15,12 @@ Steps lodev runs in the web container (as your user, in `working_dir`) at four m
 | `post-db-import` | after `lodev db-import` into the project's own database |
 | `post-snapshot-restore` | after `lodev snapshot restore` |
 
-A step is a shell command or a script in the project, in `.lodev/config.yaml`:
+## Defining steps
+
+Steps come from two places, in this order:
+
+1. Config steps in `.lodev/config.yaml`.
+2. Every file in `.lodev/hooks/<event>.d/`, in name order.
 
 ```yaml
 hooks:
@@ -21,8 +29,25 @@ hooks:
     - script: .lodev/hooks/warm-cache.sh
 ```
 
-and every file in `.lodev/hooks/<event>.d/` (e.g. `.lodev/hooks/post-start.d/10-composer.sh`)
-runs too, after the config's steps, in name order (`.example` and dot files are skipped). A script
-must be executable (`chmod +x`); its shebang picks the interpreter. Steps get `LODEV_HOOK` and
-`LODEV_PROJECT`. A failing step stops the remaining ones and lodev exits with an error; the command
-itself is not undone. `--no-hooks` on `start`, `restart`, `stop` and `db-import` skips them.
+- A step is a shell command, or a script in the project (`script:`).
+- A file in `.lodev/hooks/<event>.d/` runs after the config's steps, e.g. `.lodev/hooks/post-start.d/10-composer.sh`.
+- Skipped in `.d/`: dot files and `.example` files.
+- A script must be executable (`chmod +x`). Its shebang picks the interpreter.
+- A command step runs with `sh -c`.
+
+## Running
+
+- Steps get `LODEV_HOOK` and `LODEV_PROJECT`.
+- A failing step stops the remaining ones, and lodev exits with an error.
+- The command itself is not undone.
+- A hook needs the web container running. Without it, the step fails with `hook <event>: lodev-<name>-web is not running`.
+
+## Skipping hooks
+
+`--no-hooks` skips them:
+
+- `start`: `post-start`
+- `stop`: `pre-stop`
+- `restart`: both
+- `db-import`: `post-db-import`
+- `snapshot restore`: `post-snapshot-restore`

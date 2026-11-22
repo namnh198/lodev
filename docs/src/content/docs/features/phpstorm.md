@@ -3,22 +3,49 @@ title: "PhpStorm"
 description: "Write PhpStorm interpreter, debug server and path mapping into .idea/."
 ---
 
-After `lodev start`, run `lodev phpstorm` in the project folder. It writes into `.idea/`:
+`lodev phpstorm` writes the project's PhpStorm settings into `.idea/`, then opens PhpStorm.
 
-- `php.xml`: a Docker Compose CLI interpreter named `lodev` (configuration file
-  `.lodev/lodev.compose-full.yml`, service `web`, connect to the running container), PHP
-  executable `/usr/bin/php<php>`.
-- `workspace.xml`: a server named after `php_ide_config` (default the project name) for the first
-  domain, mapping the project folder → `working_dir` (default `/app`); the container sets
-  `PHP_IDE_CONFIG` to it. It also makes `lodev` the project's interpreter.
+## Steps
 
-Every other setting in `.idea/` is kept, and running it again only refreshes lodev's entries: do so
-after changing `php:`, `working_dir`, `php_ide_config` or domains. Once `.idea/` is written it
-opens PhpStorm on the project folder (`open -a PhpStorm` on macOS, `phpstorm` elsewhere); when
-that fails it warns and you open the project yourself. Close the project in PhpStorm
-first: it may overwrite `workspace.xml` when it saves (the command asks while PhpStorm runs;
-`--yes` skips the question). PhpStorm listens on ports 9000 and 9003 by default, and Xdebug
-(`lodev xdebug on`) connects on `host.docker.internal:9003`.
+1. Start the project with `lodev start`.
+2. Close the project in PhpStorm, if it is open.
+3. Run `lodev phpstorm` in the project folder.
 
-A plain **Docker** interpreter on the `lodev/webserver` image gets the newest PHP: set its PHP
-executable to `/usr/bin/php<version>` (e.g. `/usr/bin/php8.4`).
+## What it writes
+
+- `php.xml`:
+  - A Docker Compose CLI interpreter named `lodev`.
+  - Its configuration file is `.lodev/lodev.compose-full.yml`, service `web`, connecting to the running container.
+  - Its PHP executable is `/usr/bin/php<php>`.
+- `workspace.xml`:
+  - A server named after `php_ide_config`, default the project name, for the first domain.
+  - A path mapping: the project folder → `working_dir` (default `/app`).
+  - The container sets `PHP_IDE_CONFIG` to that server name.
+  - It makes `lodev` the project's interpreter.
+
+Every other setting in `.idea/` is kept.
+
+## Running it again
+
+- Running it again only refreshes lodev's entries.
+- Run it again after changing `php:`, `working_dir`, `php_ide_config` or domains.
+
+## Opening PhpStorm
+
+- Once `.idea/` is written, it opens PhpStorm on the project folder.
+  - macOS: `open -a PhpStorm`.
+  - Elsewhere: `phpstorm`.
+- If that fails, it warns, and you open the project yourself.
+- PhpStorm may overwrite `workspace.xml` when it saves. Close the project first.
+- The command asks while PhpStorm runs. `--yes` skips the question.
+
+## Ports
+
+- PhpStorm listens on ports 9000 and 9003 by default.
+- Xdebug (after `lodev xdebug on`) connects to `host.docker.internal:9003`.
+
+## Docker interpreter
+
+A plain **Docker** interpreter on the `lodev/webserver` image gets the newest PHP.
+
+- Set its PHP executable to `/usr/bin/php<version>`, e.g. `/usr/bin/php8.4`.
