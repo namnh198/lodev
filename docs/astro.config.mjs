@@ -1,13 +1,12 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { unified } from '@astrojs/markdown-remark';
 import rehypeMdLinks from './src/rehype-md-links.mjs';
 
 export default defineConfig({
   site: 'https://lodev.namhoainguyen.com',
   markdown: {
-    rehypePlugins: [
-      [rehypeMdLinks, { base: '' }],
-    ],
+    processor: unified({ rehypePlugins: [[rehypeMdLinks, { base: '' }]] }),
   },
   integrations: [
     starlight({
