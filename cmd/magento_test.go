@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"lodev/internal/config"
+	"lodev/internal/ui"
 )
 
 func TestMagentoSQL(t *testing.T) {
@@ -15,17 +16,27 @@ func TestMagentoSQL(t *testing.T) {
 		"UPDATE `shop`.`core_config_data` SET value='https://shop.test/' WHERE path IN ('web/unsecure/base_url','web/secure/base_url','web/unsecure/base_link_url','web/secure/base_link_url')",
 		"UPDATE `shop`.`core_config_data` SET value=NULL WHERE path IN ('web/unsecure/base_static_url','web/secure/base_static_url','web/unsecure/base_media_url','web/secure/base_media_url')",
 		"DELETE FROM `shop`.`core_config_data` WHERE path='web/cookie/cookie_domain'",
+		"DELETE FROM `shop`.`core_config_data` WHERE path LIKE 'system/smtp/%'",
+		"INSERT INTO `shop`.`core_config_data` (scope,scope_id,path,value) VALUES ('default',0,'system/smtp/disable','0'),('default',0,'system/smtp/transport','smtp'),('default',0,'system/smtp/host','mailpit'),('default',0,'system/smtp/port','1025'),('default',0,'system/smtp/auth','none')",
+		"DELETE FROM `shop`.`core_config_data` WHERE path IN ('catalog/search/opensearch_server_hostname','catalog/search/opensearch_server_port','catalog/search/opensearch_enable_auth','catalog/search/opensearch_index_prefix')",
+		"INSERT INTO `shop`.`core_config_data` (scope,scope_id,path,value) VALUES ('default',0,'catalog/search/opensearch_server_hostname','opensearch'),('default',0,'catalog/search/opensearch_server_port','9200'),('default',0,'catalog/search/opensearch_enable_auth','0'),('default',0,'catalog/search/opensearch_index_prefix','shop')",
 	}
-	if got := magentoSQL("shop", "", "https://shop.test/"); !slices.Equal(got, want) {
+	if got := magentoSQL("shop", "", "https://shop.test/", "opensearch", "shop"); !slices.Equal(got, want) {
 		t.Errorf("got\n%s", strings.Join(got, "\n"))
 	}
-	if got := magentoSQL("shop", "m2_", "https://shop.test/"); !strings.Contains(got[0], "`shop`.`m2_core_config_data`") {
+	if got := magentoSQL("shop", "m2_", "https://shop.test/", "opensearch", "shop"); !strings.Contains(got[0], "`shop`.`m2_core_config_data`") {
 		t.Errorf("prefix: %s", got[0])
+	}
+	if got := magentoSQL("shop", "", "https://shop.test/", "elasticsearch8", "shop"); !strings.Contains(got[len(got)-1], "'catalog/search/elasticsearch8_server_hostname','opensearch'") {
+		t.Errorf("elasticsearch8: %s", got[len(got)-1])
+	}
+	if got := magentoSQL("shop", "", "https://shop.test/", "", "shop"); len(got) != 5 {
+		t.Errorf("no engine must leave search alone: %q", got)
 	}
 }
 
-// stubMagento answers the prefix read with prefix and records SQL and web-container commands.
-func stubMagento(t *testing.T, webUp bool, prefix string) (sql, web *[]string) {
+// stubMagento answers the prefix read with prefix, the search engine read with engine, and records SQL and web-container commands.
+func stubMagento(t *testing.T, webUp bool, prefix, engine string) (sql, web *[]string) {
 	t.Helper()
 	oldOut, oldRun, oldUp, oldReady := dockerOutput, dockerRun, containerRunning, userReady
 	t.Cleanup(func() { dockerOutput, dockerRun, containerRunning, userReady = oldOut, oldRun, oldUp, oldReady })
@@ -37,8 +48,10 @@ func stubMagento(t *testing.T, webUp bool, prefix string) (sql, web *[]string) {
 			w = append(w, a[len(a)-1])
 			return prefix, nil
 		}
-		if i := slices.Index(a, "-e"); i >= 0 && strings.HasPrefix(a[len(a)-1], "UPDATE") || strings.HasPrefix(a[len(a)-1], "DELETE") {
-			s = append(s, a[len(a)-1])
+		if q := a[len(a)-1]; strings.HasPrefix(q, "SELECT") {
+			return engine, nil
+		} else if strings.HasPrefix(q, "UPDATE") || strings.HasPrefix(q, "DELETE") || strings.HasPrefix(q, "INSERT") {
+			s = append(s, q)
 		}
 		return "", nil
 	}
@@ -51,19 +64,19 @@ func magentoProject() *config.Project {
 }
 
 func TestMagentoAfterImport(t *testing.T) {
-	sql, web := stubMagento(t, true, "m2_")
+	sql, web := stubMagento(t, true, "m2_", "")
 	if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(*sql) != 3 || !strings.Contains((*sql)[0], "`m2_core_config_data`") {
+	if len(*sql) != 7 || !strings.Contains((*sql)[0], "`m2_core_config_data`") {
 		t.Errorf("sql %q", *sql)
 	}
 	wantPHP := `$e = include "app/etc/env.php"; echo $e["db"]["table_prefix"] ?? "";`
 	if len(*web) != 2 || (*web)[0] != wantPHP || (*web)[1] != "php bin/magento cache:flush" {
 		t.Errorf("web %q", *web)
 	}
-	sql, web = stubMagento(t, false, "ignored")
-	if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil || len(*sql) != 3 || len(*web) != 0 {
+	sql, web = stubMagento(t, false, "ignored", "")
+	if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil || len(*sql) != 7 || len(*web) != 0 {
 		t.Errorf("web down: sql %q web %q %v", *sql, *web, err)
 	}
 	if !strings.Contains((*sql)[0], "`shop`.`core_config_data`") {
@@ -71,8 +84,24 @@ func TestMagentoAfterImport(t *testing.T) {
 	}
 }
 
+func TestMagentoSearchEngine(t *testing.T) {
+	for engine, want := range map[string]string{"elasticsearch7": "elasticsearch7_server_hostname", "NULL": "opensearch_server_hostname"} {
+		sql, _ := stubMagento(t, true, "", engine)
+		if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil || len(*sql) != 7 || !strings.Contains((*sql)[6], want) {
+			t.Errorf("%s: %v, sql %q", engine, err, *sql)
+		}
+	}
+	sql, _ := stubMagento(t, true, "", "elasticsuite")
+	o, _, restore := ui.Capture(false)
+	defer restore()
+	if err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"}); err != nil || len(*sql) != 5 {
+		t.Errorf("elasticsuite: %v, sql %q", err, *sql)
+	}
+	mustContain(t, o.String(), `Magento: search engine "elasticsuite": set its host yourself`)
+}
+
 func TestMagentoPrefixRejected(t *testing.T) {
-	sql, _ := stubMagento(t, true, "a;DROP")
+	sql, _ := stubMagento(t, true, "a;DROP", "")
 	err := magentoAfterImport(magentoProject(), dbTarget{"mysql", "shop"})
 	if err == nil || err.Error() != `Magento: table prefix "a;DROP" is not valid` || len(*sql) != 0 {
 		t.Errorf("%v, sql %q", err, *sql)
@@ -86,7 +115,7 @@ func TestDBImportMagento(t *testing.T) {
 	run := func(conf string, args ...string) []string {
 		writeShop(t, root, conf)
 		stubDBStream(t, "")
-		sql, web := stubMagento(t, true, "")
+		sql, web := stubMagento(t, true, "", "")
 		if _, _, err := runConfig(t, newDBImportCmd, append([]string{"-f", f}, args...)...); err != nil {
 			t.Fatal(err)
 		}

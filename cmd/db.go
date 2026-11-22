@@ -321,7 +321,7 @@ func newDBImportCmd() *cobra.Command {
 			return runHooks(p, "post-db-import")
 		})
 	c.Flags().Bool("no-hooks", false, "do not run the post-db-import hooks")
-	c.Flags().Bool("no-magento", false, "Magento: keep the dump's base URLs and cookie domain")
+	c.Flags().Bool("no-magento", false, "Magento: keep the dump's base URLs, cookie domain, mail and search settings")
 	_ = c.MarkFlagFilename("file", "sql", "gz", "archive")
 	return c
 }
