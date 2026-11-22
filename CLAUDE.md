@@ -5,6 +5,10 @@ redis, mailpit...) plus one `lodev-<name>-web` container per project. `docs/cont
 site, one page per topic) is the user manual and the spec of record for behaviour (config keys,
 hooks, services, every command); `README.md` is only the landing page. `make help` lists build targets.
 
+The docs site is https://lodev.namhoainguyen.com/: Cloudflare Workers Builds (Worker `lodev-docs`, root
+`docs`) builds and deploys it on every push to `main`, so merging a docs change publishes it. The GitHub
+workflow `docs.yml` only checks the build; setup is in `docs/contents/contributing/docs-site.md`.
+
 ## Verify
 
 - `go vet ./... && go test ./...` is the gate (CI runs the same plus `make packages`).
