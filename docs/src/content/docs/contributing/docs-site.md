@@ -18,7 +18,7 @@ they work on GitHub and are rewritten to site URLs at build time.
 
 ## Deploy
 
-Cloudflare Workers Builds builds the site on every push to `main` and serves `docs/dist/` as a
+Cloudflare Workers Builds builds the site on every push to `main` that changes `docs/`, and serves `docs/dist/` as a
 Worker's static assets, on `lodev.namhoainguyen.com` (`docs/wrangler.jsonc`). One-time setup in the
 Cloudflare dashboard, under Workers & Pages → Create → Import a repository:
 
@@ -29,6 +29,7 @@ Cloudflare dashboard, under Workers & Pages → Create → Import a repository:
 | Root directory | `docs` |
 | Build command | `pnpm install --frozen-lockfile && pnpm run build` |
 | Deploy command | `npx wrangler deploy` |
+| Build watch paths | Include `docs/*` (relative to the repository root; other pushes are skipped) |
 
 The first deploy creates the custom domain and its DNS record, because the zone is on Cloudflare.
 The Node version comes from `docs/.node-version`. The GitHub workflow `docs.yml` only checks that the
